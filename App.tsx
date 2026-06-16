@@ -5,7 +5,9 @@ import { NavigationContainer } from '@react-navigation/native';
 import {
   useFonts,
   Inter_400Regular,
+  Inter_500Medium,
   Inter_600SemiBold,
+  Inter_700Bold,
 } from '@expo-google-fonts/inter';
 import { StatusBar } from 'expo-status-bar';
 
@@ -19,7 +21,9 @@ export default function App() {
 
   const [fontsLoaded] = useFonts({
     Inter_400Regular,
+    Inter_500Medium,
     Inter_600SemiBold,
+    Inter_700Bold,
   });
 
   useEffect(() => {
@@ -35,7 +39,7 @@ export default function App() {
   if (!fontsLoaded || !dbReady) {
     return (
       <View style={{ flex: 1, backgroundColor: Colors.background, alignItems: 'center', justifyContent: 'center' }}>
-        <ActivityIndicator color={Colors.accent} />
+        <ActivityIndicator color={Colors.primary} />
       </View>
     );
   }
