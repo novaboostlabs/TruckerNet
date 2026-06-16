@@ -3,16 +3,16 @@
 // ─────────────────────────────────────────────────────────────
 
 export const Colors = {
-  // Backgrounds — increased contrast between levels
+  // Backgrounds — strong contrast between levels
   background:     '#080808',   // true near-black
-  surface:        '#161616',   // cards — noticeably lighter than bg
-  surfaceHigh:    '#1E1E1E',   // inputs, elevated elements
-  surfacePress:   '#252525',   // pressed state
+  surface:        '#222222',   // cards — clearly distinct from background
+  surfaceHigh:    '#2C2C2C',   // inputs, elevated elements
+  surfacePress:   '#333333',   // pressed state
 
-  // Borders — more visible
-  borderSubtle:   '#202020',   // faint separators
-  border:         '#2E2E2E',   // standard card borders (was #242424)
-  borderStrong:   '#3E3E3E',   // focused inputs, active chips
+  // Borders — prominent and clearly visible
+  borderSubtle:   '#2A2A2A',   // faint separators
+  border:         '#3C3C3C',   // standard card borders
+  borderStrong:   '#505050',   // focused inputs, active chips
 
   // Text — secondary brightened ~25%
   textPrimary:    '#F0EDE8',   // warm white
