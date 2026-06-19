@@ -92,7 +92,10 @@ export default function AddressAutocomplete({
       {showList && (
         <View style={styles.dropdown}>
           {suggestions.map((s) => (
-            <TouchableOpacity key={s.id} style={styles.option} onPress={() => pick(s)} activeOpacity={0.7}>
+            // onPressIn (touch-down) so the pick registers on the first tap even
+            // while the keyboard is dismissing — onPress would be cancelled by
+            // the layout shift, forcing a second tap.
+            <TouchableOpacity key={s.id} style={styles.option} onPressIn={() => pick(s)} activeOpacity={0.7}>
               <Ionicons name="location-outline" size={16} color={Colors.textSecondary} style={styles.optionIcon} />
               <Text style={styles.optionText} numberOfLines={2}>{s.label}</Text>
             </TouchableOpacity>
