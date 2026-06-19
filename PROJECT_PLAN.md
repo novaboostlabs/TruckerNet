@@ -225,6 +225,16 @@ Dashboard has nothing real to show until loads can be created. Recommended path:
 
 ## 6. Work Log (newest first)
 
+### 2026-06-19 — Route caching + dropdown-close fix
+- `getRouteMiles` now caches resolved distances in a module-level Map keyed by
+  rounded endpoint coords (`routeKey`). Same pickup+delivery lane hits the
+  Mapbox Directions API only once per app session. Only successful results are
+  cached, so failures/aborts retry cleanly. (In-memory only — persistence across
+  app restarts is a possible later upgrade.)
+- AddressAutocomplete: dropdown now closes deterministically on selection — gated
+  on the field still matching the picked address (`selectedText` ref) instead of
+  a race-prone skip-next flag.
+
 ### 2026-06-19 — Check Load: Mapbox address autocomplete + auto-mileage
 - Provider decision: **Mapbox** (user picked it). One public token does both
   geocoding autocomplete and routing; pure REST so it stays Expo Go compatible.

@@ -62,10 +62,21 @@ export async function searchAddress(
     .filter((s: AddressSuggestion) => !!s.label && s.lng != null && s.lat != null);
 }
 
+// In-memory cache of resolved route distances, keyed by rounded endpoint
+// coordinates. The same pickup+delivery lane is billed by Mapbox only once per
+// app session. Only successful numeric results are stored, so failures/aborts
+// retry cleanly. ~5 decimals ≈ 1m precision, enough to collapse identical picks.
+const routeCache = new Map<string, number>();
+
+function routeKey(from: AddressSuggestion, to: AddressSuggestion): string {
+  const r = (n: number) => n.toFixed(5);
+  return `${r(from.lng)},${r(from.lat)}->${r(to.lng)},${r(to.lat)}`;
+}
+
 /**
  * Driving distance in miles between two geocoded points. Uses the standard
  * driving profile (Mapbox truck routing is enterprise-only) — accurate enough
- * for a pay-per-mile estimate.
+ * for a pay-per-mile estimate. Results are cached per lane to avoid re-billing.
  */
 export async function getRouteMiles(
   from: AddressSuggestion,
@@ -73,6 +84,10 @@ export async function getRouteMiles(
   signal?: AbortSignal
 ): Promise<number> {
   if (!isMapboxConfigured()) throw new Error('Mapbox token missing');
+
+  const key = routeKey(from, to);
+  const cached = routeCache.get(key);
+  if (cached != null) return cached;
 
   const coords = `${from.lng},${from.lat};${to.lng},${to.lat}`;
   const params = new URLSearchParams({
@@ -86,5 +101,8 @@ export async function getRouteMiles(
 
   const meters = data.routes?.[0]?.distance;
   if (meters == null) throw new Error('No route found');
-  return meters / METERS_PER_MILE;
+
+  const miles = meters / METERS_PER_MILE;
+  routeCache.set(key, miles);
+  return miles;
 }
