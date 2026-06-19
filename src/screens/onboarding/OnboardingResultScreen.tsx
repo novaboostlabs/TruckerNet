@@ -4,7 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, FontFamily, FontSize, Spacing, Radius, SectionLabel } from '../../theme/theme';
-import { calcBreakEven, getSetting, setSetting } from '../../db/database';
+import { calcBreakEven, getSetting } from '../../db/database';
 
 interface Props { onComplete: () => void; }
 
@@ -35,8 +35,7 @@ export default function OnboardingResultScreen({ onComplete }: Props) {
   }, []);
 
   function handleStart() {
-    setSetting('onboarding_completed', 'true');
-    onComplete();
+    onComplete(); // RootNavigator handles setting 'onboarding_completed'
   }
 
   const rpm = result.breakEvenRPM;
