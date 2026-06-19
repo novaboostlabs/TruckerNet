@@ -163,8 +163,8 @@ Everything connects:
 | 3 | Onboarding flow (4 screens) | ✅ Done | Fuel, Expenses, Miles, Result. Expenses screen redesigned (essentials + dynamic Other) — see Work Log 2026-06-19 |
 | 4 | Fuel Entry form with odometer | ✅ Done | `FuelEntryScreen.tsx` (OCR receipt scan = later phase) |
 | 5 | Live Dashboard (real DB data) | ◐ Partial | UI built but still on `DEMO` placeholder data — **not wired to DB yet** |
-| 6 | Check Load modal with backhaul | ◐ Built (manual miles) | `CheckLoadScreen.tsx` opens from the Dashboard CTA; live verdict + net pay + rate/mi vs break-even + fair-market range + backhaul reframe. Pending: OSRM auto-mileage from addresses, and "Accept & Log" → Add Load |
-| 7 | Add Load screen (OSRM + Turf.js) | ✗ Not started | i18n keys (`addLoad.*`) exist; **no screen, no OSRM/Turf/Nominatim installed** |
+| 6 | Check Load modal with backhaul | ✅ Done | `CheckLoadScreen.tsx` opens from the Dashboard CTA; live verdict + net pay + rate/mi vs break-even + fair-market range + backhaul reframe. **Mapbox address autocomplete + auto-mileage wired** (see below). Pending: per-state mileage breakdown, and "Accept & Log" → Add Load |
+| 7 | Add Load screen (Mapbox routing) | ✗ Not started | i18n keys (`addLoad.*`) exist; **no screen yet**. Reuse `lib/mapbox.ts` (`searchAddress`/`getRouteMiles`) + `components/AddressAutocomplete.tsx`. Per-state split (Turf.js over Mapbox route geometry) still to build |
 | 8 | History from real DB | ◐ Partial | `HistoryScreen.tsx` exists; verify it reads real loads |
 | 9 | IFTA from real DB + exports | ◐ Partial | `IFTAScreen.tsx` UI exists, **not wired**; no CSV/PDF/share exports |
 
@@ -186,6 +186,16 @@ calibration = future.
 - SQLite schema: `settings`, `user_expenses`, `fuel_entries`, `loads`,
   `state_mileage` (+ legacy `fixed_expenses`).
 
+- **Check Load** (Flow 2) — `CheckLoadScreen.tsx`, opens from the Dashboard CTA.
+  Load-type dropdown, pickup/delivery **address autocomplete + auto-mileage via
+  Mapbox**, route caching, per-account onboarding gating. Routing/geocoding live
+  in `lib/mapbox.ts`; reusable `components/AddressAutocomplete.tsx`.
+
+**Provider / config notes:**
+- **Mapbox** is the chosen geocoding + routing provider (REST, Expo Go safe).
+  Needs `EXPO_PUBLIC_MAPBOX_TOKEN` (pk. token) in `.env` — see `.env.example`.
+  Public tokens include Directions by default (no extra scope).
+
 **Built UI but NOT wired to the database:**
 - **Dashboard** — uses a hardcoded `DEMO` object. Needs real queries:
   break-even (`calcBreakEven`), week/month net & gross from `loads`, recent
@@ -193,9 +203,11 @@ calibration = future.
 - **IFTA** — static UI, no aggregation from `loads`/`fuel_entries`.
 
 **Not started:**
-- **Check Load** screen/modal (Flow 2).
-- **Add Load** screen (Flow 3) + routing stack (OSRM, Nominatim, Turf.js).
-  There is currently **no entry point to add a load** in the tab navigator.
+- **Add Load** screen (Flow 3). Reuse the Mapbox helpers above; add per-state
+  mileage split. There is currently **no entry point to add a load** in the tab
+  navigator.
+- **Per-state mileage breakdown** (Turf.js over Mapbox route geometry) — needed
+  for IFTA; not built.
 - IFTA exports (CSV/PDF/share).
 - Receipt OCR.
 
@@ -206,20 +218,18 @@ calibration = future.
 The documented build order lists Dashboard (#5) before Add Load (#7), but a live
 Dashboard has nothing real to show until loads can be created. Recommended path:
 
-1. **Add Load screen (Flow 3)** — the core missing flow. Install OSRM/Nominatim
-   helpers + Turf.js, build the form (address-first), compute miles + per-state
-   breakdown, net pay live, fair-market total, save to `loads` + `state_mileage`.
-   Add an entry point (e.g. a center "+" action) in the navigator.
-2. **Wire the Dashboard (Flow 5)** to real DB data — replace `DEMO` with live
+1. **Add Load screen (Flow 3)** — the core missing flow. Reuse `lib/mapbox.ts`
+   (`searchAddress`/`getRouteMiles`) + `AddressAutocomplete`. Build the form
+   (address-first), compute miles + **per-state breakdown** (Turf.js over the
+   Mapbox route geometry), net pay live, fair-market total, save to `loads` +
+   `state_mileage`. Add an entry point (e.g. a center "+" action) in the navigator.
+2. **Per-state mileage breakdown** — pairs with Add Load and unblocks IFTA.
+3. **Wire "Accept & Log This Load"** in Check Load → prefill + open Add Load.
+4. **Wire the Dashboard (Flow 5)** to real DB data — replace `DEMO` with live
    break-even, week/month P&L, recent loads, active-load card.
-3. **Check Load modal (Flow 2)** with backhaul + P&L context banner.
-4. **History (Flow 8)** from real `loads`.
-5. **IFTA (Flow 9)** aggregation + CSV/PDF/share exports.
-6. Later phases: receipt OCR, push notifications, paywall, analytics.
-
-> Open question to confirm before starting Add Load: routing provider details
-> (public OSRM demo server vs. self-hosted) and how aggressively to require full
-> addresses vs. allow city+state fallback.
+5. **History (Flow 8)** from real `loads`.
+6. **IFTA (Flow 9)** aggregation + CSV/PDF/share exports.
+7. Later phases: receipt OCR, push notifications, paywall, analytics.
 
 ---
 
