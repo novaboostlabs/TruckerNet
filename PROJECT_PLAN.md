@@ -9,6 +9,12 @@
 > entry to the **Work Log** at the bottom (newest first) and update the
 > **Build Order Status** table. Keep statuses honest: ✅ done, ◐ partial,
 > ✗ not started.
+>
+> **⚙️ Branch workflow (IMPORTANT):** Development happens on
+> `claude/truckernet-project-files-khoqlv`, but the user's Expo app builds from
+> **`main`**. After each chunk of work, **fast-forward `main` to the feature
+> branch and push `main`** so the user's build always reflects the latest.
+> (Decided 2026-06-19 after changes weren't appearing because `main` was stale.)
 
 _Last updated: 2026-06-19 — PRD/North Star wired into AGENTS.md_
 
