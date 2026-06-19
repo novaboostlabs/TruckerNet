@@ -40,7 +40,8 @@ export default function CheckLoadScreen({ onClose, onLogLoad }: Props) {
   const [delivery, setDelivery] = useState('');
   const [pickupSel, setPickupSel]     = useState<AddressSuggestion | null>(null);
   const [deliverySel, setDeliverySel] = useState<AddressSuggestion | null>(null);
-  const [routing, setRouting]   = useState(false);
+  const [routing, setRouting]     = useState(false);
+  const [routeError, setRouteError] = useState(false);
   const [loadType, setLoadType] = useState<LoadType>('dry_van');
   const [typeOpen, setTypeOpen] = useState(false);
   const [backhaul, setBackhaul] = useState(false);
@@ -51,13 +52,18 @@ export default function CheckLoadScreen({ onClose, onLogLoad }: Props) {
     const ctrl = new AbortController();
     let cancelled = false;
     setRouting(true);
+    setRouteError(false);
     getRouteMiles(pickupSel, deliverySel, ctrl.signal)
       .then((mi) => {
         if (cancelled) return;
         setMiles(String(Math.round(mi)));
         setMilesAuto(true);
       })
-      .catch(() => { /* keep manual entry available on failure */ })
+      .catch((err) => {
+        if (cancelled || err?.name === 'AbortError') return;
+        console.error('[TruckerNet] Route calculation failed:', err?.message ?? err);
+        setRouteError(true);
+      })
       .finally(() => { if (!cancelled) setRouting(false); });
     return () => { cancelled = true; ctrl.abort(); };
   }, [pickupSel, deliverySel]);
@@ -186,6 +192,12 @@ export default function CheckLoadScreen({ onClose, onLogLoad }: Props) {
             />
             <Text style={styles.inputSuffix}>mi</Text>
           </View>
+          {routeError && (
+            <View style={styles.routeErrorRow}>
+              <Ionicons name="warning-outline" size={14} color={Colors.secondary} />
+              <Text style={styles.routeErrorText}>Couldn't auto-calculate — enter miles manually above.</Text>
+            </View>
+          )}
 
           {/* Load type */}
           <Text style={[styles.fieldLabel, { marginTop: 18 }]}>{t('checkLoad.loadType')}</Text>
@@ -368,6 +380,9 @@ const styles = StyleSheet.create({
   },
   milesBadge:     { flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 10 },
   milesBadgeText: { fontFamily: FontFamily.medium, fontSize: FontSize.caption, color: Colors.textSecondary },
+
+  routeErrorRow:  { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 8 },
+  routeErrorText: { fontFamily: FontFamily.regular, fontSize: FontSize.caption, color: Colors.secondary, flex: 1 },
 
   dropdown: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
