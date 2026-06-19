@@ -15,11 +15,11 @@ import { Colors, FontFamily, FontSize, Spacing, Radius } from '../../theme/theme
 WebBrowser.maybeCompleteAuthSession();
 
 interface Props {
-  navigation: any;
-  onGuestMode: () => Promise<void>;
+  onGoToSignUp: () => void;
+  onGuestMode:  () => Promise<void>;
 }
 
-export default function SignInScreen({ navigation, onGuestMode }: Props) {
+export default function SignInScreen({ onGoToSignUp, onGuestMode }: Props) {
   const { signIn } = useAuth();
 
   const [email,    setEmail]    = useState('');
@@ -216,7 +216,7 @@ export default function SignInScreen({ navigation, onGuestMode }: Props) {
           </TouchableOpacity>
 
           {/* Switch to sign up */}
-          <TouchableOpacity style={styles.switchRow} onPress={() => navigation.navigate('SignUp')}>
+          <TouchableOpacity style={styles.switchRow} onPress={onGoToSignUp}>
             <Text style={styles.switchText}>No account? </Text>
             <Text style={styles.switchLink}>Create one</Text>
           </TouchableOpacity>

@@ -15,11 +15,11 @@ import { Colors, FontFamily, FontSize, Spacing, Radius } from '../../theme/theme
 WebBrowser.maybeCompleteAuthSession();
 
 interface Props {
-  navigation: any;
-  onGuestMode: () => Promise<void>;
+  onGoToSignIn: () => void;
+  onGuestMode:  () => Promise<void>;
 }
 
-export default function SignUpScreen({ navigation, onGuestMode }: Props) {
+export default function SignUpScreen({ onGoToSignIn, onGuestMode }: Props) {
   const { signUp } = useAuth();
 
   const [email,    setEmail]    = useState('');
@@ -104,7 +104,7 @@ export default function SignUpScreen({ navigation, onGuestMode }: Props) {
             <Text style={styles.successEmail}>{email}</Text>
           </Text>
           <Text style={styles.successNote}>Click the link to activate your account, then sign in.</Text>
-          <TouchableOpacity style={styles.button} onPress={() => navigation.navigate('SignIn')} activeOpacity={0.85}>
+          <TouchableOpacity style={styles.button} onPress={onGoToSignIn} activeOpacity={0.85}>
             <Text style={styles.buttonText}>Back to Sign In</Text>
           </TouchableOpacity>
         </View>
@@ -198,7 +198,7 @@ export default function SignUpScreen({ navigation, onGuestMode }: Props) {
             }
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.switchRow} onPress={() => navigation.navigate('SignIn')}>
+          <TouchableOpacity style={styles.switchRow} onPress={onGoToSignIn}>
             <Text style={styles.switchText}>Already have an account? </Text>
             <Text style={styles.switchLink}>Sign In</Text>
           </TouchableOpacity>

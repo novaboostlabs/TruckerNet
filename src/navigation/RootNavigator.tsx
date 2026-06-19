@@ -11,81 +11,90 @@ import OnboardingFuelScreen from '../screens/onboarding/OnboardingFuelScreen';
 import OnboardingExpensesScreen from '../screens/onboarding/OnboardingExpensesScreen';
 import OnboardingMilesScreen from '../screens/onboarding/OnboardingMilesScreen';
 import OnboardingResultScreen from '../screens/onboarding/OnboardingResultScreen';
-import { getSavedLanguage, SupportedLanguage } from '../lib/i18n';
+import { getSavedLanguage } from '../lib/i18n';
 import { getSetting, setSetting } from '../db/database';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const Stack = createNativeStackNavigator();
-
-// ── Guest mode key ──
 const GUEST_KEY = '@truckernet_guest_mode';
 
-type Step = 'loading' | 'language' | 'auth' | 'onboarding_fuel' | 'onboarding_expenses' | 'onboarding_miles' | 'onboarding_result' | 'app';
+// All possible app states — only moves forward, never backward (except sign-out)
+type Step =
+  | 'loading'
+  | 'language'
+  | 'signin'
+  | 'signup'
+  | 'onboarding_fuel'
+  | 'onboarding_expenses'
+  | 'onboarding_miles'
+  | 'onboarding_result'
+  | 'app';
 
 export default function RootNavigator() {
   const { session, loading: authLoading } = useAuth();
   const [step, setStep] = useState<Step>('loading');
-  // Track whether we've done the initial determination so session changes
-  // don't restart the whole flow
-  const initialized = useRef(false);
+  const initialized     = useRef(false);
 
-  // ── Run ONCE when auth finishes loading ──
+  // ── Determine starting point ONCE when auth finishes loading ──
   useEffect(() => {
-    if (authLoading) return;
-    if (initialized.current) return;
+    if (authLoading)           return;
+    if (initialized.current)   return;
     initialized.current = true;
 
     async function init() {
-      // 1. Language selected?
+      // 1. Has the user selected a language?
       const lang = await getSavedLanguage();
       if (!lang) { setStep('language'); return; }
 
       // 2. Guest mode or signed in?
-      const guestMode = await AsyncStorage.getItem(GUEST_KEY);
-      const isAuthed  = !!session || guestMode === 'true';
-      if (!isAuthed) { setStep('auth'); return; }
+      const guest   = await AsyncStorage.getItem(GUEST_KEY);
+      const isAuthed = !!session || guest === 'true';
+      if (!isAuthed) { setStep('signin'); return; }
 
-      // 3. Onboarding done?
+      // 3. Has the user completed onboarding?
       const onboarded = getSetting('onboarding_completed');
       if (!onboarded) { setStep('onboarding_fuel'); return; }
 
-      // All clear
       setStep('app');
     }
 
     init();
-  }, [authLoading]);  // eslint-disable-line react-hooks/exhaustive-deps
+  }, [authLoading]); // eslint-disable-line
 
-  // ── When user signs in — advance from auth only ──
+  // ── Advance to app when user signs in ──
   useEffect(() => {
     if (!initialized.current) return;
-    if (step !== 'auth') return;
+    if (step !== 'signin' && step !== 'signup') return;
     if (!session) return;
 
     const onboarded = getSetting('onboarding_completed');
     setStep(onboarded ? 'app' : 'onboarding_fuel');
-  }, [session]);  // eslint-disable-line react-hooks/exhaustive-deps
+  }, [session]); // eslint-disable-line
 
-  // ── When user signs out — go back to auth ──
+  // ── Return to sign-in when session ends ──
   useEffect(() => {
     if (!initialized.current) return;
     if (step !== 'app') return;
-    if (session) return;
+    if (session || authLoading) return;
 
-    // Check if guest mode is still active
     AsyncStorage.getItem(GUEST_KEY).then((guest) => {
-      if (guest !== 'true') setStep('auth');
+      if (guest !== 'true') setStep('signin');
     });
-  }, [session]);  // eslint-disable-line react-hooks/exhaustive-deps
+  }, [session, authLoading]); // eslint-disable-line
 
-  // ── Guest mode helper ──
+  // ── Guest mode: skip auth entirely ──
   async function enterGuestMode() {
-    await AsyncStorage.setItem(GUEST_KEY, 'true');
-    const onboarded = getSetting('onboarding_completed');
-    setStep(onboarded ? 'app' : 'onboarding_fuel');
+    try {
+      await AsyncStorage.setItem(GUEST_KEY, 'true');
+      const onboarded = getSetting('onboarding_completed');
+      setStep(onboarded ? 'app' : 'onboarding_fuel');
+    } catch (e) {
+      console.error('Guest mode error:', e);
+    }
   }
 
-  // ── Loading ──
+  // ── Render based on step ──
+
   if (step === 'loading') {
     return (
       <View style={{ flex: 1, backgroundColor: Colors.background, alignItems: 'center', justifyContent: 'center' }}>
@@ -94,21 +103,40 @@ export default function RootNavigator() {
     );
   }
 
-  // ── Language picker ──
   if (step === 'language') {
-    return <LanguagePickerScreen onLanguageSelected={() => setStep('auth')} />;
+    return <LanguagePickerScreen onLanguageSelected={() => setStep('signin')} />;
   }
 
-  // ── Onboarding flow ──
+  if (step === 'signin') {
+    return (
+      <SignInScreen
+        onGoToSignUp={() => setStep('signup')}
+        onGuestMode={enterGuestMode}
+      />
+    );
+  }
+
+  if (step === 'signup') {
+    return (
+      <SignUpScreen
+        onGoToSignIn={() => setStep('signin')}
+        onGuestMode={enterGuestMode}
+      />
+    );
+  }
+
   if (step === 'onboarding_fuel') {
     return <OnboardingFuelScreen onNext={() => setStep('onboarding_expenses')} />;
   }
+
   if (step === 'onboarding_expenses') {
     return <OnboardingExpensesScreen onNext={() => setStep('onboarding_miles')} />;
   }
+
   if (step === 'onboarding_miles') {
     return <OnboardingMilesScreen onNext={() => setStep('onboarding_result')} />;
   }
+
   if (step === 'onboarding_result') {
     return (
       <OnboardingResultScreen
@@ -120,20 +148,10 @@ export default function RootNavigator() {
     );
   }
 
-  // ── Main app ──
-  if (step === 'app') {
-    return (
-      <Stack.Navigator screenOptions={{ headerShown: false, animation: 'fade' }}>
-        <Stack.Screen name="Main" component={TabNavigator} />
-      </Stack.Navigator>
-    );
-  }
-
-  // ── Auth ──
+  // step === 'app'
   return (
     <Stack.Navigator screenOptions={{ headerShown: false, animation: 'fade' }}>
-      <Stack.Screen name="SignIn"  children={(props) => <SignInScreen  {...props} onGuestMode={enterGuestMode} />} />
-      <Stack.Screen name="SignUp"  children={(props) => <SignUpScreen  {...props} onGuestMode={enterGuestMode} />} />
+      <Stack.Screen name="Main" component={TabNavigator} />
     </Stack.Navigator>
   );
 }
