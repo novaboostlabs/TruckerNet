@@ -1,5 +1,6 @@
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Modal } from 'react-native';
+import FuelEntryScreen from './FuelEntryScreen';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, FontFamily, FontSize, Spacing, Radius, SectionLabel } from '../theme/theme';
@@ -15,8 +16,16 @@ const DEMO_ENTRIES = [
 const CURRENT_CPM = 0.412;
 
 export default function FuelScreen() {
+  const [showEntry, setShowEntry] = useState(false);
+
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
+      <Modal visible={showEntry} animationType="slide" presentationStyle="pageSheet">
+        <FuelEntryScreen
+          onSaved={() => setShowEntry(false)}
+          onCancel={() => setShowEntry(false)}
+        />
+      </Modal>
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
 
         {/* Header */}
@@ -25,7 +34,7 @@ export default function FuelScreen() {
             <Text style={styles.eyebrow}>TRACKING</Text>
             <Text style={styles.title}>Fuel</Text>
           </View>
-          <TouchableOpacity style={styles.addBtn} activeOpacity={0.8}>
+          <TouchableOpacity style={styles.addBtn} activeOpacity={0.8} onPress={() => setShowEntry(true)}>
             <Ionicons name="add" size={16} color={Colors.primary} />
             <Text style={styles.addBtnText}>Log Fill-up</Text>
           </TouchableOpacity>

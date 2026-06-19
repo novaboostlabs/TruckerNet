@@ -1,0 +1,178 @@
+{
+  "language": {
+    "select": "ਆਪਣੀ ਭਾਸ਼ਾ ਚੁਣੋ",
+    "subtitle": "ਤੁਸੀਂ ਇਸਨੂੰ ਸੈਟਿੰਗਾਂ ਵਿੱਚ ਕਿਸੇ ਵੀ ਸਮੇਂ ਬਦਲ ਸਕਦੇ ਹੋ",
+    "en": "ਅੰਗਰੇਜ਼ੀ",
+    "es": "ਸਪੈਨਿਸ਼",
+    "pa": "ਪੰਜਾਬੀ",
+    "zh": "ਚੀਨੀ"
+  },
+  "common": {
+    "save": "ਸੁਰੱਖਿਅਤ ਕਰੋ",
+    "cancel": "ਰੱਦ ਕਰੋ",
+    "next": "ਅਗਲਾ",
+    "back": "ਵਾਪਸ",
+    "skip": "ਛੱਡੋ",
+    "done": "ਹੋ ਗਿਆ",
+    "edit": "ਸੰਪਾਦਿਤ ਕਰੋ",
+    "delete": "ਮਿਟਾਓ",
+    "add": "ਜੋੜੋ",
+    "close": "ਬੰਦ ਕਰੋ",
+    "confirm": "ਪੁਸ਼ਟੀ ਕਰੋ",
+    "loading": "ਲੋਡ ਹੋ ਰਿਹਾ ਹੈ...",
+    "seeAll": "ਸਭ ਵੇਖੋ",
+    "perMile": "ਪ੍ਰਤੀ ਮੀਲ",
+    "perMonth": "ਪ੍ਰਤੀ ਮਹੀਨਾ",
+    "miles": "ਮੀਲ",
+    "gallons": "ਗੈਲਨ",
+    "gross": "ਕੁੱਲ"
+  },
+  "auth": {
+    "welcomeBack": "ਵਾਪਸ ਸੁਆਗਤ ਹੈ।",
+    "signInSubtitle": "ਜਾਰੀ ਰੱਖਣ ਲਈ ਸਾਈਨ ਇਨ ਕਰੋ।",
+    "createAccount": "ਖਾਤਾ ਬਣਾਓ।",
+    "signUpSubtitle": "ਅੱਜ ਆਪਣੀ ਅਸਲ ਕਮਾਈ ਟਰੈਕ ਕਰਨਾ ਸ਼ੁਰੂ ਕਰੋ।",
+    "email": "ਈਮੇਲ",
+    "password": "ਪਾਸਵਰਡ",
+    "signIn": "ਸਾਈਨ ਇਨ",
+    "signUp": "ਖਾਤਾ ਬਣਾਓ",
+    "noAccount": "ਖਾਤਾ ਨਹੀਂ ਹੈ?",
+    "createOne": "ਬਣਾਓ",
+    "haveAccount": "ਪਹਿਲਾਂ ਤੋਂ ਖਾਤਾ ਹੈ?",
+    "emailPlaceholder": "ਤੁਹਾਡੀ@ਈਮੇਲ.com",
+    "passwordPlaceholder": "••••••••",
+    "checkEmail": "ਆਪਣੀ ਈਮੇਲ ਚੈੱਕ ਕਰੋ",
+    "confirmationSent": "ਅਸੀਂ ਇੱਕ ਲਿੰਕ ਭੇਜਿਆ ਹੈ",
+    "clickToActivate": "ਆਪਣਾ ਖਾਤਾ ਸਰਗਰਮ ਕਰਨ ਲਈ ਲਿੰਕ ਤੇ ਕਲਿੱਕ ਕਰੋ।",
+    "backToSignIn": "ਸਾਈਨ ਇਨ ਤੇ ਵਾਪਸ",
+    "errorEmailPassword": "ਕਿਰਪਾ ਕਰਕੇ ਈਮੇਲ ਅਤੇ ਪਾਸਵਰਡ ਦਾਖਲ ਕਰੋ।",
+    "errorEmailRequired": "ਕਿਰਪਾ ਕਰਕੇ ਆਪਣੀ ਈਮੇਲ ਦਾਖਲ ਕਰੋ।",
+    "errorPasswordLength": "ਪਾਸਵਰਡ ਘੱਟੋ-ਘੱਟ 8 ਅੱਖਰਾਂ ਦਾ ਹੋਣਾ ਚਾਹੀਦਾ ਹੈ।"
+  },
+  "onboarding": {
+    "step": "ਕਦਮ {{current}} / {{total}}",
+    "fuel": {
+      "title": "ਹਰ ਹਫ਼ਤੇ ਤੇਲ ਤੇ ਕਿੰਨਾ ਖਰਚ ਕਰਦੇ ਹੋ?",
+      "subtitle": "ਅੰਦਾਜ਼ਾ ਠੀਕ ਹੈ — ਕਿਸੇ ਵੀ ਸਮੇਂ ਅੱਪਡੇਟ ਕਰੋ।",
+      "label": "ਹਫ਼ਤਾਵਾਰ ਤੇਲ ਖਰਚ",
+      "placeholder": "ਜਿਵੇਂ 600",
+      "hint": "ਆਪਣੇ ਪਿਛਲੇ ਕੁਝ ਭਰਾਂ ਬਾਰੇ ਸੋਚੋ"
+    },
+    "expenses": {
+      "title": "ਤੁਹਾਡੇ ਮਹੀਨਾਵਾਰ ਖਰਚੇ ਕੀ ਹਨ?",
+      "subtitle": "ਹਰ ਖਰਚਾ ਜੋੜੋ। ਜ਼ਿਆਦਾ ਸਹੀ = ਬਿਹਤਰ ਨਤੀਜਾ।",
+      "addExpense": "+ ਖਰਚਾ ਜੋੜੋ",
+      "labelPlaceholder": "ਖਰਚੇ ਦਾ ਨਾਮ",
+      "amountPlaceholder": "ਰਕਮ",
+      "frequency": "ਕਿੰਨੀ ਵਾਰ",
+      "frequencies": {
+        "daily": "ਰੋਜ਼ਾਨਾ",
+        "weekly": "ਹਫ਼ਤਾਵਾਰ",
+        "biweekly": "ਹਰ 2 ਹਫ਼ਤੇ",
+        "monthly": "ਮਹੀਨਾਵਾਰ",
+        "quarterly": "ਹਰ 3 ਮਹੀਨੇ",
+        "semiannual": "ਹਰ 6 ਮਹੀਨੇ",
+        "annual": "ਸਾਲਾਨਾ"
+      },
+      "suggestions": {
+        "truckPayment": "ਟਰੱਕ ਦੀ ਕਿਸ਼ਤ",
+        "insurance": "ਬੀਮਾ",
+        "eld": "ELD",
+        "loadBoard": "ਲੋਡ ਬੋਰਡ",
+        "maintenance": "ਮੁਰੰਮਤ ਫੰਡ",
+        "parking": "ਪਾਰਕਿੰਗ"
+      },
+      "emptyHint": "\"+ ਖਰਚਾ ਜੋੜੋ\" ਦਬਾਓ"
+    },
+    "miles": {
+      "title": "ਹਰ ਹਫ਼ਤੇ ਕਿੰਨੇ ਮੀਲ ਚੱਲਦੇ ਹੋ?",
+      "subtitle": "ਅਸੀਂ ਮਹੀਨਾਵਾਰ ਮੀਲ ਗਿਣਾਂਗੇ।",
+      "label": "ਹਫ਼ਤਾਵਾਰ ਮੀਲ",
+      "placeholder": "ਜਿਵੇਂ 2500",
+      "hint": "ਇੱਕ ਆਮ ਹਫ਼ਤੇ ਦਾ ਔਸਤ"
+    },
+    "result": {
+      "title": "ਤੁਹਾਡੀ ਬਰੇਕ-ਈਵਨ ਦਰ",
+      "subtitle": "ਮੁਨਾਫ਼ਾ ਕਮਾਉਣ ਲਈ ਇਸ ਤੋਂ ਵੱਧ ਭੁਗਤਾਨ ਵਾਲੀਆਂ ਲੋਡਾਂ ਸਵੀਕਾਰ ਕਰੋ।",
+      "explanation": "ਇਸ ਤਰ੍ਹਾਂ ਗਿਣਿਆ:",
+      "formula": "({{fuel}} ਤੇਲ + {{fixed}} ਖਰਚੇ) ÷ {{miles}} ਮਹੀਨਾਵਾਰ ਮੀਲ",
+      "startTracking": "ਟਰੈਕਿੰਗ ਸ਼ੁਰੂ ਕਰੋ →",
+      "fuelCPM": "ਤੇਲ CPM",
+      "fixedCPM": "ਸਥਿਰ CPM"
+    }
+  },
+  "dashboard": {
+    "title": "ਡੈਸ਼ਬੋਰਡ",
+    "eyebrow": "ਸੰਖੇਪ",
+    "breakEven": "ਬਰੇਕ-ਈਵਨ ਦਰ",
+    "live": "ਲਾਈਵ",
+    "fuelCPM": "ਤੇਲ CPM",
+    "fixedCPM": "ਸਥਿਰ CPM",
+    "thisWeek": "ਇਸ ਹਫ਼ਤੇ",
+    "thisMonth": "ਇਸ ਮਹੀਨੇ",
+    "netPay": "ਸ਼ੁੱਧ ਆਮਦਨ",
+    "recentLoads": "ਹਾਲੀਆ ਲੋਡ",
+    "checkLoad": "ਲੋਡ ਜਾਂਚੋ — ਕੀ ਇਹ ਯੋਗ ਹੈ?",
+    "noLoads": "ਕੋਈ ਲੋਡ ਨਹੀਂ",
+    "noLoadsHint": "ਆਪਣਾ ਪਹਿਲਾ ਲੋਡ ਲੌਗ ਕਰਨ ਲਈ + ਦਬਾਓ।"
+  },
+  "checkLoad": {
+    "title": "ਲੋਡ ਜਾਂਚੋ",
+    "subtitle": "ਪਤਾ ਕਰੋ ਕਿ ਇਹ ਲੋਡ ਲੈਣਾ ਯੋਗ ਹੈ ਜਾਂ ਨਹੀਂ।",
+    "loadPay": "ਲੋਡ ਭੁਗਤਾਨ",
+    "pickup": "ਚੁੱਕਣ ਦੀ ਥਾਂ",
+    "delivery": "ਡਿਲੀਵਰੀ ਦੀ ਥਾਂ",
+    "addressPlaceholder": "ਪੂਰਾ ਪਤਾ ਜਾਂ ਸ਼ਹਿਰ, ਰਾਜ",
+    "loadType": "ਲੋਡ ਦੀ ਕਿਸਮ",
+    "backhaul": "ਵਾਪਸੀ ਲੋਡ",
+    "checkNow": "ਇਸ ਲੋਡ ਦੀ ਜਾਂਚ ਕਰੋ",
+    "result": {
+      "worthIt": "ਯੋਗ ਹੈ",
+      "notWorthIt": "ਬਰੇਕ-ਈਵਨ ਤੋਂ ਹੇਠਾਂ",
+      "logLoad": "ਇਹ ਲੋਡ ਸਵੀਕਾਰ ਕਰੋ",
+      "close": "ਬੰਦ ਕਰੋ"
+    }
+  },
+  "fuel": {
+    "title": "ਤੇਲ",
+    "eyebrow": "ਟਰੈਕਿੰਗ",
+    "currentCPM": "ਮੌਜੂਦਾ ਤੇਲ ਲਾਗਤ ਪ੍ਰਤੀ ਮੀਲ",
+    "logFillup": "ਤੇਲ ਭਰਾਈ ਦਰਜ ਕਰੋ",
+    "noEntries": "ਕੋਈ ਤੇਲ ਰਿਕਾਰਡ ਨਹੀਂ",
+    "form": {
+      "title": "ਤੇਲ ਭਰਾਈ ਦਰਜ ਕਰੋ",
+      "dollarsSpent": "ਕੁੱਲ ਲਾਗਤ",
+      "gallons": "ਖਰੀਦੇ ਗੈਲਨ",
+      "state": "ਖਰੀਦਿਆ ਰਾਜ",
+      "odometer": "ਮੌਜੂਦਾ ਓਡੋਮੀਟਰ",
+      "save": "ਤੇਲ ਭਰਾਈ ਸੁਰੱਖਿਅਤ ਕਰੋ"
+    }
+  },
+  "addLoad": {
+    "title": "ਲੋਡ ਜੋੜੋ",
+    "pickup": "ਚੁੱਕਣ ਦਾ ਪਤਾ",
+    "delivery": "ਡਿਲੀਵਰੀ ਪਤਾ",
+    "loadType": "ਲੋਡ ਦੀ ਕਿਸਮ",
+    "grossPay": "ਕੁੱਲ ਭੁਗਤਾਨ",
+    "saveLoad": "ਲੋਡ ਸੁਰੱਖਿਅਤ ਕਰੋ",
+    "loadTypes": {
+      "dry_van": "ਡਰਾਈ ਵੈਨ",
+      "reefer": "ਰੀਫਰ",
+      "flatbed": "ਫਲੈਟਬੈੱਡ",
+      "step_deck": "ਸਟੈਪ ਡੈੱਕ",
+      "intermodal": "ਇੰਟਰਮੋਡਲ",
+      "tanker": "ਟੈਂਕਰ",
+      "hazmat": "ਖਤਰਨਾਕ ਸਮੱਗਰੀ",
+      "rgn": "RGN / ਲੋਅਬੌਏ",
+      "power_only": "ਸਿਰਫ਼ ਪਾਵਰ",
+      "auto_transport": "ਕਾਰ ਟ੍ਰਾਂਸਪੋਰਟ"
+    }
+  },
+  "history": {
+    "title": "ਇਤਿਹਾਸ",
+    "thisWeek": "ਇਸ ਹਫ਼ਤੇ",
+    "thisMonth": "ਇਸ ਮਹੀਨੇ",
+    "allTime": "ਸਾਰਾ ਸਮਾਂ",
+    "noLoads": "ਕੋਈ ਲੋਡ ਦਰਜ ਨਹੀਂ"
+  }
+}
