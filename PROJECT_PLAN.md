@@ -225,6 +225,15 @@ Dashboard has nothing real to show until loads can be created. Recommended path:
 
 ## 6. Work Log (newest first)
 
+### 2026-06-19 — Check Load: load-type dropdown + pickup/delivery inputs
+- Replaced the single-line horizontal load-type chip scroller with a tappable
+  **dropdown** that opens a bottom-sheet `Modal` picker (same pattern as the
+  onboarding frequency dropdown) listing all 10 load types.
+- Added **Pickup** and **Delivery** address `TextInput`s (with the
+  `checkLoad.addressEncourage` accuracy hint). Keys already existed in i18n.
+- Addresses are captured but not yet used for routing — that lands with OSRM
+  auto-mileage (Flow 3 / Add Load).
+
 ### 2026-06-19 — Check Load screen built + Dashboard CTA wired
 - Renamed the Dashboard CTA from "Quick Eval — Is This Load Worth It?" to
   **"Check Load — Is This Worth It?"** and gave it an `onPress` (it was inert).
