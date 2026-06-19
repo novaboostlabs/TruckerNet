@@ -1,5 +1,8 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
+import {
+  View, Text, TextInput, TouchableOpacity, StyleSheet,
+  KeyboardAvoidingView, Platform, ScrollView,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
@@ -10,10 +13,10 @@ interface Props { onNext: () => void; }
 
 export default function OnboardingFuelScreen({ onNext }: Props) {
   const { t } = useTranslation();
-  const [amount, setAmount] = useState('');
+  const [amount,  setAmount]  = useState('');
   const [focused, setFocused] = useState(false);
 
-  const weekly = parseFloat(amount) || 0;
+  const weekly  = parseFloat(amount) || 0;
   const monthly = weekly * 4.333;
 
   function handleNext() {
@@ -23,9 +26,18 @@ export default function OnboardingFuelScreen({ onNext }: Props) {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
-      <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-        <View style={styles.container}>
-
+      <KeyboardAvoidingView
+        style={styles.flex}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={0}
+      >
+        {/* Scrollable content — everything except the button */}
+        <ScrollView
+          style={styles.scroll}
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
           {/* Progress */}
           <View style={styles.progressRow}>
             {[1, 2, 3, 4].map((s) => (
@@ -35,16 +47,14 @@ export default function OnboardingFuelScreen({ onNext }: Props) {
 
           <Text style={styles.stepLabel}>{t('onboarding.step', { current: 1, total: 4 })}</Text>
 
-          {/* Icon */}
           <View style={styles.iconCircle}>
             <Ionicons name="flash" size={32} color={Colors.primary} />
           </View>
 
-          {/* Heading */}
           <Text style={styles.heading}>{t('onboarding.fuel.title')}</Text>
           <Text style={styles.subheading}>{t('onboarding.fuel.subtitle')}</Text>
 
-          {/* Input */}
+          {/* Big input */}
           <View style={styles.inputBlock}>
             <Text style={styles.inputLabel}>{t('onboarding.fuel.label')}</Text>
             <View style={[styles.inputWrap, focused && styles.inputWrapFocused]}>
@@ -69,22 +79,29 @@ export default function OnboardingFuelScreen({ onNext }: Props) {
           {weekly > 0 && (
             <View style={styles.calcCard}>
               <Text style={styles.calcLabel}>ESTIMATED MONTHLY FUEL</Text>
-              <Text style={styles.calcValue}>${monthly.toFixed(0)}<Text style={styles.calcSub}> / mo</Text></Text>
+              <Text style={styles.calcValue}>
+                ${monthly.toFixed(0)}
+                <Text style={styles.calcSub}> / mo</Text>
+              </Text>
             </View>
           )}
+        </ScrollView>
 
-          <View style={styles.spacer} />
-
-          {/* Buttons */}
+        {/* Button sits OUTSIDE the ScrollView but INSIDE KAV — keyboard pushes it up */}
+        <View style={styles.buttonWrap}>
           <TouchableOpacity
             style={[styles.button, !amount && styles.buttonDim]}
             onPress={handleNext}
             activeOpacity={0.85}
           >
-            <Text style={styles.buttonText}>
+            <Text style={[styles.buttonText, !amount && styles.buttonTextDim]}>
               {amount ? t('common.next') : t('common.skip')}
             </Text>
-            <Ionicons name="arrow-forward" size={18} color={Colors.background} />
+            <Ionicons
+              name="arrow-forward"
+              size={18}
+              color={amount ? Colors.background : Colors.textSecondary}
+            />
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
@@ -93,13 +110,14 @@ export default function OnboardingFuelScreen({ onNext }: Props) {
 }
 
 const styles = StyleSheet.create({
-  safe:      { flex: 1, backgroundColor: Colors.background },
-  flex:      { flex: 1 },
-  container: { flex: 1, paddingHorizontal: Spacing.screenH, paddingTop: 16, paddingBottom: 24 },
+  safe:          { flex: 1, backgroundColor: Colors.background },
+  flex:          { flex: 1 },
+  scroll:        { flex: 1 },
+  scrollContent: { paddingHorizontal: Spacing.screenH, paddingTop: 16, paddingBottom: 12 },
 
-  progressRow: { flexDirection: 'row', gap: 6, marginBottom: 20 },
-  progressDot: { flex: 1, height: 3, borderRadius: 2, backgroundColor: Colors.surface },
-  progressDotActive: { backgroundColor: Colors.primary },
+  progressRow:      { flexDirection: 'row', gap: 6, marginBottom: 20 },
+  progressDot:      { flex: 1, height: 3, borderRadius: 2, backgroundColor: Colors.surface },
+  progressDotActive:{ backgroundColor: Colors.primary },
 
   stepLabel: { fontFamily: FontFamily.medium, fontSize: FontSize.label, color: Colors.textSecondary, marginBottom: 32 },
 
@@ -112,21 +130,20 @@ const styles = StyleSheet.create({
   heading:    { fontFamily: FontFamily.bold, fontSize: FontSize.title, color: Colors.textPrimary, lineHeight: 36, marginBottom: 10 },
   subheading: { fontFamily: FontFamily.regular, fontSize: FontSize.body, color: Colors.textSecondary, lineHeight: 22, marginBottom: 32 },
 
-  inputBlock: { marginBottom: 20 },
-  inputLabel: { ...SectionLabel, marginBottom: 10 },
+  inputBlock:       { marginBottom: 20 },
+  inputLabel:       { ...SectionLabel, marginBottom: 10 },
   inputWrap: {
     flexDirection: 'row', alignItems: 'center',
     backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border,
-    borderRadius: Radius.lg, paddingHorizontal: 20, paddingVertical: 18,
-    gap: 8,
+    borderRadius: Radius.lg, paddingHorizontal: 20, paddingVertical: 18, gap: 8,
   },
   inputWrapFocused: { borderColor: Colors.primary, backgroundColor: Colors.primaryDim },
-  prefix:  { fontFamily: FontFamily.bold, fontSize: FontSize.hero, color: Colors.textSecondary },
-  input:   { flex: 1, fontFamily: FontFamily.bold, fontSize: FontSize.hero, color: Colors.textPrimary, letterSpacing: -1 },
-  suffix:  { fontFamily: FontFamily.regular, fontSize: FontSize.body, color: Colors.textSecondary },
-  hint:    { fontFamily: FontFamily.regular, fontSize: FontSize.label, color: Colors.textSecondary, marginTop: 10, paddingHorizontal: 4 },
+  prefix: { fontFamily: FontFamily.bold, fontSize: FontSize.hero, color: Colors.textSecondary },
+  input:  { flex: 1, fontFamily: FontFamily.bold, fontSize: FontSize.hero, color: Colors.textPrimary, letterSpacing: -1 },
+  suffix: { fontFamily: FontFamily.regular, fontSize: FontSize.body, color: Colors.textSecondary },
+  hint:   { fontFamily: FontFamily.regular, fontSize: FontSize.label, color: Colors.textSecondary, marginTop: 10, paddingHorizontal: 4 },
 
-  calcCard: {
+  calcCard:  {
     backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.primaryMid,
     borderRadius: Radius.lg, padding: Spacing.cardPad,
   },
@@ -134,12 +151,18 @@ const styles = StyleSheet.create({
   calcValue: { fontFamily: FontFamily.bold, fontSize: FontSize.cardNumber, color: Colors.primary, letterSpacing: -0.5 },
   calcSub:   { fontFamily: FontFamily.regular, fontSize: FontSize.body, color: Colors.textSecondary },
 
-  spacer: { flex: 1 },
-
+  // Button anchored above keyboard
+  buttonWrap: {
+    paddingHorizontal: Spacing.screenH,
+    paddingTop: 12,
+    paddingBottom: 16,
+    backgroundColor: Colors.background,
+  },
   button: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
     backgroundColor: Colors.primary, borderRadius: Radius.md, paddingVertical: 17,
   },
-  buttonDim:  { backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border },
-  buttonText: { fontFamily: FontFamily.semiBold, fontSize: FontSize.body, color: Colors.background },
+  buttonDim:     { backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border },
+  buttonText:    { fontFamily: FontFamily.semiBold, fontSize: FontSize.body, color: Colors.background },
+  buttonTextDim: { color: Colors.textSecondary },
 });
