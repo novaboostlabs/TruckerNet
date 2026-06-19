@@ -1,10 +1,11 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
-  View, Text, StyleSheet, TouchableOpacity, ScrollView, StatusBar,
+  View, Text, StyleSheet, TouchableOpacity, ScrollView, StatusBar, Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, FontFamily, FontSize, Spacing, Radius, SectionLabel } from '../theme/theme';
+import CheckLoadScreen from './CheckLoadScreen';
 
 // ── Placeholder data (replace with real DB queries in Phase 2) ──
 const DEMO = {
@@ -27,9 +28,16 @@ function fmt(n: number, decimals = 0): string {
 }
 
 export default function DashboardScreen() {
+  const [showCheckLoad, setShowCheckLoad] = useState(false);
+
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <StatusBar barStyle="light-content" />
+
+      <Modal visible={showCheckLoad} animationType="slide" presentationStyle="pageSheet">
+        <CheckLoadScreen onClose={() => setShowCheckLoad(false)} />
+      </Modal>
+
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
 
         {/* ── Header ── */}
@@ -90,10 +98,10 @@ export default function DashboardScreen() {
           </View>
         </View>
 
-        {/* ── Quick Eval CTA ── */}
-        <TouchableOpacity style={styles.evalButton} activeOpacity={0.8}>
+        {/* ── Check Load CTA ── */}
+        <TouchableOpacity style={styles.evalButton} activeOpacity={0.8} onPress={() => setShowCheckLoad(true)}>
           <Ionicons name="flash" size={15} color={Colors.background} />
-          <Text style={styles.evalText}>Quick Eval — Is This Load Worth It?</Text>
+          <Text style={styles.evalText}>Check Load — Is This Worth It?</Text>
           <Ionicons name="chevron-forward" size={15} color={Colors.background} />
         </TouchableOpacity>
 

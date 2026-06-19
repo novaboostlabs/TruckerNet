@@ -47,6 +47,19 @@ $229.99·mo. Full detail in `PRD.md` §2, §27.
 
 ---
 
+## 0.5 🚨 RELEASE BLOCKERS — do NOT ship the app without these
+
+- [ ] **Expenses tab redesign / unification.** The Settings "Expenses" tab is a
+  legacy screen writing to the `fixed_expenses` table; it does NOT match the
+  redesigned onboarding expenses UI and uses a different data model than
+  `user_expenses`. Must be reconciled (unify on `user_expenses`, match the
+  onboarding design) before launch. User explicitly flagged this as a
+  must-fix-before-publish item (2026-06-19).
+
+_(Add any other launch-gating items here as they come up.)_
+
+---
+
 ## 1. Vision
 
 TruckerNet turns a set of individual screens into a **guided, synergistic flow**
@@ -144,7 +157,7 @@ Everything connects:
 | 3 | Onboarding flow (4 screens) | ✅ Done | Fuel, Expenses, Miles, Result. Expenses screen redesigned (essentials + dynamic Other) — see Work Log 2026-06-19 |
 | 4 | Fuel Entry form with odometer | ✅ Done | `FuelEntryScreen.tsx` (OCR receipt scan = later phase) |
 | 5 | Live Dashboard (real DB data) | ◐ Partial | UI built but still on `DEMO` placeholder data — **not wired to DB yet** |
-| 6 | Check Load modal with backhaul | ✗ Not started | i18n keys (`checkLoad.*`) exist; **no screen file** |
+| 6 | Check Load modal with backhaul | ◐ Built (manual miles) | `CheckLoadScreen.tsx` opens from the Dashboard CTA; live verdict + net pay + rate/mi vs break-even + fair-market range + backhaul reframe. Pending: OSRM auto-mileage from addresses, and "Accept & Log" → Add Load |
 | 7 | Add Load screen (OSRM + Turf.js) | ✗ Not started | i18n keys (`addLoad.*`) exist; **no screen, no OSRM/Turf/Nominatim installed** |
 | 8 | History from real DB | ◐ Partial | `HistoryScreen.tsx` exists; verify it reads real loads |
 | 9 | IFTA from real DB + exports | ◐ Partial | `IFTAScreen.tsx` UI exists, **not wired**; no CSV/PDF/share exports |
@@ -205,6 +218,23 @@ Dashboard has nothing real to show until loads can be created. Recommended path:
 ---
 
 ## 6. Work Log (newest first)
+
+### 2026-06-19 — Check Load screen built + Dashboard CTA wired
+- Renamed the Dashboard CTA from "Quick Eval — Is This Load Worth It?" to
+  **"Check Load — Is This Worth It?"** and gave it an `onPress` (it was inert).
+- New `src/screens/CheckLoadScreen.tsx`, opened as a page-sheet `Modal` from the
+  Dashboard (same pattern as Fuel → FuelEntry). Manual-miles version (no routing
+  yet): inputs = load pay, miles, load type (10 chips), backhaul toggle. Live
+  result = verdict badge (green/amber/red), net pay hero, net rate/mi vs
+  break-even delta, fair-market total range (`getFairMarketRate`), and a
+  backhaul reframe ("Saves ~$X vs driving empty" via `calcDeadheadCost`).
+- Net pay / break-even use the real engine (`calcBreakEven` from saved expenses
+  + miles + latest fuel CPM). If no break-even is set, shows `checkLoad.noBreakEven`.
+- Added i18n `checkLoad.noBreakEven` across en/es/pa/zh. All Check Load keys
+  verified to resolve.
+- **Pending:** OSRM/address auto-mileage (ties into Add Load / Flow 3); the
+  "Accept & Log This Load" button currently just closes — wire it to Add Load
+  (prefilled) once that screen exists. The Dashboard FAB (+) is still inert.
 
 ### 2026-06-19 — "Replay onboarding" so users can revisit the flow
 - Problem: once `onboarding_completed` is set, `RootNavigator` always routes to

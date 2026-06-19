@@ -150,6 +150,7 @@
   "checkLoad": {
     "title": "Revisar Carga",
     "subtitle": "Descubre si esta carga vale la pena.",
+    "noBreakEven": "Agrega tus gastos y millas en la configuración para obtener un veredicto de equilibrio preciso.",
     "loadPay": "PAGO DE LA CARGA",
     "loadPayPlaceholder": "Lo que ofrece el broker ($)",
     "pickup": "PUNTO DE RECOGIDA",

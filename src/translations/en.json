@@ -152,6 +152,7 @@
   "checkLoad": {
     "title": "Check Load",
     "subtitle": "Find out if this load is worth taking.",
+    "noBreakEven": "Add your expenses and miles in setup to get an accurate break-even verdict.",
     "loadPay": "LOAD PAY",
     "loadPayPlaceholder": "What the broker is offering ($)",
     "pickup": "PICKUP LOCATION",

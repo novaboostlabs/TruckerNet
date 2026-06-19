@@ -147,6 +147,7 @@
   "checkLoad": {
     "title": "查看订单",
     "subtitle": "判断这个订单是否值得接。",
+    "noBreakEven": "在设置中添加您的费用和里程，以获得准确的盈亏平衡判断。",
     "loadPay": "订单报酬",
     "loadPayPlaceholder": "经纪人报价（$）",
     "pickup": "取货地点",
