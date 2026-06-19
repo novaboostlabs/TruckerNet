@@ -225,6 +225,27 @@ Dashboard has nothing real to show until loads can be created. Recommended path:
 
 ## 6. Work Log (newest first)
 
+### 2026-06-19 — Onboarding gated on having a real account
+- Onboarding now counts as "done" only when a real account (Supabase session)
+  exists. Guests ("explore without an account") re-run onboarding on every
+  launch until they sign up.
+- `RootNavigator`: init routes to onboarding unless `!!session && flag==='true'`;
+  `enterGuestMode` always goes to onboarding; `OnboardingResult.onComplete`
+  persists `onboarding_completed` only `if (session)`.
+- Note: the flag is global. An install that set it as a guest *before* this
+  change can carry a stale `true`; it's neutralized for guests (session gate) and
+  self-corrects once a guest finishes onboarding (no longer writes the flag).
+
+### 2026-06-19 — Address autocomplete polish: first-tap select, error surfacing
+- AddressAutocomplete: suggestions fire on `onPressIn` so a pick registers on
+  the first tap (the keyboard-dismiss layout shift was eating `onPress`). This
+  also made endpoint coords reliably set, so auto-mileage actually runs.
+- CheckLoadScreen: routing errors are no longer swallowed — logged to Metro
+  (`[TruckerNet] Route calculation failed: …`) and surfaced as a warning under
+  the miles field.
+- Corrected earlier guidance: Mapbox public tokens include Directions by default
+  (no separate scope), so a working autocomplete token also works for routing.
+
 ### 2026-06-19 — Route caching + dropdown-close fix
 - `getRouteMiles` now caches resolved distances in a module-level Map keyed by
   rounded endpoint coords (`routeKey`). Same pickup+delivery lane hits the

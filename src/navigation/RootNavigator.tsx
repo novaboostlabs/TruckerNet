@@ -51,8 +51,10 @@ export default function RootNavigator() {
       const isAuthed = !!session || guest === 'true';
       if (!isAuthed) { setStep('signin'); return; }
 
-      // 3. Has the user completed onboarding?
-      const onboarded = getSetting('onboarding_completed');
+      // 3. Onboarding only counts as "done" for a real account. Guests
+      //    ("explore without an account") re-run onboarding on every launch
+      //    until they sign up — their answers are never marked complete.
+      const onboarded = !!session && getSetting('onboarding_completed') === 'true';
       if (!onboarded) { setStep('onboarding_fuel'); return; }
 
       setStep('app');
@@ -67,7 +69,9 @@ export default function RootNavigator() {
     if (step !== 'signin' && step !== 'signup') return;
     if (!session) return;
 
-    const onboarded = getSetting('onboarding_completed');
+    // A real account just signed in — skip onboarding only if they previously
+    // completed it (as an account).
+    const onboarded = getSetting('onboarding_completed') === 'true';
     setStep(onboarded ? 'app' : 'onboarding_fuel');
   }, [session]); // eslint-disable-line
 
@@ -93,8 +97,9 @@ export default function RootNavigator() {
   function enterGuestMode() {
     try {
       setSetting(GUEST_SETTING, 'true');
-      const onboarded = getSetting('onboarding_completed');
-      setStep(onboarded ? 'app' : 'onboarding_fuel');
+      // Guests always go through onboarding — it's never marked complete for
+      // them, so it shows again on the next launch until they create an account.
+      setStep('onboarding_fuel');
     } catch (e) {
       console.error('Guest mode error:', e);
     }
@@ -148,7 +153,9 @@ export default function RootNavigator() {
     return (
       <OnboardingResultScreen
         onComplete={() => {
-          setSetting('onboarding_completed', 'true');
+          // Persist completion only for a real account. Guests aren't saved, so
+          // onboarding reappears on the next launch until they sign up.
+          if (session) setSetting('onboarding_completed', 'true');
           setStep('app');
         }}
       />
