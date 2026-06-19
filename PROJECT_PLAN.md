@@ -225,6 +225,13 @@ Dashboard has nothing real to show until loads can be created. Recommended path:
 
 ## 6. Work Log (newest first)
 
+### 2026-06-19 — Onboarding completion is now per-account
+- Replaced the global `onboarding_completed` flag with a per-user key
+  `onboarding_completed:<userId>` (`onboardingKey()` helper). One account's
+  progress can no longer leak to another, and any stale global flag is ignored.
+- All four call sites (init, sign-in effect, replayOnboarding, onComplete) use
+  the per-account key; `replayOnboarding` now depends on `session`.
+
 ### 2026-06-19 — Onboarding gated on having a real account
 - Onboarding now counts as "done" only when a real account (Supabase session)
   exists. Guests ("explore without an account") re-run onboarding on every

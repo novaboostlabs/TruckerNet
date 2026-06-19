@@ -18,6 +18,10 @@ import { AppFlowContext } from '../contexts/AppFlowContext';
 const Stack = createNativeStackNavigator();
 const GUEST_SETTING = 'guest_mode';
 
+// Onboarding completion is tracked per account so one account's progress never
+// leaks to another (and guests, who have no id, never persist it).
+const onboardingKey = (userId: string) => `onboarding_completed:${userId}`;
+
 // All possible app states — only moves forward, never backward (except sign-out)
 type Step =
   | 'loading'
@@ -51,10 +55,10 @@ export default function RootNavigator() {
       const isAuthed = !!session || guest === 'true';
       if (!isAuthed) { setStep('signin'); return; }
 
-      // 3. Onboarding only counts as "done" for a real account. Guests
-      //    ("explore without an account") re-run onboarding on every launch
-      //    until they sign up — their answers are never marked complete.
-      const onboarded = !!session && getSetting('onboarding_completed') === 'true';
+      // 3. Onboarding only counts as "done" for a real account, tracked per
+      //    user id. Guests ("explore without an account") have no id, so they
+      //    re-run onboarding on every launch until they sign up.
+      const onboarded = !!session && getSetting(onboardingKey(session.user.id)) === 'true';
       if (!onboarded) { setStep('onboarding_fuel'); return; }
 
       setStep('app');
@@ -69,9 +73,9 @@ export default function RootNavigator() {
     if (step !== 'signin' && step !== 'signup') return;
     if (!session) return;
 
-    // A real account just signed in — skip onboarding only if they previously
-    // completed it (as an account).
-    const onboarded = getSetting('onboarding_completed') === 'true';
+    // A real account just signed in — skip onboarding only if THIS account
+    // previously completed it.
+    const onboarded = getSetting(onboardingKey(session.user.id)) === 'true';
     setStep(onboarded ? 'app' : 'onboarding_fuel');
   }, [session]); // eslint-disable-line
 
@@ -87,11 +91,11 @@ export default function RootNavigator() {
 
   // ── Replay onboarding from inside the app ──
   const replayOnboarding = useCallback(() => {
-    // Clear the flag so the flow is consistent if the app restarts mid-replay;
-    // OnboardingResult re-sets it to 'true' on completion.
-    setSetting('onboarding_completed', '');
+    // Clear this account's flag so the flow is consistent if the app restarts
+    // mid-replay; OnboardingResult re-sets it on completion. (Guests have none.)
+    if (session) setSetting(onboardingKey(session.user.id), '');
     setStep('onboarding_fuel');
-  }, []);
+  }, [session]);
 
   // ── Guest mode: skip auth entirely ──
   function enterGuestMode() {
@@ -153,9 +157,9 @@ export default function RootNavigator() {
     return (
       <OnboardingResultScreen
         onComplete={() => {
-          // Persist completion only for a real account. Guests aren't saved, so
+          // Persist completion for this account only. Guests aren't saved, so
           // onboarding reappears on the next launch until they sign up.
-          if (session) setSetting('onboarding_completed', 'true');
+          if (session) setSetting(onboardingKey(session.user.id), 'true');
           setStep('app');
         }}
       />
