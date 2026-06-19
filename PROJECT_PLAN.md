@@ -225,6 +225,27 @@ Dashboard has nothing real to show until loads can be created. Recommended path:
 
 ## 6. Work Log (newest first)
 
+### 2026-06-19 — Check Load: Mapbox address autocomplete + auto-mileage
+- Provider decision: **Mapbox** (user picked it). One public token does both
+  geocoding autocomplete and routing; pure REST so it stays Expo Go compatible.
+- `src/lib/mapbox.ts` — `searchAddress()` (Geocoding v6 forward, autocomplete,
+  US, house-number level) + `getRouteMiles()` (Directions driving profile,
+  meters→miles). Gated on `EXPO_PUBLIC_MAPBOX_TOKEN`; `isMapboxConfigured()`
+  lets everything degrade to manual entry if the token is missing.
+- `src/components/AddressAutocomplete.tsx` — reusable debounced (300ms),
+  abortable type-ahead; suggestions render inline below the field (ScrollView-safe).
+- CheckLoadScreen: pickup/delivery use the autocomplete; selecting BOTH endpoints
+  auto-fills miles from the route (effect on pickupSel+deliverySel). Miles field
+  stays editable as a manual override, shows a calculating spinner then an "Auto"
+  badge. Editing an address clears its selection + the auto flag.
+- i18n: `checkLoad.autoMiles` added to all 4 langs; backfilled missing Punjabi
+  keys (`addressEncourage`, `backhaulHint`, `calculating`).
+- `.env.example` added documenting Supabase + Mapbox vars.
+- **Setup needed from user:** create a free Mapbox public token (`pk.…`), put it
+  in `.env` as `EXPO_PUBLIC_MAPBOX_TOKEN`, restart `npx expo start -c`.
+- **Pending:** per-state mileage breakdown (Turf.js + state polygons over the
+  route geometry) for IFTA — Mapbox route geometry is available, not yet split.
+
 ### 2026-06-19 — Check Load: load-type dropdown + pickup/delivery inputs
 - Replaced the single-line horizontal load-type chip scroller with a tappable
   **dropdown** that opens a bottom-sheet `Modal` picker (same pattern as the
