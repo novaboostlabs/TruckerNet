@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
-  ScrollView, KeyboardAvoidingView, Platform, Switch,
+  ScrollView, KeyboardAvoidingView, Platform, Switch, Modal, Pressable,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
@@ -33,7 +33,10 @@ export default function CheckLoadScreen({ onClose, onLogLoad }: Props) {
 
   const [pay, setPay]           = useState('');
   const [miles, setMiles]       = useState('');
+  const [pickup, setPickup]     = useState('');
+  const [delivery, setDelivery] = useState('');
   const [loadType, setLoadType] = useState<LoadType>('dry_van');
+  const [typeOpen, setTypeOpen] = useState(false);
   const [backhaul, setBackhaul] = useState(false);
 
   // Break-even is fixed for the session (derived from saved expenses + fuel + miles).
@@ -126,30 +129,41 @@ export default function CheckLoadScreen({ onClose, onLogLoad }: Props) {
             <Text style={styles.inputSuffix}>mi</Text>
           </View>
 
+          {/* Pickup */}
+          <Text style={[styles.fieldLabel, { marginTop: 18 }]}>{t('checkLoad.pickup')}</Text>
+          <View style={styles.inputCard}>
+            <Ionicons name="ellipse-outline" size={16} color={Colors.textSecondary} style={styles.addrIcon} />
+            <TextInput
+              style={styles.addrInput}
+              value={pickup}
+              onChangeText={setPickup}
+              placeholder={t('checkLoad.addressPlaceholder')}
+              placeholderTextColor={Colors.textTertiary}
+              autoCapitalize="words"
+            />
+          </View>
+
+          {/* Delivery */}
+          <Text style={[styles.fieldLabel, { marginTop: 18 }]}>{t('checkLoad.delivery')}</Text>
+          <View style={styles.inputCard}>
+            <Ionicons name="location" size={16} color={Colors.primary} style={styles.addrIcon} />
+            <TextInput
+              style={styles.addrInput}
+              value={delivery}
+              onChangeText={setDelivery}
+              placeholder={t('checkLoad.addressPlaceholder')}
+              placeholderTextColor={Colors.textTertiary}
+              autoCapitalize="words"
+            />
+          </View>
+          <Text style={styles.addrHint}>{t('checkLoad.addressEncourage')}</Text>
+
           {/* Load type */}
           <Text style={[styles.fieldLabel, { marginTop: 18 }]}>{t('checkLoad.loadType')}</Text>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.typeRow}
-            keyboardShouldPersistTaps="handled"
-          >
-            {LOAD_TYPES.map((type) => {
-              const active = type === loadType;
-              return (
-                <TouchableOpacity
-                  key={type}
-                  style={[styles.typeChip, active && styles.typeChipActive]}
-                  onPress={() => setLoadType(type)}
-                  activeOpacity={0.8}
-                >
-                  <Text style={[styles.typeChipText, active && styles.typeChipTextActive]}>
-                    {t(`addLoad.loadTypes.${type}`)}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
+          <TouchableOpacity style={styles.dropdown} onPress={() => setTypeOpen(true)} activeOpacity={0.8}>
+            <Text style={styles.dropdownText}>{t(`addLoad.loadTypes.${loadType}`)}</Text>
+            <Ionicons name="chevron-down" size={18} color={Colors.primary} />
+          </TouchableOpacity>
 
           {/* Backhaul toggle */}
           <View style={styles.toggleCard}>
@@ -253,6 +267,39 @@ export default function CheckLoadScreen({ onClose, onLogLoad }: Props) {
           <View style={{ height: 32 }} />
         </ScrollView>
       </KeyboardAvoidingView>
+
+      {/* Load type dropdown */}
+      <Modal
+        visible={typeOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setTypeOpen(false)}
+      >
+        <Pressable style={styles.modalBackdrop} onPress={() => setTypeOpen(false)}>
+          <Pressable style={styles.modalSheet} onPress={(e) => e.stopPropagation()}>
+            <View style={styles.modalHandle} />
+            <Text style={styles.modalTitle}>{t('checkLoad.loadType')}</Text>
+            <ScrollView style={styles.modalScroll} showsVerticalScrollIndicator={false}>
+              {LOAD_TYPES.map((type) => {
+                const selected = type === loadType;
+                return (
+                  <TouchableOpacity
+                    key={type}
+                    style={[styles.typeOption, selected && styles.typeOptionActive]}
+                    onPress={() => { setLoadType(type); setTypeOpen(false); }}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={[styles.typeOptionText, selected && styles.typeOptionTextActive]}>
+                      {t(`addLoad.loadTypes.${type}`)}
+                    </Text>
+                    {selected && <Ionicons name="checkmark" size={20} color={Colors.primary} />}
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -285,14 +332,38 @@ const styles = StyleSheet.create({
   bigInput:    { flex: 1, fontFamily: FontFamily.bold, fontSize: 28, color: Colors.textPrimary, padding: 0 },
   inputSuffix: { fontFamily: FontFamily.medium, fontSize: FontSize.body, color: Colors.textSecondary },
 
-  typeRow:  { gap: 8, paddingVertical: 2, paddingRight: 8 },
-  typeChip: {
-    backgroundColor: Colors.surface, borderRadius: Radius.pill,
-    paddingHorizontal: 16, paddingVertical: 10, borderWidth: 1, borderColor: Colors.border,
+  addrIcon:  { marginRight: 10 },
+  addrInput: { flex: 1, fontFamily: FontFamily.medium, fontSize: FontSize.body, color: Colors.textPrimary, padding: 0 },
+  addrHint:  { fontFamily: FontFamily.regular, fontSize: FontSize.caption, color: Colors.textSecondary, marginTop: 8 },
+
+  dropdown: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border,
+    borderRadius: Radius.lg, paddingHorizontal: 18, paddingVertical: 16,
   },
-  typeChipActive:     { backgroundColor: Colors.primaryDim, borderColor: Colors.primaryMid },
-  typeChipText:       { fontFamily: FontFamily.medium, fontSize: FontSize.label, color: Colors.textSecondary },
-  typeChipTextActive: { color: Colors.primary, fontFamily: FontFamily.semiBold },
+  dropdownText: { fontFamily: FontFamily.semiBold, fontSize: FontSize.body, color: Colors.textPrimary },
+
+  // Load type dropdown sheet
+  modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
+  modalSheet: {
+    backgroundColor: Colors.surface, borderTopLeftRadius: Radius.xl, borderTopRightRadius: Radius.xl,
+    borderWidth: 1, borderColor: Colors.border,
+    paddingHorizontal: Spacing.screenH, paddingTop: 10, paddingBottom: 36,
+  },
+  modalHandle: {
+    alignSelf: 'center', width: 40, height: 4, borderRadius: 2,
+    backgroundColor: Colors.border, marginBottom: 14,
+  },
+  modalTitle:  { fontFamily: FontFamily.bold, fontSize: FontSize.subtitle, color: Colors.textPrimary, marginBottom: 12 },
+  modalScroll: { maxHeight: 380 },
+  typeOption: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingVertical: 15, paddingHorizontal: 16, borderRadius: Radius.md, marginBottom: 6,
+    borderWidth: 1, borderColor: 'transparent',
+  },
+  typeOptionActive:     { backgroundColor: Colors.primaryDim, borderColor: Colors.primaryMid },
+  typeOptionText:       { fontFamily: FontFamily.medium, fontSize: FontSize.body, color: Colors.textPrimary },
+  typeOptionTextActive: { fontFamily: FontFamily.semiBold, color: Colors.primary },
 
   toggleCard: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
