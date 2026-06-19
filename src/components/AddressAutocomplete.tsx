@@ -28,15 +28,21 @@ export default function AddressAutocomplete({
   const [loading, setLoading] = useState(false);
   const [focused, setFocused] = useState(false);
 
-  // Skip the search that the selection-driven onChangeText would otherwise fire.
-  const skipNext = useRef(false);
+  // The exact text of the address the user just picked. While the field still
+  // holds it, we never search or show the list — that's what keeps the dropdown
+  // closed after a selection, regardless of any in-flight request resolving.
+  const selectedText = useRef<string | null>(null);
 
   useEffect(() => {
-    if (skipNext.current) { skipNext.current = false; return; }
     if (!isMapboxConfigured()) return;
 
     const q = value.trim();
-    if (q.length < 3) { setSuggestions([]); setLoading(false); return; }
+    // Just-selected, or too short → nothing to show.
+    if (q === selectedText.current || q.length < 3) {
+      setSuggestions([]);
+      setLoading(false);
+      return;
+    }
 
     const ctrl = new AbortController();
     setLoading(true);
@@ -54,7 +60,7 @@ export default function AddressAutocomplete({
   }, [value]);
 
   function pick(s: AddressSuggestion) {
-    skipNext.current = true;
+    selectedText.current = s.label.trim();
     onChangeText(s.label);
     setSuggestions([]);
     setFocused(false);
@@ -62,7 +68,9 @@ export default function AddressAutocomplete({
     onSelect(s);
   }
 
-  const showList = focused && suggestions.length > 0;
+  // Hide the list once the field matches the picked address, even if a stale
+  // request resolves afterward.
+  const showList = focused && suggestions.length > 0 && value.trim() !== selectedText.current;
 
   return (
     <View>
