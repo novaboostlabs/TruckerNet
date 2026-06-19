@@ -10,7 +10,40 @@
 > **Build Order Status** table. Keep statuses honest: ✅ done, ◐ partial,
 > ✗ not started.
 
-_Last updated: 2026-06-19_
+_Last updated: 2026-06-19 — PRD/North Star wired into AGENTS.md_
+
+---
+
+## 0. North Star & PRD (read first — frames every decision)
+
+**The full product vision is the canonical [`PRD.md`](./PRD.md) (TruckerNet PRD
+v2.0).** It is also wired into [`AGENTS.md`](./AGENTS.md) so it loads into context
+at the start of every session. Read the PRD before making any product, design, or
+engineering decision. (Kept as a single source in `PRD.md` to avoid two diverging
+copies — this file links it rather than duplicating it.)
+
+**Non-negotiables:**
+- **North Star: $50,000 MRR. This is NOT a hobby app.** TruckerNet is a premium,
+  subscription-first SaaS built to compete in the same playing field as **Calm,
+  Elevate, and YNAB** — best-in-class tools people pay for every month because the
+  value is undeniable. Every decision is held to that bar: polish, reliability, and
+  a real payoff for the driver.
+- **The core feature is "True Net Pay Per Load"** — what a load actually pays after
+  every real cost, and whether it clears break-even. Everything else serves this.
+- **Quick Eval** is the daily hook; unlimited on free (the primary free→paid
+  converter).
+- **Fair-market rates: never scrape load boards.** Seeded → opt-in crowdsourced
+  (Waze model) → paid API later.
+- **IFTA auto-reporting** is a flagship differentiator; always show the
+  "estimate, not a tax-filing service" disclaimer.
+- **Stack:** Expo + TypeScript, Supabase backend, RevenueCat for payments (never
+  Stripe for in-app mobile subs). Dark-mode, numbers-forward design; diesel-amber
+  `#E8A020` accent.
+
+MRR ladder: $1K → $5K → $10K → $25K → **$50K** (≈1,200 mixed-tier paying accounts,
+just 0.34% of ~350K U.S. owner-operators). Targets: 12–15% free→paid, 85%+ monthly
+retention. Pricing: Free / Driver Pro $34.99·mo / Fleet $89.99·mo / Enterprise
+$229.99·mo. Full detail in `PRD.md` §2, §27.
 
 ---
 
@@ -172,6 +205,17 @@ Dashboard has nothing real to show until loads can be created. Recommended path:
 ---
 
 ## 6. Work Log (newest first)
+
+### 2026-06-19 — Wired the PRD/North Star into always-loaded context
+- Confirmed the full **PRD v2.0** already lives canonically in `PRD.md`
+  (32 sections, $50K MRR North Star). Did not duplicate it.
+- Added a **Product North Star** directive to `AGENTS.md` (auto-injected every
+  session via `CLAUDE.md → @AGENTS.md`) pointing to `PRD.md` and stating the
+  non-negotiables: $50K MRR, premium tier like Calm/Elevate/YNAB (not a hobby
+  app), True Net Pay core, Quick Eval hook, no load-board scraping, IFTA
+  disclaimer, stack + design rules.
+- Added **Section 0 — North Star & PRD** to this file surfacing the same
+  non-negotiables and linking the canonical PRD.
 
 ### 2026-06-19 — Onboarding expenses screen redesigned
 - Branch: `claude/truckernet-project-files-khoqlv` (commit `7a9afad`).
