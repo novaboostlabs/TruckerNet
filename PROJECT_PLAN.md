@@ -218,12 +218,13 @@ Dashboard has nothing real to show until loads can be created. Recommended path:
   en/es/pa/zh.
 - Fixed a focus bug: amount/frequency row is rendered via a plain helper
   function (not a nested `<Component/>`) so inputs don't remount per keystroke.
-- **Note / open item:** the screenshot the user shared does NOT match any
-  committed version in this repo (different single-row layout, per-row icons,
-  "ELD Device"/"Load Board" labels, no Maintenance). Confirmed our accent IS
-  green (`#00C896` = `Colors.primary`; amber `#E8A020` is `secondary`). That
-  build appears to come from outside this repo/branch — need to confirm where
-  the user's device build is sourced so changes here actually land.
+- **Confirmed:** this is the canonical onboarding expenses screen on the
+  `claude/truckernet-project-files-khoqlv` branch. Accent is green
+  (`#00C896` = `Colors.primary`; amber `#E8A020` is `secondary`). The earlier
+  screenshot was a pre-change build (showed the old truncated labels,
+  tap-to-cycle frequency, and no Maintenance) — the changes in this commit
+  address exactly those issues. After pulling/reloading the Expo build, the
+  screen shows full labels, the frequency dropdown, and the Maintenance row.
 
 ### 2026-06-19 — Wired the PRD/North Star into always-loaded context
 - Confirmed the full **PRD v2.0** already lives canonically in `PRD.md`
