@@ -206,6 +206,20 @@ Dashboard has nothing real to show until loads can be created. Recommended path:
 
 ## 6. Work Log (newest first)
 
+### 2026-06-19 — "Replay onboarding" so users can revisit the flow
+- Problem: once `onboarding_completed` is set, `RootNavigator` always routes to
+  the app; no in-app way to re-see the onboarding screens (and the flag persists
+  in SQLite, so an Expo reload doesn't help).
+- Added `src/contexts/AppFlowContext.tsx` (leaf module, no import cycle)
+  exposing `replayOnboarding()`. `RootNavigator` provides it (clears the flag +
+  sets step back to `onboarding_fuel`); the **Expenses/Settings tab** now has a
+  "Replay setup" button in its header that calls it.
+- Note: the **Expenses tab is a separate legacy screen** writing to
+  `fixed_expenses` (truck/insurance/eld/maintenance/parking/other flat columns),
+  NOT the onboarding `user_expenses` table. The redesigned onboarding UI is not
+  reflected there. **Tech-debt to reconcile:** unify on `user_expenses` so the
+  Settings editor matches onboarding.
+
 ### 2026-06-19 — Onboarding expenses: dropdown, icons, Maintenance, no truncation
 - Per user request on the expenses screen: (1) no truncated labels — each
   essential label sits on its own full-width row with an icon + clarifying

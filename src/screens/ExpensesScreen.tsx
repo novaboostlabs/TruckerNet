@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useContext, useEffect, useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity,
   ScrollView, StyleSheet, KeyboardAvoidingView, Platform,
@@ -8,6 +8,7 @@ import { Ionicons } from '@expo/vector-icons';
 import db from '../db/database';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
+import { AppFlowContext } from '../contexts/AppFlowContext';
 import { Colors, FontFamily, FontSize, Spacing, Radius, SectionLabel } from '../theme/theme';
 
 interface ExpensesForm {
@@ -28,6 +29,7 @@ const EMPTY_FORM: ExpensesForm = {
 
 export default function ExpensesScreen() {
   const { user } = useAuth();
+  const { replayOnboarding } = useContext(AppFlowContext);
   const [form, setForm] = useState<ExpensesForm>(EMPTY_FORM);
   const [saved, setSaved] = useState(false);
 
@@ -125,6 +127,14 @@ export default function ExpensesScreen() {
               <Text style={styles.headerLabel}>SETTINGS</Text>
               <Text style={styles.headerTitle}>Expenses</Text>
             </View>
+            <TouchableOpacity
+              style={styles.replayBtn}
+              onPress={replayOnboarding}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="refresh" size={15} color={Colors.primary} />
+              <Text style={styles.replayBtnText}>Replay setup</Text>
+            </TouchableOpacity>
           </View>
 
           {/* CPM hero */}
@@ -255,9 +265,19 @@ const styles = StyleSheet.create({
   scroll:  { flex: 1 },
   content: { paddingHorizontal: Spacing.screenH, paddingBottom: 20 },
 
-  header: { paddingTop: 16, paddingBottom: 24 },
+  header: {
+    paddingTop: 16, paddingBottom: 24,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+  },
   headerLabel: { ...SectionLabel, marginBottom: 4 },
   headerTitle: { fontFamily: FontFamily.bold, fontSize: FontSize.title, color: Colors.textPrimary },
+  replayBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    backgroundColor: Colors.primaryDim, borderRadius: Radius.pill,
+    paddingHorizontal: 12, paddingVertical: 8,
+    borderWidth: 1, borderColor: Colors.primaryMid,
+  },
+  replayBtnText: { fontFamily: FontFamily.semiBold, fontSize: FontSize.label, color: Colors.primary },
 
   heroCard: {
     backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border,

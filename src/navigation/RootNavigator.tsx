@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { View, ActivityIndicator } from 'react-native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useAuth } from '../contexts/AuthContext';
@@ -13,6 +13,7 @@ import OnboardingMilesScreen from '../screens/onboarding/OnboardingMilesScreen';
 import OnboardingResultScreen from '../screens/onboarding/OnboardingResultScreen';
 import { getSavedLanguage } from '../lib/i18n';
 import { getSetting, setSetting } from '../db/database';
+import { AppFlowContext } from '../contexts/AppFlowContext';
 
 const Stack = createNativeStackNavigator();
 const GUEST_SETTING = 'guest_mode';
@@ -79,6 +80,14 @@ export default function RootNavigator() {
     const guest = getSetting(GUEST_SETTING);
     if (guest !== 'true') setStep('signin');
   }, [session, authLoading]); // eslint-disable-line
+
+  // ── Replay onboarding from inside the app ──
+  const replayOnboarding = useCallback(() => {
+    // Clear the flag so the flow is consistent if the app restarts mid-replay;
+    // OnboardingResult re-sets it to 'true' on completion.
+    setSetting('onboarding_completed', '');
+    setStep('onboarding_fuel');
+  }, []);
 
   // ── Guest mode: skip auth entirely ──
   function enterGuestMode() {
@@ -148,8 +157,10 @@ export default function RootNavigator() {
 
   // step === 'app'
   return (
-    <Stack.Navigator screenOptions={{ headerShown: false, animation: 'fade' }}>
-      <Stack.Screen name="Main" component={TabNavigator} />
-    </Stack.Navigator>
+    <AppFlowContext.Provider value={{ replayOnboarding }}>
+      <Stack.Navigator screenOptions={{ headerShown: false, animation: 'fade' }}>
+        <Stack.Screen name="Main" component={TabNavigator} />
+      </Stack.Navigator>
+    </AppFlowContext.Provider>
   );
 }
