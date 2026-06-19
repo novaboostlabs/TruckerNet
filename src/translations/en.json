@@ -72,6 +72,23 @@
       "otherPlaceholder": "Name this expense",
       "addOther": "Add to list",
       "financePayment": "Truck / Finance Payment",
+      "fixedLabels": {
+        "truck": "Truck / Finance Payment",
+        "insurance": "Insurance",
+        "maintenance": "Maintenance",
+        "eld": "ELD Device",
+        "loadboard": "Load Board",
+        "parking": "Truck Parking"
+      },
+      "fixedSubtitles": {
+        "truck": "Loan or lease payment",
+        "insurance": "Liability, cargo, physical damage",
+        "maintenance": "Tires, oil changes, repairs",
+        "eld": "KeepTruckin, Samsara, etc.",
+        "loadboard": "DAT, Truckstop, etc.",
+        "parking": "Yard or truck-stop parking"
+      },
+      "selectFrequency": "How often?",
       "labelPlaceholder": "Expense name (e.g. Truck Payment)",
       "amountPlaceholder": "Amount",
       "frequency": "Frequency",

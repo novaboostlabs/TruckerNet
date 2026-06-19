@@ -72,6 +72,23 @@
       "otherPlaceholder": "Nombra este gasto",
       "addOther": "Agregar a la lista",
       "financePayment": "Pago del Camión / Financiamiento",
+      "fixedLabels": {
+        "truck": "Pago del Camión / Financiamiento",
+        "insurance": "Seguro",
+        "maintenance": "Mantenimiento",
+        "eld": "Dispositivo ELD",
+        "loadboard": "Bolsa de Cargas",
+        "parking": "Estacionamiento"
+      },
+      "fixedSubtitles": {
+        "truck": "Pago del préstamo o arrendamiento",
+        "insurance": "Responsabilidad, carga, daños",
+        "maintenance": "Llantas, cambios de aceite, reparaciones",
+        "eld": "KeepTruckin, Samsara, etc.",
+        "loadboard": "DAT, Truckstop, etc.",
+        "parking": "Patio o parada de camiones"
+      },
+      "selectFrequency": "¿Con qué frecuencia?",
       "labelPlaceholder": "Nombre del gasto (ej. Pago del camión)",
       "amountPlaceholder": "Monto",
       "frequency": "Frecuencia",

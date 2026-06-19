@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
-  ScrollView, KeyboardAvoidingView, Platform,
+  ScrollView, KeyboardAvoidingView, Platform, Modal, Pressable,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
@@ -14,12 +14,16 @@ import { v4 as uuid } from 'uuid';
 
 interface Props { onNext: () => void; }
 
+type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
+
 interface ExpenseEntry {
   id: string;
   label: string;
   category: string;
   amount: string;
   frequency: ExpenseFrequency;
+  icon?: IoniconName;
+  subtitle?: string;
 }
 
 interface Draft {
@@ -30,38 +34,35 @@ interface Draft {
 
 const FREQUENCIES: ExpenseFrequency[] = ['daily','weekly','biweekly','monthly','quarterly','semiannual','annual'];
 
-const FREQ_LABELS: Record<ExpenseFrequency, string> = {
-  daily: 'Daily', weekly: 'Weekly', biweekly: 'Every 2 wks',
-  monthly: 'Monthly', quarterly: 'Quarterly', semiannual: '6 Months', annual: 'Annual',
-};
-
 // Mandatory, pre-labeled expenses every owner-operator carries.
-// `tKey` resolves the display label; `category` is stored on the row.
-const FIXED_EXPENSES: { category: string; tKey: string }[] = [
-  { category: 'truck',       tKey: 'onboarding.expenses.financePayment'        },
-  { category: 'insurance',   tKey: 'onboarding.expenses.suggestions.insurance' },
-  { category: 'parking',     tKey: 'onboarding.expenses.suggestions.parking'   },
-  { category: 'maintenance', tKey: 'onboarding.expenses.suggestions.maintenance' },
-  { category: 'eld',         tKey: 'onboarding.expenses.suggestions.eld'       },
-  { category: 'loadboard',   tKey: 'onboarding.expenses.suggestions.loadBoard' },
+// Labels & subtitles resolve from i18n (fixedLabels / fixedSubtitles).
+const FIXED_EXPENSES: { category: string; icon: IoniconName }[] = [
+  { category: 'truck',       icon: 'car-outline'              },
+  { category: 'insurance',   icon: 'shield-checkmark-outline' },
+  { category: 'maintenance', icon: 'construct-outline'        },
+  { category: 'eld',         icon: 'hardware-chip-outline'    },
+  { category: 'loadboard',   icon: 'grid-outline'             },
+  { category: 'parking',     icon: 'location-outline'         },
 ];
-
-function nextFrequency(current: ExpenseFrequency): ExpenseFrequency {
-  const idx = FREQUENCIES.indexOf(current);
-  return FREQUENCIES[(idx + 1) % FREQUENCIES.length];
-}
 
 function emptyDraft(): Draft {
   return { label: '', amount: '', frequency: 'monthly' };
 }
 
+// Which row the frequency dropdown is currently editing.
+type FreqTarget = { kind: 'fixed'; id: string } | { kind: 'draft' } | null;
+
 export default function OnboardingExpensesScreen({ onNext }: Props) {
   const { t } = useTranslation();
+
+  const freqLabel = (f: ExpenseFrequency) => t(`onboarding.expenses.frequencies.${f}`);
 
   const [fixed, setFixed] = useState<ExpenseEntry[]>(() =>
     FIXED_EXPENSES.map((f) => ({
       id: uuid(),
-      label: t(f.tKey),
+      label: t(`onboarding.expenses.fixedLabels.${f.category}`),
+      subtitle: t(`onboarding.expenses.fixedSubtitles.${f.category}`),
+      icon: f.icon,
       category: f.category,
       amount: '',
       frequency: 'monthly' as ExpenseFrequency,
@@ -69,22 +70,32 @@ export default function OnboardingExpensesScreen({ onNext }: Props) {
   );
   const [others, setOthers] = useState<ExpenseEntry[]>([]);
   const [draft, setDraft] = useState<Draft>(emptyDraft());
+  const [freqTarget, setFreqTarget] = useState<FreqTarget>(null);
 
-  function updateFixed(id: string, field: 'amount', value: string) {
-    setFixed((prev) => prev.map((e) => e.id === id ? { ...e, [field]: value } : e));
-  }
-
-  function cycleFixedFreq(id: string) {
-    setFixed((prev) => prev.map((e) => e.id === id ? { ...e, frequency: nextFrequency(e.frequency) } : e));
+  function updateFixed(id: string, value: string) {
+    setFixed((prev) => prev.map((e) => e.id === id ? { ...e, amount: value } : e));
   }
 
   function updateDraft(field: keyof Draft, value: string) {
     setDraft((prev) => ({ ...prev, [field]: value }));
   }
 
-  function cycleDraftFreq() {
-    setDraft((prev) => ({ ...prev, frequency: nextFrequency(prev.frequency) }));
+  function selectFrequency(freq: ExpenseFrequency) {
+    if (!freqTarget) return;
+    if (freqTarget.kind === 'draft') {
+      setDraft((prev) => ({ ...prev, frequency: freq }));
+    } else {
+      const { id } = freqTarget;
+      setFixed((prev) => prev.map((e) => e.id === id ? { ...e, frequency: freq } : e));
+    }
+    setFreqTarget(null);
   }
+
+  const activeFreq: ExpenseFrequency = !freqTarget
+    ? 'monthly'
+    : freqTarget.kind === 'draft'
+      ? draft.frequency
+      : fixed.find((e) => e.id === freqTarget.id)?.frequency ?? 'monthly';
 
   const draftValid = draft.label.trim().length > 0 && parseFloat(draft.amount) > 0;
 
@@ -120,8 +131,8 @@ export default function OnboardingExpensesScreen({ onNext }: Props) {
   }
 
   function handleNext() {
-    // Pull together everything the driver actually filled in, including a
-    // draft "Other" row they typed but didn't explicitly add.
+    // Everything the driver filled in, including a draft "Other" row they
+    // typed but didn't explicitly add.
     const collected: ExpenseEntry[] = [
       ...fixed.filter((e) => parseFloat(e.amount) > 0),
       ...others,
@@ -137,7 +148,6 @@ export default function OnboardingExpensesScreen({ onNext }: Props) {
     }
 
     if (collected.length > 0) {
-      // Replace any previously saved onboarding expenses (leave fuel alone).
       db.runSync(`DELETE FROM user_expenses WHERE category != 'fuel'`);
       const now = new Date().toISOString();
       for (let i = 0; i < collected.length; i++) {
@@ -155,6 +165,37 @@ export default function OnboardingExpensesScreen({ onNext }: Props) {
   }
 
   const total = totalMonthly();
+
+  // A reusable amount + frequency-dropdown row. Called as a plain function
+  // (not <JSX/>) so the inputs keep focus across re-renders.
+  function renderAmountRow({
+    amount, onAmount, frequency, onOpenFreq, trailing,
+  }: {
+    amount: string;
+    onAmount: (v: string) => void;
+    frequency: ExpenseFrequency;
+    onOpenFreq: () => void;
+    trailing?: React.ReactNode;
+  }) {
+    return (
+      <View style={styles.amountRow}>
+        <Text style={styles.dollarSign}>$</Text>
+        <TextInput
+          style={styles.amountInput}
+          value={amount}
+          onChangeText={onAmount}
+          keyboardType="decimal-pad"
+          placeholder="0"
+          placeholderTextColor={Colors.textTertiary}
+        />
+        <TouchableOpacity style={styles.freqChip} onPress={onOpenFreq} activeOpacity={0.8}>
+          <Text style={styles.freqText}>{freqLabel(frequency)}</Text>
+          <Ionicons name="chevron-down" size={14} color={Colors.primary} />
+        </TouchableOpacity>
+        {trailing}
+      </View>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
@@ -187,27 +228,22 @@ export default function OnboardingExpensesScreen({ onNext }: Props) {
               const showEquiv = parseFloat(expense.amount) > 0 && expense.frequency !== 'monthly';
               return (
                 <View key={expense.id} style={styles.expenseCard}>
-                  <Text style={styles.fixedLabel}>{expense.label}</Text>
-                  <View style={styles.expenseDivider} />
-                  <View style={styles.amountRow}>
-                    <Text style={styles.dollarSign}>$</Text>
-                    <TextInput
-                      style={styles.amountInput}
-                      value={expense.amount}
-                      onChangeText={(v) => updateFixed(expense.id, 'amount', v)}
-                      keyboardType="decimal-pad"
-                      placeholder="0"
-                      placeholderTextColor={Colors.textTertiary}
-                    />
-                    <TouchableOpacity
-                      style={styles.freqChip}
-                      onPress={() => cycleFixedFreq(expense.id)}
-                      activeOpacity={0.8}
-                    >
-                      <Text style={styles.freqText}>{FREQ_LABELS[expense.frequency]}</Text>
-                      <Ionicons name="chevron-forward" size={12} color={Colors.primary} />
-                    </TouchableOpacity>
+                  <View style={styles.labelRow}>
+                    <View style={styles.rowIcon}>
+                      <Ionicons name={expense.icon ?? 'cash-outline'} size={18} color={Colors.primary} />
+                    </View>
+                    <View style={styles.labelTextWrap}>
+                      <Text style={styles.fixedLabel}>{expense.label}</Text>
+                      {!!expense.subtitle && <Text style={styles.fixedSubtitle}>{expense.subtitle}</Text>}
+                    </View>
                   </View>
+                  <View style={styles.expenseDivider} />
+                  {renderAmountRow({
+                    amount: expense.amount,
+                    onAmount: (v) => updateFixed(expense.id, v),
+                    frequency: expense.frequency,
+                    onOpenFreq: () => setFreqTarget({ kind: 'fixed', id: expense.id }),
+                  })}
                   {showEquiv && (
                     <Text style={styles.monthlyEquiv}>= ${monthly.toFixed(2)}/mo</Text>
                   )}
@@ -229,7 +265,7 @@ export default function OnboardingExpensesScreen({ onNext }: Props) {
                   <View style={styles.completedInfo}>
                     <Text style={styles.completedLabel}>{expense.label}</Text>
                     <Text style={styles.completedMeta}>
-                      ${(parseFloat(expense.amount) || 0).toFixed(2)} · {FREQ_LABELS[expense.frequency]}
+                      ${(parseFloat(expense.amount) || 0).toFixed(2)} · {freqLabel(expense.frequency)}
                       {expense.frequency !== 'monthly' ? ` · $${monthly.toFixed(2)}/mo` : ''}
                     </Text>
                   </View>
@@ -237,7 +273,7 @@ export default function OnboardingExpensesScreen({ onNext }: Props) {
                     onPress={() => removeOther(expense.id)}
                     hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                   >
-                    <Ionicons name="close-circle" size={20} color={Colors.textTertiary} />
+                    <Ionicons name="close-circle" size={22} color={Colors.textTertiary} />
                   </TouchableOpacity>
                 </View>
               );
@@ -246,6 +282,9 @@ export default function OnboardingExpensesScreen({ onNext }: Props) {
             {/* The always-present draft input row */}
             <View style={styles.expenseCard}>
               <View style={styles.labelRow}>
+                <View style={styles.rowIcon}>
+                  <Ionicons name="add-outline" size={18} color={Colors.primary} />
+                </View>
                 <TextInput
                   style={styles.labelInput}
                   value={draft.label}
@@ -257,33 +296,22 @@ export default function OnboardingExpensesScreen({ onNext }: Props) {
                 />
               </View>
               <View style={styles.expenseDivider} />
-              <View style={styles.amountRow}>
-                <Text style={styles.dollarSign}>$</Text>
-                <TextInput
-                  style={styles.amountInput}
-                  value={draft.amount}
-                  onChangeText={(v) => updateDraft('amount', v)}
-                  keyboardType="decimal-pad"
-                  placeholder="0"
-                  placeholderTextColor={Colors.textTertiary}
-                />
-                <TouchableOpacity
-                  style={styles.freqChip}
-                  onPress={cycleDraftFreq}
-                  activeOpacity={0.8}
-                >
-                  <Text style={styles.freqText}>{FREQ_LABELS[draft.frequency]}</Text>
-                  <Ionicons name="chevron-forward" size={12} color={Colors.primary} />
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.addRowBtn, !draftValid && styles.addRowBtnDisabled]}
-                  onPress={commitDraft}
-                  disabled={!draftValid}
-                  activeOpacity={0.8}
-                >
-                  <Ionicons name="add" size={20} color={draftValid ? Colors.background : Colors.textTertiary} />
-                </TouchableOpacity>
-              </View>
+              {renderAmountRow({
+                amount: draft.amount,
+                onAmount: (v) => updateDraft('amount', v),
+                frequency: draft.frequency,
+                onOpenFreq: () => setFreqTarget({ kind: 'draft' }),
+                trailing: (
+                  <TouchableOpacity
+                    style={[styles.addRowBtn, !draftValid && styles.addRowBtnDisabled]}
+                    onPress={commitDraft}
+                    disabled={!draftValid}
+                    activeOpacity={0.8}
+                  >
+                    <Ionicons name="add" size={22} color={draftValid ? Colors.background : Colors.textTertiary} />
+                  </TouchableOpacity>
+                ),
+              })}
             </View>
 
             <TouchableOpacity
@@ -316,6 +344,37 @@ export default function OnboardingExpensesScreen({ onNext }: Props) {
           <View style={{ height: 40 }} />
         </ScrollView>
       </KeyboardAvoidingView>
+
+      {/* Frequency dropdown */}
+      <Modal
+        visible={!!freqTarget}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setFreqTarget(null)}
+      >
+        <Pressable style={styles.modalBackdrop} onPress={() => setFreqTarget(null)}>
+          <Pressable style={styles.modalSheet} onPress={(e) => e.stopPropagation()}>
+            <View style={styles.modalHandle} />
+            <Text style={styles.modalTitle}>{t('onboarding.expenses.selectFrequency')}</Text>
+            {FREQUENCIES.map((f) => {
+              const selected = f === activeFreq;
+              return (
+                <TouchableOpacity
+                  key={f}
+                  style={[styles.freqOption, selected && styles.freqOptionActive]}
+                  onPress={() => selectFrequency(f)}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[styles.freqOptionText, selected && styles.freqOptionTextActive]}>
+                    {freqLabel(f)}
+                  </Text>
+                  {selected && <Ionicons name="checkmark" size={20} color={Colors.primary} />}
+                </TouchableOpacity>
+              );
+            })}
+          </Pressable>
+        </Pressable>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -341,28 +400,36 @@ const styles = StyleSheet.create({
   sectionTitle: { fontFamily: FontFamily.semiBold, fontSize: FontSize.body, color: Colors.textPrimary, marginBottom: 4 },
   sectionHint:  { fontFamily: FontFamily.regular, fontSize: FontSize.label, color: Colors.textSecondary, marginBottom: 14, lineHeight: 18 },
 
-  expenseList: { gap: 10, marginBottom: 24 },
+  expenseList: { gap: 12, marginBottom: 24 },
   expenseCard: {
     backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border,
     borderRadius: Radius.lg, paddingHorizontal: 16, paddingVertical: 4,
   },
-  fixedLabel:  { fontFamily: FontFamily.semiBold, fontSize: FontSize.body, color: Colors.textPrimary, paddingVertical: 12 },
-  labelRow:    { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 12 },
-  labelInput:  { flex: 1, fontFamily: FontFamily.semiBold, fontSize: FontSize.body, color: Colors.textPrimary },
+  labelRow:    { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14 },
+  rowIcon: {
+    width: 34, height: 34, borderRadius: 10,
+    backgroundColor: Colors.primaryDim, borderWidth: 1, borderColor: Colors.primaryMid,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  labelTextWrap: { flex: 1 },
+  fixedLabel:    { fontFamily: FontFamily.semiBold, fontSize: FontSize.body, color: Colors.textPrimary },
+  fixedSubtitle: { fontFamily: FontFamily.regular, fontSize: FontSize.caption, color: Colors.textSecondary, marginTop: 2 },
+  labelInput:    { flex: 1, fontFamily: FontFamily.semiBold, fontSize: FontSize.body, color: Colors.textPrimary, paddingVertical: 0 },
+
   expenseDivider: { height: 1, backgroundColor: Colors.borderSubtle },
-  amountRow:   { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 12 },
+  amountRow:   { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 14 },
   dollarSign:  { fontFamily: FontFamily.semiBold, fontSize: FontSize.subtitle, color: Colors.textSecondary },
-  amountInput: { flex: 1, fontFamily: FontFamily.bold, fontSize: FontSize.subtitle, color: Colors.textPrimary },
+  amountInput: { flex: 1, fontFamily: FontFamily.bold, fontSize: FontSize.subtitle, color: Colors.textPrimary, paddingVertical: 0 },
   freqChip: {
-    flexDirection: 'row', alignItems: 'center', gap: 4,
+    flexDirection: 'row', alignItems: 'center', gap: 6,
     backgroundColor: Colors.surfaceHigh, borderRadius: Radius.pill,
-    paddingHorizontal: 12, paddingVertical: 7, borderWidth: 1, borderColor: Colors.border,
+    paddingHorizontal: 14, paddingVertical: 9, borderWidth: 1, borderColor: Colors.border,
   },
   freqText:     { fontFamily: FontFamily.medium, fontSize: FontSize.label, color: Colors.primary },
-  monthlyEquiv: { fontFamily: FontFamily.regular, fontSize: FontSize.caption, color: Colors.textSecondary, paddingBottom: 10 },
+  monthlyEquiv: { fontFamily: FontFamily.regular, fontSize: FontSize.caption, color: Colors.textSecondary, paddingBottom: 12 },
 
   addRowBtn: {
-    width: 36, height: 36, borderRadius: 18,
+    width: 38, height: 38, borderRadius: 19,
     backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center',
   },
   addRowBtnDisabled: { backgroundColor: Colors.surfaceHigh },
@@ -398,4 +465,25 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primary, borderRadius: Radius.md, paddingVertical: 17,
   },
   buttonText: { fontFamily: FontFamily.semiBold, fontSize: FontSize.body, color: Colors.background },
+
+  // Frequency dropdown
+  modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
+  modalSheet: {
+    backgroundColor: Colors.surface, borderTopLeftRadius: Radius.xl, borderTopRightRadius: Radius.xl,
+    borderWidth: 1, borderColor: Colors.border,
+    paddingHorizontal: Spacing.screenH, paddingTop: 10, paddingBottom: 36,
+  },
+  modalHandle: {
+    alignSelf: 'center', width: 40, height: 4, borderRadius: 2,
+    backgroundColor: Colors.border, marginBottom: 14,
+  },
+  modalTitle: { fontFamily: FontFamily.bold, fontSize: FontSize.subtitle, color: Colors.textPrimary, marginBottom: 12 },
+  freqOption: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingVertical: 15, paddingHorizontal: 16, borderRadius: Radius.md, marginBottom: 6,
+    borderWidth: 1, borderColor: 'transparent',
+  },
+  freqOptionActive: { backgroundColor: Colors.primaryDim, borderColor: Colors.primaryMid },
+  freqOptionText:   { fontFamily: FontFamily.medium, fontSize: FontSize.body, color: Colors.textPrimary },
+  freqOptionTextActive: { fontFamily: FontFamily.semiBold, color: Colors.primary },
 });

@@ -206,6 +206,25 @@ Dashboard has nothing real to show until loads can be created. Recommended path:
 
 ## 6. Work Log (newest first)
 
+### 2026-06-19 — Onboarding expenses: dropdown, icons, Maintenance, no truncation
+- Per user request on the expenses screen: (1) no truncated labels — each
+  essential label sits on its own full-width row with an icon + clarifying
+  subtitle; (2) **frequency is now a real dropdown** (bottom-sheet modal),
+  replacing tap-to-cycle; (3) added a **Maintenance** essential
+  ("Tires, oil changes, repairs"); (4) roomier spacing so nothing is cut off.
+- Essentials now: Truck/Finance, Insurance, Maintenance, ELD Device, Load Board,
+  Truck Parking — each with icon + i18n subtitle.
+- Added i18n `fixedLabels`, `fixedSubtitles`, `selectFrequency` across
+  en/es/pa/zh.
+- Fixed a focus bug: amount/frequency row is rendered via a plain helper
+  function (not a nested `<Component/>`) so inputs don't remount per keystroke.
+- **Note / open item:** the screenshot the user shared does NOT match any
+  committed version in this repo (different single-row layout, per-row icons,
+  "ELD Device"/"Load Board" labels, no Maintenance). Confirmed our accent IS
+  green (`#00C896` = `Colors.primary`; amber `#E8A020` is `secondary`). That
+  build appears to come from outside this repo/branch — need to confirm where
+  the user's device build is sourced so changes here actually land.
+
 ### 2026-06-19 — Wired the PRD/North Star into always-loaded context
 - Confirmed the full **PRD v2.0** already lives canonically in `PRD.md`
   (32 sections, $50K MRR North Star). Did not duplicate it.

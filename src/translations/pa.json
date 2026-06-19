@@ -69,6 +69,23 @@
       "otherPlaceholder": "ਇਸ ਖਰਚੇ ਦਾ ਨਾਮ",
       "addOther": "ਸੂਚੀ ਵਿੱਚ ਜੋੜੋ",
       "financePayment": "ਟਰੱਕ ਦੀ ਕਿਸ਼ਤ / ਫਾਈਨੈਂਸ",
+      "fixedLabels": {
+        "truck": "ਟਰੱਕ ਦੀ ਕਿਸ਼ਤ / ਫਾਈਨੈਂਸ",
+        "insurance": "ਬੀਮਾ",
+        "maintenance": "ਮੁਰੰਮਤ",
+        "eld": "ELD ਡਿਵਾਈਸ",
+        "loadboard": "ਲੋਡ ਬੋਰਡ",
+        "parking": "ਟਰੱਕ ਪਾਰਕਿੰਗ"
+      },
+      "fixedSubtitles": {
+        "truck": "ਲੋਨ ਜਾਂ ਲੀਜ਼ ਦੀ ਕਿਸ਼ਤ",
+        "insurance": "ਦੇਣਦਾਰੀ, ਮਾਲ, ਨੁਕਸਾਨ",
+        "maintenance": "ਟਾਇਰ, ਤੇਲ ਬਦਲੀ, ਮੁਰੰਮਤ",
+        "eld": "KeepTruckin, Samsara, ਆਦਿ",
+        "loadboard": "DAT, Truckstop, ਆਦਿ",
+        "parking": "ਯਾਰਡ ਜਾਂ ਟਰੱਕ ਸਟਾਪ ਪਾਰਕਿੰਗ"
+      },
+      "selectFrequency": "ਕਿੰਨੀ ਵਾਰ?",
       "labelPlaceholder": "ਖਰਚੇ ਦਾ ਨਾਮ",
       "amountPlaceholder": "ਰਕਮ",
       "frequency": "ਕਿੰਨੀ ਵਾਰ",

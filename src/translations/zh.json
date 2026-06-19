@@ -69,6 +69,23 @@
       "otherPlaceholder": "为此费用命名",
       "addOther": "添加到列表",
       "financePayment": "卡车月供 / 贷款",
+      "fixedLabels": {
+        "truck": "卡车月供 / 贷款",
+        "insurance": "保险",
+        "maintenance": "维修保养",
+        "eld": "ELD 电子记录仪",
+        "loadboard": "货源平台",
+        "parking": "卡车停车"
+      },
+      "fixedSubtitles": {
+        "truck": "贷款或租赁月供",
+        "insurance": "责任险、货物险、车损险",
+        "maintenance": "轮胎、换油、维修",
+        "eld": "KeepTruckin、Samsara 等",
+        "loadboard": "DAT、Truckstop 等",
+        "parking": "停车场或卡车停靠站"
+      },
+      "selectFrequency": "多久一次？",
       "labelPlaceholder": "费用名称（例如：卡车月供）",
       "amountPlaceholder": "金额",
       "frequency": "频率",
