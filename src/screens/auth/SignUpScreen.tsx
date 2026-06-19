@@ -16,7 +16,7 @@ WebBrowser.maybeCompleteAuthSession();
 
 interface Props {
   onGoToSignIn: () => void;
-  onGuestMode:  () => Promise<void>;
+  onGuestMode:  () => void;
 }
 
 export default function SignUpScreen({ onGoToSignIn, onGuestMode }: Props) {

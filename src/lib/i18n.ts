@@ -1,6 +1,6 @@
 import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as SecureStore from 'expo-secure-store';
 
 import en from '../translations/en.json';
 import es from '../translations/es.json';
@@ -25,7 +25,7 @@ export const LANGUAGE_STORAGE_KEY = '@truckernet_language';
 
 export async function getSavedLanguage(): Promise<SupportedLanguage | null> {
   try {
-    const lang = await AsyncStorage.getItem(LANGUAGE_STORAGE_KEY);
+    const lang = await SecureStore.getItemAsync(LANGUAGE_STORAGE_KEY);
     return (lang as SupportedLanguage) || null;
   } catch {
     return null;
@@ -34,7 +34,7 @@ export async function getSavedLanguage(): Promise<SupportedLanguage | null> {
 
 export async function saveLanguage(lang: SupportedLanguage): Promise<void> {
   try {
-    await AsyncStorage.setItem(LANGUAGE_STORAGE_KEY, lang);
+    await SecureStore.setItemAsync(LANGUAGE_STORAGE_KEY, lang);
   } catch {}
 }
 

@@ -13,10 +13,9 @@ import OnboardingMilesScreen from '../screens/onboarding/OnboardingMilesScreen';
 import OnboardingResultScreen from '../screens/onboarding/OnboardingResultScreen';
 import { getSavedLanguage } from '../lib/i18n';
 import { getSetting, setSetting } from '../db/database';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const Stack = createNativeStackNavigator();
-const GUEST_KEY = '@truckernet_guest_mode';
+const GUEST_SETTING = 'guest_mode';
 
 // All possible app states — only moves forward, never backward (except sign-out)
 type Step =
@@ -47,7 +46,7 @@ export default function RootNavigator() {
       if (!lang) { setStep('language'); return; }
 
       // 2. Guest mode or signed in?
-      const guest   = await AsyncStorage.getItem(GUEST_KEY);
+      const guest    = getSetting(GUEST_SETTING);
       const isAuthed = !!session || guest === 'true';
       if (!isAuthed) { setStep('signin'); return; }
 
@@ -77,15 +76,14 @@ export default function RootNavigator() {
     if (step !== 'app') return;
     if (session || authLoading) return;
 
-    AsyncStorage.getItem(GUEST_KEY).then((guest) => {
-      if (guest !== 'true') setStep('signin');
-    });
+    const guest = getSetting(GUEST_SETTING);
+    if (guest !== 'true') setStep('signin');
   }, [session, authLoading]); // eslint-disable-line
 
   // ── Guest mode: skip auth entirely ──
-  async function enterGuestMode() {
+  function enterGuestMode() {
     try {
-      await AsyncStorage.setItem(GUEST_KEY, 'true');
+      setSetting(GUEST_SETTING, 'true');
       const onboarded = getSetting('onboarding_completed');
       setStep(onboarded ? 'app' : 'onboarding_fuel');
     } catch (e) {
