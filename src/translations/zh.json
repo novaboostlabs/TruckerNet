@@ -158,6 +158,7 @@
     "backhaul": "回程货",
     "backhaulHint": "低于盈亏平衡但避免空驶",
     "calculating": "正在计算路线...",
+    "autoMiles": "自动",
     "checkNow": "检查此订单",
     "result": {
       "worthIt": "值得接单",

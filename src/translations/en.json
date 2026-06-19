@@ -163,6 +163,7 @@
     "backhaul": "Backhaul load",
     "backhaulHint": "Below break-even but avoids deadhead",
     "calculating": "Calculating route...",
+    "autoMiles": "Auto",
     "checkNow": "Check This Load",
     "result": {
       "worthIt": "Worth Taking",

@@ -148,8 +148,12 @@
     "pickup": "ਚੁੱਕਣ ਦੀ ਥਾਂ",
     "delivery": "ਡਿਲੀਵਰੀ ਦੀ ਥਾਂ",
     "addressPlaceholder": "ਪੂਰਾ ਪਤਾ ਜਾਂ ਸ਼ਹਿਰ, ਰਾਜ",
+    "addressEncourage": "ਪੂਰਾ ਪਤਾ = ਵਧੇਰੇ ਸਹੀ ਮੀਲ",
     "loadType": "ਲੋਡ ਦੀ ਕਿਸਮ",
     "backhaul": "ਵਾਪਸੀ ਲੋਡ",
+    "backhaulHint": "ਬਰੇਕ-ਈਵਨ ਤੋਂ ਹੇਠਾਂ ਪਰ ਖਾਲੀ ਸਫ਼ਰ ਤੋਂ ਬਚਾਉਂਦਾ ਹੈ",
+    "calculating": "ਰੂਟ ਦੀ ਗਣਨਾ ਹੋ ਰਹੀ ਹੈ...",
+    "autoMiles": "ਆਟੋ",
     "checkNow": "ਇਸ ਲੋਡ ਦੀ ਜਾਂਚ ਕਰੋ",
     "result": {
       "worthIt": "ਯੋਗ ਹੈ",

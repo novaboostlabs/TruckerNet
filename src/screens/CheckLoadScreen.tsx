@@ -1,7 +1,7 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
-  ScrollView, KeyboardAvoidingView, Platform, Switch, Modal, Pressable,
+  ScrollView, KeyboardAvoidingView, Platform, Switch, Modal, Pressable, ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
@@ -11,6 +11,8 @@ import { calcBreakEven } from '../db/database';
 import {
   getFairMarketRate, calcDeadheadCost, LoadType,
 } from '../utils/marketRates';
+import AddressAutocomplete from '../components/AddressAutocomplete';
+import { getRouteMiles, AddressSuggestion } from '../lib/mapbox';
 
 interface Props {
   onClose: () => void;
@@ -33,11 +35,32 @@ export default function CheckLoadScreen({ onClose, onLogLoad }: Props) {
 
   const [pay, setPay]           = useState('');
   const [miles, setMiles]       = useState('');
+  const [milesAuto, setMilesAuto] = useState(false);   // miles came from routing, not manual entry
   const [pickup, setPickup]     = useState('');
   const [delivery, setDelivery] = useState('');
+  const [pickupSel, setPickupSel]     = useState<AddressSuggestion | null>(null);
+  const [deliverySel, setDeliverySel] = useState<AddressSuggestion | null>(null);
+  const [routing, setRouting]   = useState(false);
   const [loadType, setLoadType] = useState<LoadType>('dry_van');
   const [typeOpen, setTypeOpen] = useState(false);
   const [backhaul, setBackhaul] = useState(false);
+
+  // When both endpoints are geocoded, auto-fill miles from the driving route.
+  useEffect(() => {
+    if (!pickupSel || !deliverySel) return;
+    const ctrl = new AbortController();
+    let cancelled = false;
+    setRouting(true);
+    getRouteMiles(pickupSel, deliverySel, ctrl.signal)
+      .then((mi) => {
+        if (cancelled) return;
+        setMiles(String(Math.round(mi)));
+        setMilesAuto(true);
+      })
+      .catch(() => { /* keep manual entry available on failure */ })
+      .finally(() => { if (!cancelled) setRouting(false); });
+    return () => { cancelled = true; ctrl.abort(); };
+  }, [pickupSel, deliverySel]);
 
   // Break-even is fixed for the session (derived from saved expenses + fuel + miles).
   const { breakEvenRPM, fuelCPM, fixedCPM } = useMemo(() => calcBreakEven(), []);
@@ -115,48 +138,54 @@ export default function CheckLoadScreen({ onClose, onLogLoad }: Props) {
             />
           </View>
 
-          {/* Miles */}
-          <Text style={[styles.fieldLabel, { marginTop: 18 }]}>{t('common.miles').toUpperCase()}</Text>
+          {/* Pickup */}
+          <Text style={[styles.fieldLabel, { marginTop: 18 }]}>{t('checkLoad.pickup')}</Text>
+          <AddressAutocomplete
+            value={pickup}
+            onChangeText={(v) => { setPickup(v); if (pickupSel) { setPickupSel(null); setMilesAuto(false); } }}
+            onSelect={setPickupSel}
+            placeholder={t('checkLoad.addressPlaceholder')}
+            icon="ellipse-outline"
+          />
+
+          {/* Delivery */}
+          <Text style={[styles.fieldLabel, { marginTop: 18 }]}>{t('checkLoad.delivery')}</Text>
+          <AddressAutocomplete
+            value={delivery}
+            onChangeText={(v) => { setDelivery(v); if (deliverySel) { setDeliverySel(null); setMilesAuto(false); } }}
+            onSelect={setDeliverySel}
+            placeholder={t('checkLoad.addressPlaceholder')}
+            icon="location"
+            iconColor={Colors.primary}
+          />
+          <Text style={styles.addrHint}>{t('checkLoad.addressEncourage')}</Text>
+
+          {/* Miles — auto-filled from the route, still editable as an override */}
+          <View style={styles.milesLabelRow}>
+            <Text style={styles.fieldLabel}>{t('common.miles').toUpperCase()}</Text>
+            {routing ? (
+              <View style={styles.milesBadge}>
+                <ActivityIndicator size="small" color={Colors.textSecondary} />
+                <Text style={styles.milesBadgeText}>{t('checkLoad.calculating')}</Text>
+              </View>
+            ) : milesAuto ? (
+              <View style={styles.milesBadge}>
+                <Ionicons name="navigate" size={12} color={Colors.primary} />
+                <Text style={[styles.milesBadgeText, { color: Colors.primary }]}>{t('checkLoad.autoMiles')}</Text>
+              </View>
+            ) : null}
+          </View>
           <View style={styles.inputCard}>
             <TextInput
               style={styles.bigInput}
               value={miles}
-              onChangeText={setMiles}
+              onChangeText={(v) => { setMiles(v); setMilesAuto(false); }}
               keyboardType="decimal-pad"
               placeholder="0"
               placeholderTextColor={Colors.textTertiary}
             />
             <Text style={styles.inputSuffix}>mi</Text>
           </View>
-
-          {/* Pickup */}
-          <Text style={[styles.fieldLabel, { marginTop: 18 }]}>{t('checkLoad.pickup')}</Text>
-          <View style={styles.inputCard}>
-            <Ionicons name="ellipse-outline" size={16} color={Colors.textSecondary} style={styles.addrIcon} />
-            <TextInput
-              style={styles.addrInput}
-              value={pickup}
-              onChangeText={setPickup}
-              placeholder={t('checkLoad.addressPlaceholder')}
-              placeholderTextColor={Colors.textTertiary}
-              autoCapitalize="words"
-            />
-          </View>
-
-          {/* Delivery */}
-          <Text style={[styles.fieldLabel, { marginTop: 18 }]}>{t('checkLoad.delivery')}</Text>
-          <View style={styles.inputCard}>
-            <Ionicons name="location" size={16} color={Colors.primary} style={styles.addrIcon} />
-            <TextInput
-              style={styles.addrInput}
-              value={delivery}
-              onChangeText={setDelivery}
-              placeholder={t('checkLoad.addressPlaceholder')}
-              placeholderTextColor={Colors.textTertiary}
-              autoCapitalize="words"
-            />
-          </View>
-          <Text style={styles.addrHint}>{t('checkLoad.addressEncourage')}</Text>
 
           {/* Load type */}
           <Text style={[styles.fieldLabel, { marginTop: 18 }]}>{t('checkLoad.loadType')}</Text>
@@ -332,9 +361,13 @@ const styles = StyleSheet.create({
   bigInput:    { flex: 1, fontFamily: FontFamily.bold, fontSize: 28, color: Colors.textPrimary, padding: 0 },
   inputSuffix: { fontFamily: FontFamily.medium, fontSize: FontSize.body, color: Colors.textSecondary },
 
-  addrIcon:  { marginRight: 10 },
-  addrInput: { flex: 1, fontFamily: FontFamily.medium, fontSize: FontSize.body, color: Colors.textPrimary, padding: 0 },
   addrHint:  { fontFamily: FontFamily.regular, fontSize: FontSize.caption, color: Colors.textSecondary, marginTop: 8 },
+
+  milesLabelRow: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 18,
+  },
+  milesBadge:     { flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 10 },
+  milesBadgeText: { fontFamily: FontFamily.medium, fontSize: FontSize.caption, color: Colors.textSecondary },
 
   dropdown: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',

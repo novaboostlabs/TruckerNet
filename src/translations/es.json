@@ -161,6 +161,7 @@
     "backhaul": "Carga de regreso",
     "backhaulHint": "Por debajo del equilibrio pero evita viaje vacío",
     "calculating": "Calculando ruta...",
+    "autoMiles": "Auto",
     "checkNow": "Revisar Esta Carga",
     "result": {
       "worthIt": "Vale la Pena",
