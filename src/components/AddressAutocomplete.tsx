@@ -59,7 +59,11 @@ export default function AddressAutocomplete({
     return () => { clearTimeout(timer); ctrl.abort(); };
   }, [value]);
 
+  // Small delay before hiding on blur so an onPress on a suggestion fires first.
+  const blurTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   function pick(s: AddressSuggestion) {
+    if (blurTimer.current) clearTimeout(blurTimer.current);
     selectedText.current = s.label.trim();
     onChangeText(s.label);
     setSuggestions([]);
@@ -68,8 +72,10 @@ export default function AddressAutocomplete({
     onSelect(s);
   }
 
-  // Hide the list once the field matches the picked address, even if a stale
-  // request resolves afterward.
+  function handleBlur() {
+    blurTimer.current = setTimeout(() => setFocused(false), 150);
+  }
+
   const showList = focused && suggestions.length > 0 && value.trim() !== selectedText.current;
 
   return (
@@ -80,7 +86,11 @@ export default function AddressAutocomplete({
           style={styles.input}
           value={value}
           onChangeText={onChangeText}
-          onFocus={() => setFocused(true)}
+          onFocus={() => {
+            if (blurTimer.current) clearTimeout(blurTimer.current);
+            setFocused(true);
+          }}
+          onBlur={handleBlur}
           placeholder={placeholder}
           placeholderTextColor={Colors.textTertiary}
           autoCapitalize="words"
@@ -92,9 +102,9 @@ export default function AddressAutocomplete({
       {showList && (
         <View style={styles.dropdown}>
           {suggestions.map((s) => (
-            // onPressIn (touch-down) so the pick registers on the first tap even
-            // while the keyboard is dismissing — onPress would be cancelled by
-            // the layout shift, forcing a second tap.
+            // onPressIn fires on touch-DOWN, before keyboard-dismissal layout
+            // shifts can cancel the gesture. onPress (touch-UP) is unreliable
+            // here because the dropdown can unmount before the finger lifts.
             <TouchableOpacity key={s.id} style={styles.option} onPressIn={() => pick(s)} activeOpacity={0.7}>
               <Ionicons name="location-outline" size={16} color={Colors.textSecondary} style={styles.optionIcon} />
               <Text style={styles.optionText} numberOfLines={2}>{s.label}</Text>

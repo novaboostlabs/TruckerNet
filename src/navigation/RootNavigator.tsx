@@ -12,8 +12,11 @@ import OnboardingExpensesScreen from '../screens/onboarding/OnboardingExpensesSc
 import OnboardingMilesScreen from '../screens/onboarding/OnboardingMilesScreen';
 import OnboardingResultScreen from '../screens/onboarding/OnboardingResultScreen';
 import { getSavedLanguage } from '../lib/i18n';
-import { getSetting, setSetting } from '../db/database';
+import { getSetting, setSetting, clearAllUserData } from '../db/database';
 import { AppFlowContext } from '../contexts/AppFlowContext';
+import { syncExpensesOnSignIn, pushExpenses } from '../lib/sync/expensesSync';
+import { syncFuelOnSignIn } from '../lib/sync/fuelSync';
+import { syncLoadsOnSignIn } from '../lib/sync/loadsSync';
 
 const Stack = createNativeStackNavigator();
 const GUEST_SETTING = 'guest_mode';
@@ -46,21 +49,27 @@ export default function RootNavigator() {
     initialized.current = true;
 
     async function init() {
-      // 1. Has the user selected a language?
+      // 1. Language must be chosen first.
       const lang = await getSavedLanguage();
       if (!lang) { setStep('language'); return; }
 
-      // 2. Guest mode or signed in?
-      const guest    = getSetting(GUEST_SETTING);
-      const isAuthed = !!session || guest === 'true';
-      if (!isAuthed) { setStep('signin'); return; }
+      // 2. No active session — decide whether to wipe data.
+      if (!session) {
+        // If a real account has previously signed in on this device the session
+        // may be temporarily unavailable (offline / token expired). Keep local
+        // data and send the user to sign-in to re-authenticate.
+        // Otherwise (guest or fresh install) wipe everything for a clean slate
+        // on every cold start — no data survives without an account.
+        const hadRealAccount = getSetting('has_real_account') === 'true';
+        if (!hadRealAccount) clearAllUserData();
+        setStep('signin');
+        return;
+      }
 
-      // 3. Onboarding only counts as "done" for a real account, tracked per
-      //    user id. Guests ("explore without an account") have no id, so they
-      //    re-run onboarding on every launch until they sign up.
-      const onboarded = !!session && getSetting(onboardingKey(session.user.id)) === 'true';
+      // 3. Real session: mark the device and check onboarding.
+      setSetting('has_real_account', 'true');
+      const onboarded = getSetting(onboardingKey(session.user.id)) === 'true';
       if (!onboarded) { setStep('onboarding_fuel'); return; }
-
       setStep('app');
     }
 
@@ -73,9 +82,17 @@ export default function RootNavigator() {
     if (step !== 'signin' && step !== 'signup') return;
     if (!session) return;
 
-    // A real account just signed in — skip onboarding only if THIS account
-    // previously completed it.
+    // Real account signed in — mark the device and check onboarding.
+    setSetting('has_real_account', 'true');
     const onboarded = getSetting(onboardingKey(session.user.id)) === 'true';
+
+    // Reconcile with the cloud (pull the account's data, or push local up if the
+    // cloud is empty — e.g. a guest who just created an account). Fire-and-forget:
+    // never blocks navigation, no-op for unconfigured Supabase.
+    syncExpensesOnSignIn(session.user.id);
+    syncFuelOnSignIn(session.user.id);
+    syncLoadsOnSignIn(session.user.id);
+
     setStep(onboarded ? 'app' : 'onboarding_fuel');
   }, [session]); // eslint-disable-line
 
@@ -85,8 +102,9 @@ export default function RootNavigator() {
     if (step !== 'app') return;
     if (session || authLoading) return;
 
-    const guest = getSetting(GUEST_SETTING);
-    if (guest !== 'true') setStep('signin');
+    // Session ended — always return to sign-in. guest_mode is cleared by
+    // clearAllUserData() which runs on explicit sign-out.
+    setStep('signin');
   }, [session, authLoading]); // eslint-disable-line
 
   // ── Replay onboarding from inside the app ──
@@ -100,9 +118,10 @@ export default function RootNavigator() {
   // ── Guest mode: skip auth entirely ──
   function enterGuestMode() {
     try {
+      // Always start from a clean slate in explore/guest mode.
+      // No data from previous sessions or accounts should bleed through.
+      clearAllUserData();
       setSetting(GUEST_SETTING, 'true');
-      // Guests always go through onboarding — it's never marked complete for
-      // them, so it shows again on the next launch until they create an account.
       setStep('onboarding_fuel');
     } catch (e) {
       console.error('Guest mode error:', e);
@@ -146,20 +165,35 @@ export default function RootNavigator() {
   }
 
   if (step === 'onboarding_expenses') {
-    return <OnboardingExpensesScreen onNext={() => setStep('onboarding_miles')} />;
+    return (
+      <OnboardingExpensesScreen
+        onNext={() => setStep('onboarding_miles')}
+        onBack={() => setStep('onboarding_fuel')}
+      />
+    );
   }
 
   if (step === 'onboarding_miles') {
-    return <OnboardingMilesScreen onNext={() => setStep('onboarding_result')} />;
+    return (
+      <OnboardingMilesScreen
+        onNext={() => setStep('onboarding_result')}
+        onBack={() => setStep('onboarding_expenses')}
+      />
+    );
   }
 
   if (step === 'onboarding_result') {
     return (
       <OnboardingResultScreen
+        onBack={() => setStep('onboarding_miles')}
         onComplete={() => {
           // Persist completion for this account only. Guests aren't saved, so
           // onboarding reappears on the next launch until they sign up.
-          if (session) setSetting(onboardingKey(session.user.id), 'true');
+          if (session) {
+            setSetting(onboardingKey(session.user.id), 'true');
+            // Back up the expenses + miles captured during onboarding.
+            pushExpenses(session.user.id);
+          }
           setStep('app');
         }}
       />

@@ -62,11 +62,16 @@ export async function searchAddress(
     .filter((s: AddressSuggestion) => !!s.label && s.lng != null && s.lat != null);
 }
 
-// In-memory cache of resolved route distances, keyed by rounded endpoint
-// coordinates. The same pickup+delivery lane is billed by Mapbox only once per
-// app session. Only successful numeric results are stored, so failures/aborts
-// retry cleanly. ~5 decimals ≈ 1m precision, enough to collapse identical picks.
-const routeCache = new Map<string, number>();
+export interface RouteData {
+  miles:    number;
+  /** GeoJSON coordinate pairs [lng, lat] along the driving route. */
+  geometry: [number, number][];
+}
+
+// In-memory cache keyed by rounded endpoint coordinates. Stores full route
+// data (miles + geometry) so the state-mileage split can reuse the same
+// response without a second Mapbox billing.
+const routeCache = new Map<string, RouteData>();
 
 function routeKey(from: AddressSuggestion, to: AddressSuggestion): string {
   const r = (n: number) => n.toFixed(5);
@@ -74,15 +79,15 @@ function routeKey(from: AddressSuggestion, to: AddressSuggestion): string {
 }
 
 /**
- * Driving distance in miles between two geocoded points. Uses the standard
- * driving profile (Mapbox truck routing is enterprise-only) — accurate enough
- * for a pay-per-mile estimate. Results are cached per lane to avoid re-billing.
+ * Driving route between two geocoded points — returns miles AND the full
+ * GeoJSON geometry for per-state mileage splitting. Results are cached per
+ * lane so the same trip is only billed once per app session.
  */
-export async function getRouteMiles(
+export async function getRouteData(
   from: AddressSuggestion,
   to: AddressSuggestion,
   signal?: AbortSignal
-): Promise<number> {
+): Promise<RouteData> {
   if (!isMapboxConfigured()) throw new Error('Mapbox token missing');
 
   const key = routeKey(from, to);
@@ -91,7 +96,8 @@ export async function getRouteMiles(
 
   const coords = `${from.lng},${from.lat};${to.lng},${to.lat}`;
   const params = new URLSearchParams({
-    overview: 'false',
+    overview:   'full',
+    geometries: 'geojson',
     access_token: TOKEN,
   });
 
@@ -99,10 +105,22 @@ export async function getRouteMiles(
   if (!res.ok) throw new Error(`Routing failed (${res.status})`);
   const data = await res.json();
 
-  const meters = data.routes?.[0]?.distance;
-  if (meters == null) throw new Error('No route found');
+  const route = data.routes?.[0];
+  if (!route) throw new Error('No route found');
 
-  const miles = meters / METERS_PER_MILE;
-  routeCache.set(key, miles);
-  return miles;
+  const miles    = route.distance / METERS_PER_MILE;
+  const geometry = (route.geometry?.coordinates ?? []) as [number, number][];
+
+  const result: RouteData = { miles, geometry };
+  routeCache.set(key, result);
+  return result;
+}
+
+/** Convenience wrapper — returns just the driving distance in miles. */
+export async function getRouteMiles(
+  from: AddressSuggestion,
+  to: AddressSuggestion,
+  signal?: AbortSignal
+): Promise<number> {
+  return (await getRouteData(from, to, signal)).miles;
 }

@@ -4,11 +4,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, FontFamily, FontSize, Spacing, Radius, SectionLabel } from '../../theme/theme';
-import { calcBreakEven, getSetting } from '../../db/database';
+import { calcBreakEven, getSetting, getTotalMonthlyExpenses, getMonthlyMiles } from '../../db/database';
 
-interface Props { onComplete: () => void; }
+interface Props { onComplete: () => void; onBack: () => void; }
 
-export default function OnboardingResultScreen({ onComplete }: Props) {
+export default function OnboardingResultScreen({ onComplete, onBack }: Props) {
   const { t } = useTranslation();
   const [result, setResult]   = useState({ breakEvenRPM: 0, fuelCPM: 0, fixedCPM: 0 });
   const [monthlyFuel, setMonthlyFuel]   = useState(0);
@@ -18,14 +18,15 @@ export default function OnboardingResultScreen({ onComplete }: Props) {
   const scaleAnim = React.useRef(new Animated.Value(0.8)).current;
 
   useEffect(() => {
-    // Calculate using DB data
     const r = calcBreakEven();
     setResult(r);
 
-    const weeklyFuel  = parseFloat(getSetting('weekly_fuel_cost') ?? '0');
-    const weeklyMiles = parseFloat(getSetting('weekly_miles') ?? '0');
-    setMonthlyFuel(weeklyFuel * 4.333);
-    setMonthlyMiles(weeklyMiles * 4.333);
+    // Derive the three formula inputs from the same values calcBreakEven() used,
+    // so the displayed breakdown always matches the headline number.
+    const monthly = getMonthlyMiles(); // weekly_miles × 4.333
+    setMonthlyMiles(monthly);
+    setMonthlyFuel(r.fuelCPM * monthly);       // fuelCPM × miles = $ fuel/mo
+    setMonthlyFixed(getTotalMonthlyExpenses()); // sum of user_expenses
 
     // Animate in
     Animated.parallel([
@@ -43,6 +44,11 @@ export default function OnboardingResultScreen({ onComplete }: Props) {
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
       <View style={styles.container}>
+
+        {/* Back button */}
+        <TouchableOpacity style={styles.backBtn} onPress={onBack} activeOpacity={0.7}>
+          <Ionicons name="arrow-back" size={20} color={Colors.textSecondary} />
+        </TouchableOpacity>
 
         {/* Progress — all filled */}
         <View style={styles.progressRow}>
@@ -136,6 +142,7 @@ const styles = StyleSheet.create({
   safe:      { flex: 1, backgroundColor: Colors.background },
   container: { flex: 1, paddingHorizontal: Spacing.screenH, paddingTop: 16, paddingBottom: 24 },
 
+  backBtn: { marginBottom: 12, alignSelf: 'flex-start', padding: 4 },
   progressRow: { flexDirection: 'row', gap: 6, marginBottom: 20 },
   progressDot: { flex: 1, height: 3, borderRadius: 2, backgroundColor: Colors.surface },
   progressDotActive: { backgroundColor: Colors.primary },

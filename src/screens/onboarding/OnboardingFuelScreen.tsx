@@ -19,6 +19,12 @@ export default function OnboardingFuelScreen({ onNext }: Props) {
   const weekly  = parseFloat(amount) || 0;
   const monthly = weekly * 4.333;
 
+  function handleAmountChange(v: string) {
+    const n = parseFloat(v);
+    if (!isNaN(n) && n > 5000) return; // cap at $5,000/week
+    setAmount(v);
+  }
+
   function handleNext() {
     if (weekly > 0) setSetting('weekly_fuel_cost', String(weekly));
     onNext();
@@ -62,13 +68,12 @@ export default function OnboardingFuelScreen({ onNext }: Props) {
               <TextInput
                 style={styles.input}
                 value={amount}
-                onChangeText={setAmount}
+                onChangeText={handleAmountChange}
                 keyboardType="decimal-pad"
                 placeholder={t('onboarding.fuel.placeholder')}
                 placeholderTextColor={Colors.textTertiary}
                 onFocus={() => setFocused(true)}
                 onBlur={() => setFocused(false)}
-                autoFocus
               />
               <Text style={styles.suffix}>/ week</Text>
             </View>

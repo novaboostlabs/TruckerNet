@@ -25,7 +25,9 @@
     "perMonth": "ਪ੍ਰਤੀ ਮਹੀਨਾ",
     "miles": "ਮੀਲ",
     "gallons": "ਗੈਲਨ",
-    "gross": "ਕੁੱਲ"
+    "gross": "ਕੁੱਲ",
+    "optional": "ਵਿਕਲਪਿਕ",
+    "required": "ਲਾਜ਼ਮੀ"
   },
   "auth": {
     "welcomeBack": "ਵਾਪਸ ਸੁਆਗਤ ਹੈ।",
@@ -47,7 +49,8 @@
     "backToSignIn": "ਸਾਈਨ ਇਨ ਤੇ ਵਾਪਸ",
     "errorEmailPassword": "ਕਿਰਪਾ ਕਰਕੇ ਈਮੇਲ ਅਤੇ ਪਾਸਵਰਡ ਦਾਖਲ ਕਰੋ।",
     "errorEmailRequired": "ਕਿਰਪਾ ਕਰਕੇ ਆਪਣੀ ਈਮੇਲ ਦਾਖਲ ਕਰੋ।",
-    "errorPasswordLength": "ਪਾਸਵਰਡ ਘੱਟੋ-ਘੱਟ 8 ਅੱਖਰਾਂ ਦਾ ਹੋਣਾ ਚਾਹੀਦਾ ਹੈ।"
+    "errorPasswordLength": "ਪਾਸਵਰਡ ਘੱਟੋ-ਘੱਟ 8 ਅੱਖਰਾਂ ਦਾ ਹੋਣਾ ਚਾਹੀਦਾ ਹੈ।",
+    "passwordMinLength": "ਘੱਟੋ-ਘੱਟ 8 ਅੱਖਰ"
   },
   "onboarding": {
     "step": "ਕਦਮ {{current}} / {{total}}",
@@ -138,7 +141,13 @@
     "recentLoads": "ਹਾਲੀਆ ਲੋਡ",
     "checkLoad": "ਲੋਡ ਜਾਂਚੋ — ਕੀ ਇਹ ਯੋਗ ਹੈ?",
     "noLoads": "ਕੋਈ ਲੋਡ ਨਹੀਂ",
-    "noLoadsHint": "ਆਪਣਾ ਪਹਿਲਾ ਲੋਡ ਲੌਗ ਕਰਨ ਲਈ + ਦਬਾਓ।"
+    "noLoadsHint": "ਆਪਣਾ ਪਹਿਲਾ ਲੋਡ ਲੌਗ ਕਰਨ ਲਈ + ਦਬਾਓ।",
+    "ofGross": "{{amount}} ਕੁੱਲ ਵਿੱਚੋਂ",
+    "activeLoad": "ਸਰਗਰਮ ਲੋਡ",
+    "markComplete": "ਮੁਕੰਮਲ ਵਜੋਂ ਨਿਸ਼ਾਨ ਲਗਾਓ",
+    "viewDetails": "ਵੇਰਵੇ ਵੇਖੋ",
+    "weeklyPnL": "ਇਸ ਹਫ਼ਤੇ ਤੁਸੀਂ {{amount}} ਦੇ ਮੁਨਾਫ਼ੇ ਵਿੱਚ ਹੋ",
+    "weeklyLoss": "ਇਸ ਹਫ਼ਤੇ ਤੁਸੀਂ {{amount}} ਦੇ ਘਾਟੇ ਵਿੱਚ ਹੋ"
   },
   "checkLoad": {
     "title": "ਲੋਡ ਜਾਂਚੋ",
@@ -159,8 +168,17 @@
       "worthIt": "ਯੋਗ ਹੈ",
       "notWorthIt": "ਬਰੇਕ-ਈਵਨ ਤੋਂ ਹੇਠਾਂ",
       "logLoad": "ਇਹ ਲੋਡ ਸਵੀਕਾਰ ਕਰੋ",
-      "close": "ਬੰਦ ਕਰੋ"
-    }
+      "close": "ਬੰਦ ਕਰੋ",
+      "backhaul": "ਵਾਪਸੀ ਲੋਡ — ਸਵੀਕਾਰਯੋਗ",
+      "netPay": "ਅਨੁਮਾਨਿਤ ਨੈੱਟ ਆਮਦਨ",
+      "ratePerMile": "ਤੁਹਾਡੀ ਪ੍ਰਤੀ ਮੀਲ ਦਰ",
+      "breakEven": "ਤੁਹਾਡੀ ਬਰੇਕ-ਈਵਨ",
+      "fairMarket": "ਉਚਿਤ ਬਾਜ਼ਾਰ ({{type}})",
+      "aboveBreakEven": "ਬਰੇਕ-ਈਵਨ ਤੋਂ +{{amount}}/ਮੀਲ ਉੱਪਰ",
+      "belowBreakEven": "ਬਰੇਕ-ਈਵਨ ਤੋਂ {{amount}}/ਮੀਲ ਹੇਠਾਂ",
+      "deadheadSaving": "ਖਾਲੀ ਚੱਲਣ ਨਾਲੋਂ ~{{amount}} ਬਚਾਉਂਦਾ ਹੈ"
+    },
+    "loadPayPlaceholder": "ਬਰੋਕਰ ਕੀ ਪੇਸ਼ਕਸ਼ ਕਰ ਰਿਹਾ ਹੈ ($)"
   },
   "fuel": {
     "title": "ਤੇਲ",
@@ -174,16 +192,60 @@
       "gallons": "ਖਰੀਦੇ ਗੈਲਨ",
       "state": "ਖਰੀਦਿਆ ਰਾਜ",
       "odometer": "ਮੌਜੂਦਾ ਓਡੋਮੀਟਰ",
-      "save": "ਤੇਲ ਭਰਾਈ ਸੁਰੱਖਿਅਤ ਕਰੋ"
-    }
+      "save": "ਤੇਲ ਭਰਾਈ ਸੁਰੱਖਿਅਤ ਕਰੋ",
+      "dollarsPlaceholder": "ਪੰਪ ਤੇ ਕੁੱਲ $",
+      "gallonsPlaceholder": "ਜਿਵੇਂ 68.4",
+      "statePlaceholder": "ਰਾਜ ਚੁਣੋ",
+      "odometerPlaceholder": "ਜਿਵੇਂ 487,892",
+      "odometerHint": "ਆਖਰੀ ਰਿਕਾਰਡ: {{miles}} ਮੀਲ — ਆਖਰੀ ਭਰਾਈ ਤੋਂ {{driven}} ਮੀਲ",
+      "odometerFirst": "ਪਹਿਲੀ ਐਂਟਰੀ — ਓਡੋਮੀਟਰ ਇੱਥੋਂ ਟਰੈਕ ਹੋਵੇਗਾ",
+      "receipt": "ਰਸੀਦ ਸਕੈਨ ਕਰੋ",
+      "calculations": {
+        "pricePerGallon": "ਪ੍ਰਤੀ ਗੈਲਨ ਕੀਮਤ",
+        "costPerMile": "ਪ੍ਰਤੀ ਮੀਲ ਲਾਗਤ",
+        "mpg": "ਮੀਲ ਪ੍ਰਤੀ ਗੈਲਨ",
+        "milesDriven": "ਚਲਾਏ ਮੀਲ"
+      }
+    },
+    "cpmTrend": "CPM ਰੁਝਾਨ — ਪਿਛਲੀਆਂ 5 ਭਰਾਈਆਂ",
+    "fillupHistory": "ਭਰਾਈ ਇਤਿਹਾਸ",
+    "noEntriesHint": "ਹਰ ਭਰਾਈ ਤੁਹਾਡੀ ਅਸਲ ਪ੍ਰਤੀ-ਮੀਲ ਲਾਗਤ ਨੂੰ ਅੱਪਡੇਟ ਕਰਦੀ ਹੈ।"
   },
   "addLoad": {
     "title": "ਲੋਡ ਜੋੜੋ",
+    "eyebrow": "ਲੋਡ ਦਰਜ ਕਰੋ",
     "pickup": "ਚੁੱਕਣ ਦਾ ਪਤਾ",
+    "pickupPlaceholder": "ਪੂਰਾ ਪਤਾ ਦੱਸਣਾ ਬਿਹਤਰ ਹੈ",
+    "pickupEncourage": "ਸਹੀ ਪਤਾ = ਸਹੀ ਮੀਲ + IFTA",
     "delivery": "ਡਿਲੀਵਰੀ ਪਤਾ",
+    "deliveryPlaceholder": "ਪੂਰਾ ਪਤਾ ਦੱਸਣਾ ਬਿਹਤਰ ਹੈ",
+    "calculating": "ਰੂਟ ਅਤੇ ਸੂਬੇਵਾਰ ਮੀਲ ਗਿਣ ਰਿਹਾ ਹਾਂ...",
+    "routeResult": "{{states}} ਸੂਬਿਆਂ ਵਿੱਚ {{miles}} ਮੀਲ",
+    "stateMileage": "ਸੂਬੇਵਾਰ ਮੀਲ",
+    "editState": "ਕਿਸੇ ਵੀ ਕਤਾਰ ਨੂੰ ਛੂਹ ਕੇ ਬਦਲੋ",
     "loadType": "ਲੋਡ ਦੀ ਕਿਸਮ",
     "grossPay": "ਕੁੱਲ ਭੁਗਤਾਨ",
+    "grossPlaceholder": "ਬਰੋਕਰ ਕੀ ਭੁਗਤਾਨ ਕਰ ਰਿਹਾ ਹੈ ($)",
+    "fairMarket": "ਉਚਿਤ ਬਾਜ਼ਾਰ ਦਰ",
+    "fairMarketRange": "ਇਸ ਰੂਟ ਲਈ ~${{min}}–${{max}}",
+    "youVsBenchmark": "ਤੁਸੀਂ ਬਾਜ਼ਾਰ ਦਾ {{percent}}% ਪ੍ਰਾਪਤ ਕਰ ਰਹੇ ਹੋ",
+    "status": "ਲੋਡ ਦੀ ਸਥਿਤੀ",
+    "backhaul": "ਵਾਪਸੀ ਲੋਡ",
+    "deadhead": "ਖਾਲੀ ਸਫ਼ਰ (ਬਿਨਾਂ ਭੁਗਤਾਨ)",
+    "brokerName": "ਬਰੋਕਰ ਦਾ ਨਾਮ",
+    "brokerMC": "MC ਨੰਬਰ",
+    "weight": "ਭਾਰ (LBS)",
+    "bol": "BOL ਨੰਬਰ",
+    "broker": "ਬਰੋਕਰ",
+    "notes": "ਟਿੱਪਣੀਆਂ",
+    "netPayPreview": "ਅਨੁਮਾਨਿਤ ਨੈੱਟ ਭੁਗਤਾਨ",
     "saveLoad": "ਲੋਡ ਸੁਰੱਖਿਅਤ ਕਰੋ",
+    "statuses": {
+      "upcoming": "ਆਉਣ ਵਾਲਾ",
+      "inProgress": "ਚੱਲ ਰਿਹਾ ਹੈ",
+      "completed": "ਮੁਕੰਮਲ",
+      "cancelled": "ਰੱਦ ਕੀਤਾ"
+    },
     "loadTypes": {
       "dry_van": "ਡਰਾਈ ਵੈਨ",
       "reefer": "ਰੀਫਰ",
@@ -202,6 +264,100 @@
     "thisWeek": "ਇਸ ਹਫ਼ਤੇ",
     "thisMonth": "ਇਸ ਮਹੀਨੇ",
     "allTime": "ਸਾਰਾ ਸਮਾਂ",
-    "noLoads": "ਕੋਈ ਲੋਡ ਦਰਜ ਨਹੀਂ"
+    "noLoads": "ਕੋਈ ਲੋਡ ਦਰਜ ਨਹੀਂ",
+    "eyebrow": "ਰਿਕਾਰਡ",
+    "gross": "ਕੁੱਲ",
+    "net": "ਨੈੱਟ",
+    "miles": "ਮੀਲ",
+    "avgRPM": "ਔਸਤ RPM",
+    "loads": "{{count}} ਲੋਡ",
+    "noLoadsHint": "ਤੁਹਾਡਾ ਹਰ ਦਰਜ ਕੀਤਾ ਲੋਡ ਪੂਰੇ ਮੁਨਾਫ਼ੇ ਦੇ ਵੇਰਵੇ ਨਾਲ ਇੱਥੇ ਦਿਖਾਈ ਦੇਵੇਗਾ।"
+  },
+  "ifta": {
+    "title": "IFTA",
+    "eyebrow": "ਪਾਲਣਾ",
+    "export": "ਨਿਰਯਾਤ",
+    "exportCSV": "CSV ਨਿਰਯਾਤ ਕਰੋ",
+    "exportPDF": "PDF ਨਿਰਯਾਤ ਕਰੋ",
+    "share": "ਸਾਂਝਾ ਕਰੋ",
+    "noData": "{{quarter}} {{year}} ਲਈ ਕੋਈ ਡਾਟਾ ਨਹੀਂ",
+    "noDataHint": "ਆਪਣੀ IFTA ਰਿਪੋਰਟ ਆਪਣੇ ਆਪ ਬਣਾਉਣ ਲਈ ਲੋਡ ਅਤੇ ਤੇਲ ਐਂਟਰੀਆਂ ਦਰਜ ਕਰੋ।",
+    "state": "ਰਾਜ",
+    "miles": "ਮੀਲ",
+    "gallons": "ਗੈਲਨ",
+    "total": "ਕੁੱਲ",
+    "totalMiles": "ਕੁੱਲ ਮੀਲ",
+    "totalGallons": "ਕੁੱਲ ਗੈਲਨ",
+    "disclaimer": "ਅੰਕੜੇ ਦਰਜ ਕੀਤੇ ਡਾਟੇ 'ਤੇ ਆਧਾਰਿਤ ਅਨੁਮਾਨ ਹਨ। ਆਪਣੀ IFTA ਰਿਟਰਨ ਦਾਖਲ ਕਰਨ ਤੋਂ ਪਹਿਲਾਂ ਸਾਰੇ ਕੁੱਲ ਜਾਂਚ ਲਓ।"
+  },
+  "expenses": {
+    "title": "ਖਰਚੇ",
+    "eyebrow": "ਸੈਟਿੰਗਾਂ",
+    "fixedCPM": "ਪ੍ਰਤੀ ਮੀਲ ਸਥਿਰ ਲਾਗਤ",
+    "monthlyExpenses": "ਮਹੀਨਾਵਾਰ ਖਰਚੇ",
+    "monthlyMiles": "ਮਹੀਨਾਵਾਰ ਮੀਲ",
+    "breakdown": "ਵੇਰਵਾ",
+    "save": "ਖਰਚੇ ਸੁਰੱਖਿਅਤ ਕਰੋ",
+    "saved": "ਸੁਰੱਖਿਅਤ ਕੀਤਾ"
+  },
+  "settings": {
+    "title": "ਸੈਟਿੰਗਾਂ",
+    "language": "ਭਾਸ਼ਾ",
+    "subscription": "ਸਬਸਕ੍ਰਿਪਸ਼ਨ",
+    "free": "ਮੁਫ਼ਤ ਪਲਾਨ",
+    "pro": "ਪ੍ਰੋ ਪਲਾਨ",
+    "upgradePro": "ਪ੍ਰੋ ਵਿੱਚ ਅੱਪਗ੍ਰੇਡ ਕਰੋ",
+    "restorePurchases": "ਖਰੀਦਾਂ ਮੁੜ-ਬਹਾਲ ਕਰੋ",
+    "privacy": "ਪਰਾਈਵੇਸੀ ਨੀਤੀ",
+    "version": "ਵਰਜਨ",
+    "profileGuest": "ਮਹਿਮਾਨ ਮੋਡ",
+    "profileGuestSub": "ਕੋਈ ਖਾਤਾ ਨਹੀਂ — ਮੁੜ-ਚਾਲੂ ਹੋਣ 'ਤੇ ਡਾਟਾ ਮਿਟ ਜਾਂਦਾ ਹੈ",
+    "profileActive": "ਸਰਗਰਮ ਖਾਤਾ",
+    "breakEvenSetup": "ਬਰੇਕ-ਈਵਨ ਸੈੱਟਅੱਪ",
+    "monthlyExpenses": "ਮਹੀਨਾਵਾਰ ਖਰਚੇ",
+    "monthlyExpensesSub": "ਬੀਮਾ, ਟਰੱਕ ਕਿਸ਼ਤ, ELD…",
+    "weeklyMiles": "ਹਫ਼ਤਾਵਾਰ ਮੀਲ",
+    "weeklyMilesSub": "ਤੁਹਾਡੀ ਪ੍ਰਤੀ ਮੀਲ ਸਥਿਰ ਲਾਗਤ ਤੈਅ ਕਰਦਾ ਹੈ",
+    "milesUnit": "ਮੀਲ/ਹਫ਼ਤਾ",
+    "notSet": "ਸੈੱਟ ਨਹੀਂ",
+    "replaySetup": "ਸੈੱਟਅੱਪ ਦੁਬਾਰਾ ਕਰੋ",
+    "replaySetupSub": "ਆਪਣੀ ਬਰੇਕ-ਈਵਨ ਮੁੜ ਤੋਂ ਅੱਪਡੇਟ ਕਰੋ",
+    "about": "ਬਾਰੇ",
+    "appVersion": "ਐਪ ਵਰਜਨ",
+    "terms": "ਨਿਯਮ ਅਤੇ ਸ਼ਰਤਾਂ",
+    "signOut": "ਸਾਈਨ ਆਊਟ",
+    "signOutConfirm": "ਕੀ ਤੁਸੀਂ ਸੱਚਮੁੱਚ ਸਾਈਨ ਆਊਟ ਕਰਨਾ ਚਾਹੁੰਦੇ ਹੋ?",
+    "deleteAccount": "ਖਾਤਾ ਮਿਟਾਓ",
+    "deleteAccountConfirm": "ਇਹ ਸਾਰਾ ਸਥਾਨਕ ਡਾਟਾ ਮਿਟਾ ਦੇਵੇਗਾ ਅਤੇ ਤੁਹਾਨੂੰ ਸਾਈਨ ਆਊਟ ਕਰ ਦੇਵੇਗਾ।\n\nਸਾਡੇ ਸਰਵਰਾਂ ਤੋਂ ਆਪਣਾ ਖਾਤਾ ਪੱਕੇ ਤੌਰ 'ਤੇ ਹਟਾਉਣ ਲਈ, ਸਾਈਨ ਆਊਟ ਕਰਨ ਤੋਂ ਬਾਅਦ truckernet@novaboostlabs.co 'ਤੇ ਈਮੇਲ ਕਰੋ।",
+    "deleteAccountAction": "ਡਾਟਾ ਮਿਟਾਓ ਅਤੇ ਸਾਈਨ ਆਊਟ ਕਰੋ",
+    "replayTitle": "ਸੈੱਟਅੱਪ ਦੁਬਾਰਾ ਕਰੋ",
+    "replayConfirm": "ਇਹ ਤੁਹਾਡੀ ਬਰੇਕ-ਈਵਨ ਗਣਨਾ ਅੱਪਡੇਟ ਕਰਨ ਲਈ ਤੁਹਾਨੂੰ ਸੈੱਟਅੱਪ ਪ੍ਰਕਿਰਿਆ ਵਿੱਚੋਂ ਦੁਬਾਰਾ ਲੰਘਾਏਗਾ।",
+    "replayAction": "ਸੈੱਟਅੱਪ ਸ਼ੁਰੂ ਕਰੋ"
+  },
+  "loadDetail": {
+    "eyebrow": "ਲੋਡ ਵੇਰਵੇ",
+    "payCosts": "ਭੁਗਤਾਨ ਅਤੇ ਖਰਚੇ",
+    "netPay": "ਨੈੱਟ ਆਮਦਨ",
+    "grossPay": "ਕੁੱਲ ਭੁਗਤਾਨ",
+    "fuelCost": "ਤੇਲ ਲਾਗਤ",
+    "fixedCost": "ਸਥਿਰ ਲਾਗਤ",
+    "additionalCosts": "ਵਾਧੂ ਖਰਚੇ",
+    "grossRPM": "ਕੁੱਲ RPM",
+    "netRPM": "ਨੈੱਟ RPM",
+    "fairMarketRange": "ਉਚਿਤ ਬਾਜ਼ਾਰ ਰੇਂਜ",
+    "loadInfo": "ਲੋਡ ਜਾਣਕਾਰੀ",
+    "equipmentType": "ਉਪਕਰਨ ਦੀ ਕਿਸਮ",
+    "backhaul": "ਵਾਪਸੀ ਲੋਡ",
+    "yes": "ਹਾਂ",
+    "weight": "ਭਾਰ",
+    "bol": "BOL #",
+    "broker": "ਬਰੋਕਰ",
+    "notes": "ਟਿੱਪਣੀਆਂ",
+    "stateMileage": "ਸੂਬੇਵਾਰ ਮੀਲ",
+    "verdict": {
+      "green": "ਮਜ਼ਬੂਤ ਲੋਡ",
+      "amber": "ਠੀਕ ਲੋਡ",
+      "red": "ਬਰੇਕ-ਈਵਨ ਤੋਂ ਹੇਠਾਂ"
+    }
   }
 }

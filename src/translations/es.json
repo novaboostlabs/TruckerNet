@@ -145,7 +145,9 @@
     "noLoadsHint": "Toca + para registrar tu primera carga y ver tu pago neto real.",
     "activeLoad": "CARGA ACTIVA",
     "markComplete": "Marcar Completada",
-    "viewDetails": "Ver Detalles"
+    "viewDetails": "Ver Detalles",
+    "weeklyPnL": "Llevas {{amount}} de ganancia esta semana",
+    "weeklyLoss": "Llevas {{amount}} de pérdida esta semana"
   },
   "checkLoad": {
     "title": "Revisar Carga",
@@ -172,7 +174,10 @@
       "breakEven": "Tu Punto de Equilibrio",
       "fairMarket": "Mercado Justo ({{type}})",
       "logLoad": "Aceptar y Registrar Carga",
-      "close": "Cerrar"
+      "close": "Cerrar",
+      "aboveBreakEven": "+{{amount}}/mi sobre el equilibrio",
+      "belowBreakEven": "{{amount}}/mi bajo el equilibrio",
+      "deadheadSaving": "Ahorra ~{{amount}} vs viajar vacío"
     }
   },
   "fuel": {
@@ -226,8 +231,21 @@
     "weight": "PESO (LBS)",
     "bol": "NÚMERO DE BOL",
     "broker": "BROKER",
+    "youVsBenchmark": "Estás obteniendo {{percent}}% del mercado justo",
+    "status": "ESTADO DE LA CARGA",
+    "backhaul": "Carga de regreso",
+    "deadhead": "Viaje en vacío (sin pago)",
+    "brokerName": "Nombre del broker",
+    "brokerMC": "Número MC",
+    "netPayPreview": "Pago neto estimado",
     "notes": "NOTAS",
     "saveLoad": "Guardar Carga",
+    "statuses": {
+      "upcoming": "Próxima",
+      "inProgress": "En camino",
+      "completed": "Completada",
+      "cancelled": "Cancelada"
+    },
     "loadTypes": {
       "dry_van": "Van Seco",
       "reefer": "Refrigerado",
@@ -253,7 +271,10 @@
     "miles": "MILLAS",
     "gallons": "GALONES",
     "total": "TOTAL",
-    "disclaimer": "Las cifras son estimaciones basadas en tus registros. Verifica todos los totales antes de presentar tu declaración IFTA."
+    "disclaimer": "Las cifras son estimaciones basadas en tus registros. Verifica todos los totales antes de presentar tu declaración IFTA.",
+    "export": "Exportar",
+    "totalMiles": "MILLAS TOTALES",
+    "totalGallons": "GALONES TOTALES"
   },
   "history": {
     "title": "Historial",
@@ -268,5 +289,75 @@
     "loads": "{{count}} CARGAS",
     "noLoads": "Sin cargas registradas",
     "noLoadsHint": "Cada carga que registres aparecerá aquí con el desglose completo de ganancias."
+  },
+  "expenses": {
+    "title": "Gastos",
+    "eyebrow": "CONFIGURACIÓN",
+    "fixedCPM": "COSTO FIJO POR MILLA",
+    "monthlyExpenses": "GASTOS MENSUALES",
+    "monthlyMiles": "MILLAS MENSUALES",
+    "breakdown": "DESGLOSE",
+    "save": "Guardar Gastos",
+    "saved": "Guardado"
+  },
+  "settings": {
+    "title": "Configuración",
+    "language": "Idioma",
+    "subscription": "Suscripción",
+    "free": "Plan Gratis",
+    "pro": "Plan Pro",
+    "upgradePro": "Mejorar a Pro",
+    "restorePurchases": "Restaurar Compras",
+    "privacy": "Política de Privacidad",
+    "version": "Versión",
+    "profileGuest": "Modo Invitado",
+    "profileGuestSub": "Sin cuenta — los datos se borran al reiniciar",
+    "profileActive": "Cuenta Activa",
+    "breakEvenSetup": "Configuración de Equilibrio",
+    "monthlyExpenses": "Gastos Mensuales",
+    "monthlyExpensesSub": "Seguro, pago del camión, ELD…",
+    "weeklyMiles": "Millas Semanales",
+    "weeklyMilesSub": "Determina tu costo fijo por milla",
+    "milesUnit": "mi/sem",
+    "notSet": "Sin definir",
+    "replaySetup": "Repetir Configuración",
+    "replaySetupSub": "Actualiza tu punto de equilibrio desde cero",
+    "about": "Acerca de",
+    "appVersion": "Versión de la App",
+    "terms": "Términos y Condiciones",
+    "signOut": "Cerrar Sesión",
+    "signOutConfirm": "¿Seguro que quieres cerrar sesión?",
+    "deleteAccount": "Eliminar Cuenta",
+    "deleteAccountConfirm": "Esto borrará todos los datos locales y cerrará tu sesión.\n\nPara eliminar tu cuenta permanentemente de nuestros servidores, escribe a truckernet@novaboostlabs.co después de cerrar sesión.",
+    "deleteAccountAction": "Borrar Datos y Cerrar Sesión",
+    "replayTitle": "Repetir Configuración",
+    "replayConfirm": "Esto te guiará por el proceso de configuración de nuevo para actualizar tu cálculo de equilibrio.",
+    "replayAction": "Comenzar Configuración"
+  },
+  "loadDetail": {
+    "eyebrow": "DETALLES DE LA CARGA",
+    "payCosts": "PAGO Y COSTOS",
+    "netPay": "PAGO NETO",
+    "grossPay": "PAGO BRUTO",
+    "fuelCost": "Costo de gasolina",
+    "fixedCost": "Costo fijo",
+    "additionalCosts": "Costos adicionales",
+    "grossRPM": "RPM Bruto",
+    "netRPM": "RPM Neto",
+    "fairMarketRange": "Rango de mercado justo",
+    "loadInfo": "INFO DE LA CARGA",
+    "equipmentType": "Tipo de equipo",
+    "backhaul": "Carga de regreso",
+    "yes": "Sí",
+    "weight": "Peso",
+    "bol": "BOL #",
+    "broker": "Broker",
+    "notes": "Notas",
+    "stateMileage": "MILLAS POR ESTADO",
+    "verdict": {
+      "green": "Carga Fuerte",
+      "amber": "Carga Justa",
+      "red": "Por Debajo del Equilibrio"
+    }
   }
 }

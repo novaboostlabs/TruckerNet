@@ -1,125 +1,232 @@
-import React, { useContext, useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
-  View, Text, TextInput, TouchableOpacity,
-  ScrollView, StyleSheet, KeyboardAvoidingView, Platform,
+  View, Text, TextInput, TouchableOpacity, StyleSheet,
+  ScrollView, KeyboardAvoidingView, Platform, Modal, Pressable, Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
-import db from '../db/database';
-import { supabase } from '../lib/supabase';
-import { useAuth } from '../contexts/AuthContext';
-import { AppFlowContext } from '../contexts/AppFlowContext';
 import { Colors, FontFamily, FontSize, Spacing, Radius, SectionLabel } from '../theme/theme';
+import {
+  getUserExpenses, replaceUserExpenses, getWeeklyMiles, setMonthlyMiles,
+} from '../db/database';
+import { toMonthlyAmount, ExpenseFrequency } from '../utils/marketRates';
+import { useAuth } from '../contexts/AuthContext';
+import { pushExpenses } from '../lib/sync/expensesSync';
+import 'react-native-get-random-values';
+import { v4 as uuid } from 'uuid';
 
-interface ExpensesForm {
-  truckPayment:        string;
-  insurance:           string;
-  eldPayment:          string;
-  maintenanceMonthly:  string;
-  parkingMonthly:      string;
-  otherExpenses:       string;
-  estimatedMonthlyMiles: string;
+type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
+
+interface ExpenseEntry {
+  id: string;
+  label: string;
+  category: string;
+  amount: string;
+  frequency: ExpenseFrequency;
+  icon?: IoniconName;
+  subtitle?: string;
 }
 
-const EMPTY_FORM: ExpensesForm = {
-  truckPayment: '', insurance: '', eldPayment: '',
-  maintenanceMonthly: '', parkingMonthly: '', otherExpenses: '',
-  estimatedMonthlyMiles: '',
-};
+interface Draft {
+  label: string;
+  amount: string;
+  frequency: ExpenseFrequency;
+}
+
+const FREQUENCIES: ExpenseFrequency[] = ['daily','weekly','biweekly','monthly','quarterly','semiannual','annual'];
+
+// Same essentials as onboarding, in the same order.
+const FIXED_EXPENSES: { category: string; icon: IoniconName }[] = [
+  { category: 'truck',       icon: 'car-outline'              },
+  { category: 'insurance',   icon: 'shield-checkmark-outline' },
+  { category: 'maintenance', icon: 'construct-outline'        },
+  { category: 'eld',         icon: 'hardware-chip-outline'    },
+  { category: 'loadboard',   icon: 'grid-outline'             },
+  { category: 'parking',     icon: 'location-outline'         },
+];
+
+const FIXED_CATEGORIES = new Set(FIXED_EXPENSES.map(f => f.category));
+
+function emptyDraft(): Draft {
+  return { label: '', amount: '', frequency: 'monthly' };
+}
+
+type FreqTarget = { kind: 'fixed'; id: string } | { kind: 'draft' } | null;
 
 export default function ExpensesScreen() {
+  const { t } = useTranslation();
   const { user } = useAuth();
-  const { replayOnboarding } = useContext(AppFlowContext);
-  const [form, setForm] = useState<ExpensesForm>(EMPTY_FORM);
-  const [saved, setSaved] = useState(false);
 
-  useEffect(() => { loadSavedExpenses(); }, [user]);
+  const freqLabel = (f: ExpenseFrequency) => t(`onboarding.expenses.frequencies.${f}`);
 
-  function loadSavedExpenses() {
-    const row = db.getFirstSync<{
-      truck_payment: number; insurance: number; eld_payment: number;
-      maintenance_monthly: number; parking_monthly: number;
-      other_expenses: number; estimated_monthly_miles: number;
-    }>('SELECT * FROM fixed_expenses WHERE id = 1');
+  const [fixed, setFixed]   = useState<ExpenseEntry[]>([]);
+  const [others, setOthers] = useState<ExpenseEntry[]>([]);
+  const [draft, setDraft]   = useState<Draft>(emptyDraft());
+  const [monthlyMilesInput, setMonthlyMilesInput] = useState('');
+  const [freqTarget, setFreqTarget] = useState<FreqTarget>(null);
+  const [saved, setSaved]   = useState(false);
 
-    if (row) {
-      setForm({
-        truckPayment:          row.truck_payment > 0 ? String(row.truck_payment) : '',
-        insurance:             row.insurance > 0 ? String(row.insurance) : '',
-        eldPayment:            row.eld_payment > 0 ? String(row.eld_payment) : '',
-        maintenanceMonthly:    row.maintenance_monthly > 0 ? String(row.maintenance_monthly) : '',
-        parkingMonthly:        row.parking_monthly > 0 ? String(row.parking_monthly) : '',
-        otherExpenses:         row.other_expenses > 0 ? String(row.other_expenses) : '',
-        estimatedMonthlyMiles: row.estimated_monthly_miles > 1 ? String(row.estimated_monthly_miles) : '',
-      });
+  // ── Load existing values from user_expenses on mount ──
+  useEffect(() => {
+    const saved = getUserExpenses();
+
+    const fixedRows: ExpenseEntry[] = FIXED_EXPENSES.map((f) => {
+      const match = saved.find((e) => e.category === f.category);
+      return {
+        id:        match?.id ?? uuid(),
+        label:     t(`onboarding.expenses.fixedLabels.${f.category}`),
+        subtitle:  t(`onboarding.expenses.fixedSubtitles.${f.category}`),
+        icon:      f.icon,
+        category:  f.category,
+        amount:    match ? String(match.amount) : '',
+        frequency: (match?.frequency as ExpenseFrequency) ?? 'monthly',
+      };
+    });
+
+    const otherRows: ExpenseEntry[] = saved
+      .filter((e) => !FIXED_CATEGORIES.has(e.category))
+      .map((e) => ({
+        id:        e.id,
+        label:     e.label,
+        category:  e.category || 'other',
+        amount:    String(e.amount),
+        frequency: (e.frequency as ExpenseFrequency) ?? 'monthly',
+      }));
+
+    setFixed(fixedRows);
+    setOthers(otherRows);
+
+    const weekly = getWeeklyMiles();
+    if (weekly > 0) setMonthlyMilesInput(String(Math.round(weekly * 4.333)));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  function updateFixed(id: string, value: string) {
+    setFixed((prev) => prev.map((e) => e.id === id ? { ...e, amount: value } : e));
+  }
+
+  function updateDraft(field: keyof Draft, value: string) {
+    setDraft((prev) => ({ ...prev, [field]: value }));
+  }
+
+  function selectFrequency(freq: ExpenseFrequency) {
+    if (!freqTarget) return;
+    if (freqTarget.kind === 'draft') {
+      setDraft((prev) => ({ ...prev, frequency: freq }));
+    } else {
+      const { id } = freqTarget;
+      setFixed((prev) => prev.map((e) => e.id === id ? { ...e, frequency: freq } : e));
     }
+    setFreqTarget(null);
   }
 
-  function n(val: string): number {
-    const parsed = parseFloat(val);
-    return isNaN(parsed) || parsed < 0 ? 0 : parsed;
+  const activeFreq: ExpenseFrequency = !freqTarget
+    ? 'monthly'
+    : freqTarget.kind === 'draft'
+      ? draft.frequency
+      : fixed.find((e) => e.id === freqTarget.id)?.frequency ?? 'monthly';
+
+  const draftValid = draft.label.trim().length > 0 && parseFloat(draft.amount) > 0;
+
+  function commitDraft() {
+    if (!draftValid) return;
+    setOthers((prev) => [
+      ...prev,
+      { id: uuid(), label: draft.label.trim(), category: 'other', amount: draft.amount, frequency: draft.frequency },
+    ]);
+    setDraft(emptyDraft());
   }
 
-  function calcFixedCPM(): number {
-    const total = n(form.truckPayment) + n(form.insurance) + n(form.eldPayment)
-      + n(form.maintenanceMonthly) + n(form.parkingMonthly) + n(form.otherExpenses);
-    const miles = n(form.estimatedMonthlyMiles);
-    return miles <= 0 ? 0 : total / miles;
+  function removeOther(id: string) {
+    setOthers((prev) => prev.filter((e) => e.id !== id));
+  }
+
+  function monthlyOf(amount: string, frequency: ExpenseFrequency): number {
+    return toMonthlyAmount(parseFloat(amount) || 0, frequency);
   }
 
   function totalMonthly(): number {
-    return n(form.truckPayment) + n(form.insurance) + n(form.eldPayment)
-      + n(form.maintenanceMonthly) + n(form.parkingMonthly) + n(form.otherExpenses);
+    let sum = 0;
+    for (const e of fixed)  sum += monthlyOf(e.amount, e.frequency);
+    for (const e of others) sum += monthlyOf(e.amount, e.frequency);
+    if (parseFloat(draft.amount) > 0) sum += monthlyOf(draft.amount, draft.frequency);
+    return sum;
   }
 
-  function pct(val: string): string {
-    const total = totalMonthly();
-    if (total === 0) return '0%';
-    return ((n(val) / total) * 100).toFixed(0) + '%';
-  }
+  const total       = totalMonthly();
+  const monthlyMiles = parseFloat(monthlyMilesInput) || 0;
+  const fixedCPM    = monthlyMiles > 0 ? total / monthlyMiles : 0;
 
-  async function saveExpenses() {
-    const cpm = calcFixedCPM();
-    db.runSync(
-      `INSERT INTO fixed_expenses (id, truck_payment, insurance, eld_payment,
-        maintenance_monthly, parking_monthly, other_expenses,
-        estimated_monthly_miles, fixed_cost_per_mile)
-       VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?)
-       ON CONFLICT(id) DO UPDATE SET
-         truck_payment = excluded.truck_payment, insurance = excluded.insurance,
-         eld_payment = excluded.eld_payment, maintenance_monthly = excluded.maintenance_monthly,
-         parking_monthly = excluded.parking_monthly, other_expenses = excluded.other_expenses,
-         estimated_monthly_miles = excluded.estimated_monthly_miles,
-         fixed_cost_per_mile = excluded.fixed_cost_per_mile`,
-      [n(form.truckPayment), n(form.insurance), n(form.eldPayment),
-       n(form.maintenanceMonthly), n(form.parkingMonthly), n(form.otherExpenses),
-       n(form.estimatedMonthlyMiles), cpm]
+  function handleSave() {
+    const collected: ExpenseEntry[] = [
+      ...fixed.filter((e) => parseFloat(e.amount) > 0),
+      ...others,
+    ];
+    if (draftValid) {
+      collected.push({ id: uuid(), label: draft.label.trim(), category: 'other', amount: draft.amount, frequency: draft.frequency });
+    }
+
+    replaceUserExpenses(
+      collected.map((e) => {
+        const amt = parseFloat(e.amount) || 0;
+        return {
+          id:                 e.id,
+          label:              e.label.trim(),
+          category:           e.category,
+          amount:             amt,
+          frequency:          e.frequency,
+          monthly_equivalent: toMonthlyAmount(amt, e.frequency),
+        };
+      })
     );
 
-    if (user) {
-      supabase.from('fixed_expenses').upsert({
-        user_id: user.id,
-        truck_payment: n(form.truckPayment), insurance: n(form.insurance),
-        eld_payment: n(form.eldPayment), maintenance_monthly: n(form.maintenanceMonthly),
-        parking_monthly: n(form.parkingMonthly), other_monthly: n(form.otherExpenses),
-        estimated_monthly_miles: n(form.estimatedMonthlyMiles),
-        fixed_cost_per_mile: cpm, updated_at: new Date().toISOString(),
-      }, { onConflict: 'user_id' }).then(({ error }) => {
-        if (error) console.warn('Supabase sync error:', error.message);
-      });
-    }
+    if (monthlyMiles > 0) setMonthlyMiles(monthlyMiles);
+
+    // Clear the consumed draft so it isn't double-counted on a second save.
+    if (draftValid) setDraft(emptyDraft());
+
+    // Back up to the cloud (local-first: never blocks the UI; no-op for guests).
+    if (user) pushExpenses(user.id);
 
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   }
 
-  const cpm   = calcFixedCPM();
-  const total = totalMonthly();
+  // Reusable amount + frequency-dropdown row (plain function to preserve focus).
+  function renderAmountRow({
+    amount, onAmount, frequency, onOpenFreq, trailing,
+  }: {
+    amount: string;
+    onAmount: (v: string) => void;
+    frequency: ExpenseFrequency;
+    onOpenFreq: () => void;
+    trailing?: React.ReactNode;
+  }) {
+    return (
+      <View style={styles.amountRow}>
+        <Text style={styles.dollarSign}>$</Text>
+        <TextInput
+          style={styles.amountInput}
+          value={amount}
+          onChangeText={onAmount}
+          keyboardType="decimal-pad"
+          placeholder="0"
+          placeholderTextColor={Colors.textTertiary}
+        />
+        <TouchableOpacity style={styles.freqChip} onPress={onOpenFreq} activeOpacity={0.8}>
+          <Text style={styles.freqText}>{freqLabel(frequency)}</Text>
+          <Ionicons name="chevron-down" size={14} color={Colors.primary} />
+        </TouchableOpacity>
+        {trailing}
+      </View>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-        <ScrollView style={styles.scroll} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
 
           {/* Header */}
           <View style={styles.header}>
@@ -127,134 +234,192 @@ export default function ExpensesScreen() {
               <Text style={styles.headerLabel}>SETTINGS</Text>
               <Text style={styles.headerTitle}>Expenses</Text>
             </View>
+          </View>
+
+          {/* Fixed CPM hero */}
+          <View style={styles.heroCard}>
+            <Text style={styles.heroLabel}>FIXED COST PER MILE</Text>
+            <Text style={[styles.heroNumber, fixedCPM > 0 && styles.heroNumberActive]}>
+              ${fixedCPM.toFixed(3)}
+            </Text>
+            {total > 0 && monthlyMiles > 0 ? (
+              <Text style={styles.heroSub}>
+                ${total.toLocaleString(undefined, { maximumFractionDigits: 0 })} / mo ÷ {monthlyMiles.toLocaleString()} mi
+              </Text>
+            ) : (
+              <Text style={styles.heroSub}>Enter your expenses and miles below to calculate</Text>
+            )}
+          </View>
+
+          {/* ── Essentials ── */}
+          <Text style={styles.sectionTitle}>{t('onboarding.expenses.fixedSection')}</Text>
+          <Text style={styles.sectionHint}>{t('onboarding.expenses.fixedHint')}</Text>
+
+          <View style={styles.expenseList}>
+            {fixed.map((expense) => {
+              const monthly = monthlyOf(expense.amount, expense.frequency);
+              const showEquiv = parseFloat(expense.amount) > 0 && expense.frequency !== 'monthly';
+              return (
+                <View key={expense.id} style={styles.expenseCard}>
+                  <View style={styles.labelRow}>
+                    <View style={styles.rowIcon}>
+                      <Ionicons name={expense.icon ?? 'cash-outline'} size={18} color={Colors.primary} />
+                    </View>
+                    <View style={styles.labelTextWrap}>
+                      <Text style={styles.fixedLabel}>{expense.label}</Text>
+                      {!!expense.subtitle && <Text style={styles.fixedSubtitle}>{expense.subtitle}</Text>}
+                    </View>
+                  </View>
+                  <View style={styles.expenseDivider} />
+                  {renderAmountRow({
+                    amount: expense.amount,
+                    onAmount: (v) => updateFixed(expense.id, v),
+                    frequency: expense.frequency,
+                    onOpenFreq: () => setFreqTarget({ kind: 'fixed', id: expense.id }),
+                  })}
+                  {showEquiv && <Text style={styles.monthlyEquiv}>= ${monthly.toFixed(2)}/mo</Text>}
+                </View>
+              );
+            })}
+          </View>
+
+          {/* ── Other expenses ── */}
+          <Text style={styles.sectionTitle}>{t('onboarding.expenses.otherSection')}</Text>
+          <Text style={styles.sectionHint}>{t('onboarding.expenses.otherHint')}</Text>
+
+          <View style={styles.expenseList}>
+            {others.map((expense) => {
+              const monthly = monthlyOf(expense.amount, expense.frequency);
+              return (
+                <View key={expense.id} style={styles.completedCard}>
+                  <View style={styles.completedInfo}>
+                    <Text style={styles.completedLabel}>{expense.label}</Text>
+                    <Text style={styles.completedMeta}>
+                      ${(parseFloat(expense.amount) || 0).toFixed(2)} · {freqLabel(expense.frequency)}
+                      {expense.frequency !== 'monthly' ? ` · $${monthly.toFixed(2)}/mo` : ''}
+                    </Text>
+                  </View>
+                  <TouchableOpacity onPress={() => removeOther(expense.id)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                    <Ionicons name="close-circle" size={22} color={Colors.textTertiary} />
+                  </TouchableOpacity>
+                </View>
+              );
+            })}
+
+            {/* Draft input row */}
+            <View style={styles.expenseCard}>
+              <View style={styles.labelRow}>
+                <View style={styles.rowIcon}>
+                  <Ionicons name="add-outline" size={18} color={Colors.primary} />
+                </View>
+                <TextInput
+                  style={styles.labelInput}
+                  value={draft.label}
+                  onChangeText={(v) => updateDraft('label', v)}
+                  placeholder={t('onboarding.expenses.otherPlaceholder')}
+                  placeholderTextColor={Colors.textTertiary}
+                  returnKeyType="done"
+                  onSubmitEditing={commitDraft}
+                />
+              </View>
+              <View style={styles.expenseDivider} />
+              {renderAmountRow({
+                amount: draft.amount,
+                onAmount: (v) => updateDraft('amount', v),
+                frequency: draft.frequency,
+                onOpenFreq: () => setFreqTarget({ kind: 'draft' }),
+                trailing: (
+                  <TouchableOpacity
+                    style={[styles.addRowBtn, !draftValid && styles.addRowBtnDisabled]}
+                    onPress={commitDraft}
+                    disabled={!draftValid}
+                    activeOpacity={0.8}
+                  >
+                    <Ionicons name="add" size={22} color={draftValid ? Colors.background : Colors.textTertiary} />
+                  </TouchableOpacity>
+                ),
+              })}
+            </View>
+
             <TouchableOpacity
-              style={styles.replayBtn}
-              onPress={replayOnboarding}
+              style={[styles.addBtn, !draftValid && styles.addBtnDisabled]}
+              onPress={commitDraft}
+              disabled={!draftValid}
               activeOpacity={0.8}
             >
-              <Ionicons name="refresh" size={15} color={Colors.primary} />
-              <Text style={styles.replayBtnText}>Replay setup</Text>
+              <Ionicons name="add-circle-outline" size={20} color={draftValid ? Colors.primary : Colors.textTertiary} />
+              <Text style={[styles.addBtnText, !draftValid && styles.addBtnTextDisabled]}>
+                {t('onboarding.expenses.addOther')}
+              </Text>
             </TouchableOpacity>
           </View>
 
-          {/* CPM hero */}
-          <View style={styles.heroCard}>
-            <Text style={styles.heroLabel}>FIXED COST PER MILE</Text>
-            <Text style={[styles.heroNumber, cpm > 0 && styles.heroNumberActive]}>
-              ${cpm.toFixed(3)}
-            </Text>
-            {total > 0 && (
-              <Text style={styles.heroSub}>
-                ${total.toLocaleString()} / mo ÷ {n(form.estimatedMonthlyMiles).toLocaleString()} mi
-              </Text>
-            )}
-            {cpm === 0 && (
-              <Text style={styles.heroSub}>Enter your expenses below to calculate</Text>
-            )}
+          {/* ── Monthly miles ── */}
+          <Text style={styles.sectionTitle}>{t('expenses.monthlyMiles')}</Text>
+          <Text style={styles.sectionHint}>Your average miles per month — used to calculate cost per mile.</Text>
+          <View style={styles.milesCard}>
+            <Ionicons name="speedometer-outline" size={20} color={Colors.primary} />
+            <TextInput
+              style={styles.milesInput}
+              value={monthlyMilesInput}
+              onChangeText={setMonthlyMilesInput}
+              keyboardType="decimal-pad"
+              placeholder="e.g. 10,000"
+              placeholderTextColor={Colors.textTertiary}
+            />
+            <Text style={styles.milesSuffix}>mi / mo</Text>
           </View>
 
-          {/* Monthly expenses section */}
-          <Text style={styles.sectionLabel}>MONTHLY EXPENSES</Text>
-          <View style={styles.card}>
-            {[
-              { label: 'Truck Payment', key: 'truckPayment'       as keyof ExpensesForm },
-              { label: 'Insurance',     key: 'insurance'           as keyof ExpensesForm },
-              { label: 'ELD',           key: 'eldPayment'          as keyof ExpensesForm },
-              { label: 'Maintenance',   key: 'maintenanceMonthly'  as keyof ExpensesForm },
-              { label: 'Parking',       key: 'parkingMonthly'      as keyof ExpensesForm },
-              { label: 'Other',         key: 'otherExpenses'       as keyof ExpensesForm },
-            ].map(({ label, key }, i, arr) => (
-              <React.Fragment key={key}>
-                <View style={styles.row}>
-                  <View style={styles.rowLeft}>
-                    <Text style={styles.rowLabel}>{label}</Text>
-                    {form[key].length > 0 && (
-                      <View style={styles.pctPill}>
-                        <Text style={styles.pctText}>{pct(form[key])}</Text>
-                      </View>
-                    )}
-                  </View>
-                  <View style={styles.rowRight}>
-                    <Text style={styles.currencyPrefix}>$</Text>
-                    <TextInput
-                      style={styles.rowInput}
-                      value={form[key]}
-                      onChangeText={(v) => setForm({ ...form, [key]: v })}
-                      keyboardType="decimal-pad"
-                      placeholder="0"
-                      placeholderTextColor={Colors.textTertiary}
-                    />
-                  </View>
-                </View>
-                {i < arr.length - 1 && <View style={styles.divider} />}
-              </React.Fragment>
-            ))}
-          </View>
-
-          {/* Miles section */}
-          <Text style={[styles.sectionLabel, { marginTop: Spacing.section }]}>MONTHLY MILES</Text>
-          <View style={styles.card}>
-            <View style={styles.row}>
-              <Text style={styles.rowLabel}>Estimated Miles / Month</Text>
-              <TextInput
-                style={styles.rowInput}
-                value={form.estimatedMonthlyMiles}
-                onChangeText={(v) => setForm({ ...form, estimatedMonthlyMiles: v })}
-                keyboardType="decimal-pad"
-                placeholder="e.g. 10,000"
-                placeholderTextColor={Colors.textTertiary}
-              />
-            </View>
-          </View>
-
-          {/* Breakdown */}
+          {/* Total */}
           {total > 0 && (
-            <>
-              <Text style={[styles.sectionLabel, { marginTop: Spacing.section }]}>BREAKDOWN</Text>
-              <View style={styles.card}>
-                {[
-                  { label: 'Truck Payment', val: form.truckPayment },
-                  { label: 'Insurance',     val: form.insurance },
-                  { label: 'ELD',           val: form.eldPayment },
-                  { label: 'Maintenance',   val: form.maintenanceMonthly },
-                  { label: 'Parking',       val: form.parkingMonthly },
-                  { label: 'Other',         val: form.otherExpenses },
-                ].filter(x => n(x.val) > 0).map(({ label, val }, i, arr) => (
-                  <React.Fragment key={label}>
-                    <View style={styles.breakdownRow}>
-                      <Text style={styles.breakdownLabel}>{label}</Text>
-                      <View style={styles.breakdownRight}>
-                        <Text style={styles.breakdownPct}>{pct(val)}</Text>
-                        <Text style={styles.breakdownAmount}>${n(val).toLocaleString()}</Text>
-                      </View>
-                    </View>
-                    {i < arr.length - 1 && <View style={styles.divider} />}
-                  </React.Fragment>
-                ))}
-                <View style={styles.divider} />
-                <View style={styles.totalRow}>
-                  <Text style={styles.totalLabel}>Total / Month</Text>
-                  <Text style={styles.totalValue}>${total.toLocaleString()}</Text>
-                </View>
-              </View>
-            </>
+            <View style={styles.totalCard}>
+              <Text style={styles.totalLabel}>TOTAL MONTHLY EXPENSES</Text>
+              <Text style={styles.totalValue}>
+                ${total.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                <Text style={styles.totalSub}>/mo</Text>
+              </Text>
+            </View>
           )}
 
-          {/* Save button */}
+          {/* Save */}
           <TouchableOpacity
             style={[styles.saveBtn, saved && styles.saveBtnSaved]}
-            onPress={saveExpenses}
+            onPress={handleSave}
             activeOpacity={0.85}
           >
             {saved
-              ? <><Ionicons name="checkmark" size={18} color={Colors.background} /><Text style={styles.saveBtnText}>Saved</Text></>
-              : <Text style={styles.saveBtnText}>Save Expenses</Text>
+              ? <><Ionicons name="checkmark" size={18} color={Colors.background} /><Text style={styles.saveBtnText}>{t('expenses.saved')}</Text></>
+              : <Text style={styles.saveBtnText}>{t('expenses.save')}</Text>
             }
           </TouchableOpacity>
 
           <View style={{ height: 48 }} />
         </ScrollView>
       </KeyboardAvoidingView>
+
+      {/* Frequency dropdown */}
+      <Modal visible={!!freqTarget} transparent animationType="fade" onRequestClose={() => setFreqTarget(null)}>
+        <Pressable style={styles.modalBackdrop} onPress={() => setFreqTarget(null)}>
+          <Pressable style={styles.modalSheet} onPress={(e) => e.stopPropagation()}>
+            <View style={styles.modalHandle} />
+            <Text style={styles.modalTitle}>{t('onboarding.expenses.selectFrequency')}</Text>
+            {FREQUENCIES.map((f) => {
+              const selected = f === activeFreq;
+              return (
+                <TouchableOpacity
+                  key={f}
+                  style={[styles.freqOption, selected && styles.freqOptionActive]}
+                  onPress={() => selectFrequency(f)}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[styles.freqOptionText, selected && styles.freqOptionTextActive]}>{freqLabel(f)}</Text>
+                  {selected && <Ionicons name="checkmark" size={20} color={Colors.primary} />}
+                </TouchableOpacity>
+              );
+            })}
+          </Pressable>
+        </Pressable>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -262,20 +427,15 @@ export default function ExpensesScreen() {
 const styles = StyleSheet.create({
   safe:    { flex: 1, backgroundColor: Colors.background },
   flex:    { flex: 1 },
-  scroll:  { flex: 1 },
-  content: { paddingHorizontal: Spacing.screenH, paddingBottom: 20 },
+  content: { paddingHorizontal: Spacing.screenH, paddingTop: 16 },
 
-  header: {
-    paddingTop: 16, paddingBottom: 24,
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-  },
+  header: { paddingTop: 16, paddingBottom: 24, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   headerLabel: { ...SectionLabel, marginBottom: 4 },
   headerTitle: { fontFamily: FontFamily.bold, fontSize: FontSize.title, color: Colors.textPrimary },
   replayBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
     backgroundColor: Colors.primaryDim, borderRadius: Radius.pill,
-    paddingHorizontal: 12, paddingVertical: 8,
-    borderWidth: 1, borderColor: Colors.primaryMid,
+    paddingHorizontal: 12, paddingVertical: 8, borderWidth: 1, borderColor: Colors.primaryMid,
   },
   replayBtnText: { fontFamily: FontFamily.semiBold, fontSize: FontSize.label, color: Colors.primary },
 
@@ -288,48 +448,97 @@ const styles = StyleSheet.create({
   heroNumberActive: { color: Colors.primary },
   heroSub:          { fontFamily: FontFamily.regular, fontSize: FontSize.body, color: Colors.textSecondary },
 
-  sectionLabel: { ...SectionLabel, marginBottom: 10 },
+  sectionTitle: { fontFamily: FontFamily.semiBold, fontSize: FontSize.body, color: Colors.textPrimary, marginBottom: 4 },
+  sectionHint:  { fontFamily: FontFamily.regular, fontSize: FontSize.label, color: Colors.textSecondary, marginBottom: 14, lineHeight: 18 },
 
-  card: {
+  expenseList: { gap: 12, marginBottom: 24 },
+  expenseCard: {
     backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border,
-    borderRadius: Radius.lg, paddingHorizontal: Spacing.cardPad, marginBottom: 4,
+    borderRadius: Radius.lg, paddingHorizontal: 16, paddingVertical: 4,
   },
+  labelRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14 },
+  rowIcon: {
+    width: 34, height: 34, borderRadius: 10,
+    backgroundColor: Colors.primaryDim, borderWidth: 1, borderColor: Colors.primaryMid,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  labelTextWrap: { flex: 1 },
+  fixedLabel:    { fontFamily: FontFamily.semiBold, fontSize: FontSize.body, color: Colors.textPrimary },
+  fixedSubtitle: { fontFamily: FontFamily.regular, fontSize: FontSize.caption, color: Colors.textSecondary, marginTop: 2 },
+  labelInput:    { flex: 1, fontFamily: FontFamily.semiBold, fontSize: FontSize.body, color: Colors.textPrimary, paddingVertical: 0 },
 
-  row: {
-    flexDirection: 'row', alignItems: 'center',
-    justifyContent: 'space-between', paddingVertical: 14,
-  },
-  rowLeft:  { flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 },
-  rowLabel: { fontFamily: FontFamily.regular, fontSize: FontSize.body, color: Colors.textPrimary },
-  pctPill: {
+  expenseDivider: { height: 1, backgroundColor: Colors.borderSubtle },
+  amountRow:   { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 14 },
+  dollarSign:  { fontFamily: FontFamily.semiBold, fontSize: FontSize.subtitle, color: Colors.textSecondary },
+  amountInput: { flex: 1, fontFamily: FontFamily.bold, fontSize: FontSize.subtitle, color: Colors.textPrimary, paddingVertical: 0 },
+  freqChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
     backgroundColor: Colors.surfaceHigh, borderRadius: Radius.pill,
-    paddingHorizontal: 8, paddingVertical: 2,
+    paddingHorizontal: 14, paddingVertical: 9, borderWidth: 1, borderColor: Colors.border,
   },
-  pctText:   { fontFamily: FontFamily.medium, fontSize: FontSize.caption, color: Colors.textSecondary },
-  rowRight:  { flexDirection: 'row', alignItems: 'center' },
-  currencyPrefix: { fontFamily: FontFamily.regular, fontSize: FontSize.body, color: Colors.textSecondary, marginRight: 2 },
-  rowInput: {
-    fontFamily: FontFamily.semiBold, fontSize: FontSize.body,
-    color: Colors.textPrimary, textAlign: 'right', minWidth: 80,
+  freqText:     { fontFamily: FontFamily.medium, fontSize: FontSize.label, color: Colors.primary },
+  monthlyEquiv: { fontFamily: FontFamily.regular, fontSize: FontSize.caption, color: Colors.textSecondary, paddingBottom: 12 },
+
+  addRowBtn: { width: 38, height: 38, borderRadius: 19, backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center' },
+  addRowBtnDisabled: { backgroundColor: Colors.surfaceHigh },
+
+  completedCard: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    backgroundColor: Colors.surfaceHigh, borderWidth: 1, borderColor: Colors.border,
+    borderRadius: Radius.lg, paddingHorizontal: 16, paddingVertical: 14,
   },
+  completedInfo:  { flex: 1 },
+  completedLabel: { fontFamily: FontFamily.semiBold, fontSize: FontSize.body, color: Colors.textPrimary, marginBottom: 2 },
+  completedMeta:  { fontFamily: FontFamily.regular, fontSize: FontSize.caption, color: Colors.textSecondary },
 
-  divider: { height: 1, backgroundColor: Colors.borderSubtle },
+  addBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 8, justifyContent: 'center',
+    backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border,
+    borderRadius: Radius.lg, paddingVertical: 16, borderStyle: 'dashed',
+  },
+  addBtnDisabled:     { opacity: 0.6 },
+  addBtnText:         { fontFamily: FontFamily.semiBold, fontSize: FontSize.body, color: Colors.primary },
+  addBtnTextDisabled: { color: Colors.textTertiary },
 
-  breakdownRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 12 },
-  breakdownLabel:  { fontFamily: FontFamily.regular, fontSize: FontSize.body, color: Colors.textSecondary },
-  breakdownRight:  { flexDirection: 'row', gap: 14, alignItems: 'center' },
-  breakdownPct:    { fontFamily: FontFamily.regular, fontSize: FontSize.label, color: Colors.textSecondary },
-  breakdownAmount: { fontFamily: FontFamily.semiBold, fontSize: FontSize.body, color: Colors.textPrimary, minWidth: 72, textAlign: 'right' },
+  milesCard: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border,
+    borderRadius: Radius.lg, paddingHorizontal: 16, paddingVertical: 16, marginBottom: 24,
+  },
+  milesInput:  { flex: 1, fontFamily: FontFamily.bold, fontSize: FontSize.subtitle, color: Colors.textPrimary, paddingVertical: 0 },
+  milesSuffix: { fontFamily: FontFamily.medium, fontSize: FontSize.label, color: Colors.textSecondary },
 
-  totalRow:   { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 14 },
-  totalLabel: { fontFamily: FontFamily.semiBold, fontSize: FontSize.body, color: Colors.textPrimary },
-  totalValue: { fontFamily: FontFamily.bold, fontSize: FontSize.body, color: Colors.primary },
+  totalCard: {
+    backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.primaryMid,
+    borderRadius: Radius.lg, padding: Spacing.cardPad, marginBottom: 24,
+  },
+  totalLabel: { ...SectionLabel, fontSize: 10, marginBottom: 6 },
+  totalValue: { fontFamily: FontFamily.bold, fontSize: FontSize.cardNumber, color: Colors.primary, letterSpacing: -0.5 },
+  totalSub:   { fontFamily: FontFamily.regular, fontSize: FontSize.body, color: Colors.textSecondary },
 
   saveBtn: {
     flexDirection: 'row', gap: 8,
     backgroundColor: Colors.primary, borderRadius: Radius.md,
-    paddingVertical: 17, alignItems: 'center', justifyContent: 'center', marginTop: 28,
+    paddingVertical: 17, alignItems: 'center', justifyContent: 'center', marginTop: 4,
   },
   saveBtnSaved: { backgroundColor: Colors.success },
   saveBtnText:  { fontFamily: FontFamily.semiBold, fontSize: FontSize.body, color: Colors.background, letterSpacing: 0.2 },
+
+  // Frequency dropdown
+  modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
+  modalSheet: {
+    backgroundColor: Colors.surface, borderTopLeftRadius: Radius.xl, borderTopRightRadius: Radius.xl,
+    borderWidth: 1, borderColor: Colors.border,
+    paddingHorizontal: Spacing.screenH, paddingTop: 10, paddingBottom: 36,
+  },
+  modalHandle: { alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: Colors.border, marginBottom: 14 },
+  modalTitle:  { fontFamily: FontFamily.bold, fontSize: FontSize.subtitle, color: Colors.textPrimary, marginBottom: 12 },
+  freqOption: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingVertical: 15, paddingHorizontal: 16, borderRadius: Radius.md, marginBottom: 6,
+    borderWidth: 1, borderColor: 'transparent',
+  },
+  freqOptionActive:     { backgroundColor: Colors.primaryDim, borderColor: Colors.primaryMid },
+  freqOptionText:       { fontFamily: FontFamily.medium, fontSize: FontSize.body, color: Colors.textPrimary },
+  freqOptionTextActive: { fontFamily: FontFamily.semiBold, color: Colors.primary },
 });

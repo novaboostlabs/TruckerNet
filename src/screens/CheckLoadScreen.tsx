@@ -13,10 +13,11 @@ import {
 } from '../utils/marketRates';
 import AddressAutocomplete from '../components/AddressAutocomplete';
 import { getRouteMiles, AddressSuggestion } from '../lib/mapbox';
+import { AddLoadPrefill } from './AddLoadScreen';
 
 interface Props {
   onClose: () => void;
-  onLogLoad?: () => void;
+  onLogLoad?: (prefill: AddLoadPrefill) => void;
 }
 
 const LOAD_TYPES: LoadType[] = [
@@ -35,6 +36,11 @@ export default function CheckLoadScreen({ onClose, onLogLoad }: Props) {
 
   const [pay, setPay]           = useState('');
   const [miles, setMiles]       = useState('');
+
+  function cap(raw: string, max: number): string {
+    const n = parseFloat(raw);
+    return (!isNaN(n) && n > max) ? String(max) : raw;
+  }
   const [milesAuto, setMilesAuto] = useState(false);   // miles came from routing, not manual entry
   const [pickup, setPickup]     = useState('');
   const [delivery, setDelivery] = useState('');
@@ -128,7 +134,7 @@ export default function CheckLoadScreen({ onClose, onLogLoad }: Props) {
           </TouchableOpacity>
         </View>
 
-        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="always" showsVerticalScrollIndicator={false}>
 
           {/* Load pay */}
           <Text style={styles.fieldLabel}>{t('checkLoad.loadPay')}</Text>
@@ -137,7 +143,7 @@ export default function CheckLoadScreen({ onClose, onLogLoad }: Props) {
             <TextInput
               style={styles.bigInput}
               value={pay}
-              onChangeText={setPay}
+              onChangeText={(v) => setPay(cap(v, 100000))}
               keyboardType="decimal-pad"
               placeholder="0"
               placeholderTextColor={Colors.textTertiary}
@@ -185,7 +191,7 @@ export default function CheckLoadScreen({ onClose, onLogLoad }: Props) {
             <TextInput
               style={styles.bigInput}
               value={miles}
-              onChangeText={(v) => { setMiles(v); setMilesAuto(false); }}
+              onChangeText={(v) => { setMiles(cap(v, 15000)); setMilesAuto(false); }}
               keyboardType="decimal-pad"
               placeholder="0"
               placeholderTextColor={Colors.textTertiary}
@@ -291,7 +297,20 @@ export default function CheckLoadScreen({ onClose, onLogLoad }: Props) {
           {/* Log this load */}
           <TouchableOpacity
             style={[styles.logBtn, !hasInputs && styles.logBtnDisabled]}
-            onPress={() => { onLogLoad?.(); onClose(); }}
+            onPress={() => {
+              onLogLoad?.({
+                grossPay:    pay,
+                miles:       miles,
+                milesAuto,
+                pickupText:  pickup,
+                deliveryText: delivery,
+                pickupSel,
+                deliverySel,
+                loadType,
+                backhaul,
+              });
+              onClose();
+            }}
             disabled={!hasInputs}
             activeOpacity={0.85}
           >

@@ -1,21 +1,29 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
-  ScrollView, KeyboardAvoidingView, Platform, Alert,
+  ScrollView, KeyboardAvoidingView, Platform, Alert, Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, FontFamily, FontSize, Spacing, Radius, SectionLabel } from '../theme/theme';
 import db, { getLatestOdometer } from '../db/database';
+import { useAuth } from '../contexts/AuthContext';
+import { pushFuel } from '../lib/sync/fuelSync';
 import 'react-native-get-random-values';
 import { v4 as uuid } from 'uuid';
 
-const US_STATES = [
-  'AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA',
-  'KS','KY','LA','ME','MD','MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ',
-  'NM','NY','NC','ND','OH','OK','OR','PA','RI','SC','SD','TN','TX','UT','VT',
-  'VA','WA','WV','WI','WY',
+const US_STATE_NAMES: [string, string][] = [
+  ['AL','Alabama'],['AK','Alaska'],['AZ','Arizona'],['AR','Arkansas'],['CA','California'],
+  ['CO','Colorado'],['CT','Connecticut'],['DE','Delaware'],['FL','Florida'],['GA','Georgia'],
+  ['HI','Hawaii'],['ID','Idaho'],['IL','Illinois'],['IN','Indiana'],['IA','Iowa'],
+  ['KS','Kansas'],['KY','Kentucky'],['LA','Louisiana'],['ME','Maine'],['MD','Maryland'],
+  ['MA','Massachusetts'],['MI','Michigan'],['MN','Minnesota'],['MS','Mississippi'],['MO','Missouri'],
+  ['MT','Montana'],['NE','Nebraska'],['NV','Nevada'],['NH','New Hampshire'],['NJ','New Jersey'],
+  ['NM','New Mexico'],['NY','New York'],['NC','North Carolina'],['ND','North Dakota'],['OH','Ohio'],
+  ['OK','Oklahoma'],['OR','Oregon'],['PA','Pennsylvania'],['RI','Rhode Island'],['SC','South Carolina'],
+  ['SD','South Dakota'],['TN','Tennessee'],['TX','Texas'],['UT','Utah'],['VT','Vermont'],
+  ['VA','Virginia'],['WA','Washington'],['WV','West Virginia'],['WI','Wisconsin'],['WY','Wyoming'],
 ];
 
 interface Props {
@@ -25,6 +33,7 @@ interface Props {
 
 export default function FuelEntryScreen({ onSaved, onCancel }: Props) {
   const { t } = useTranslation();
+  const { user } = useAuth();
 
   const [dollarsSpent,    setDollarsSpent]    = useState('');
   const [gallons,         setGallons]         = useState('');
@@ -58,6 +67,18 @@ export default function FuelEntryScreen({ onSaved, onCancel }: Props) {
       Alert.alert('Missing info', 'Please enter amount spent, gallons, and your current odometer reading.');
       return;
     }
+    if (dollars > 2000) {
+      Alert.alert('Check amount', 'A single fill-up over $2,000 seems unlikely. Please double-check the amount.');
+      return;
+    }
+    if (gals > 500) {
+      Alert.alert('Check gallons', 'Over 500 gallons seems unlikely. Please double-check.');
+      return;
+    }
+    if (odomReading > 2_000_000) {
+      Alert.alert('Check odometer', 'Odometer reading over 2,000,000 miles seems unlikely. Please double-check.');
+      return;
+    }
     if (odomReading <= lastOdometer && lastOdometer > 0) {
       Alert.alert('Check odometer', `Your last recorded reading was ${lastOdometer.toLocaleString()} mi. New reading must be higher.`);
       return;
@@ -81,6 +102,8 @@ export default function FuelEntryScreen({ onSaved, onCancel }: Props) {
           statePurchased,
         ]
       );
+      // Back up to the cloud (local-first: never blocks the UI; no-op for guests).
+      if (user) pushFuel(user.id);
       onSaved();
     } catch (e) {
       console.error('Error saving fuel entry:', e);
@@ -183,38 +206,62 @@ export default function FuelEntryScreen({ onSaved, onCancel }: Props) {
             </View>
           </View>
 
+          {/* State picker Modal */}
+          <Modal
+            visible={showStatePicker}
+            transparent
+            animationType="slide"
+            onRequestClose={() => setShowStatePicker(false)}
+          >
+            <TouchableOpacity
+              style={styles.modalOverlay}
+              activeOpacity={1}
+              onPress={() => setShowStatePicker(false)}
+            >
+              <View style={styles.modalSheet}>
+                <View style={styles.modalHandle} />
+                <Text style={styles.modalTitle}>State Purchased</Text>
+                <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+                  {US_STATE_NAMES.map(([abbr, name]) => (
+                    <TouchableOpacity
+                      key={abbr}
+                      style={[styles.stateRow, abbr === statePurchased && styles.stateRowActive]}
+                      onPress={() => { setStatePurchased(abbr); setShowStatePicker(false); }}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={[styles.stateRowName, abbr === statePurchased && styles.stateRowNameActive]}>
+                        {name}
+                      </Text>
+                      <Text style={[styles.stateRowAbbr, abbr === statePurchased && styles.stateRowAbbrActive]}>
+                        {abbr}
+                      </Text>
+                      {abbr === statePurchased && (
+                        <Ionicons name="checkmark" size={16} color={Colors.primary} style={{ marginLeft: 8 }} />
+                      )}
+                    </TouchableOpacity>
+                  ))}
+                  <View style={{ height: 32 }} />
+                </ScrollView>
+              </View>
+            </TouchableOpacity>
+          </Modal>
+
           {/* State */}
           <View style={styles.section}>
             <Text style={styles.sectionLabel}>STATE PURCHASED</Text>
             <TouchableOpacity
               style={styles.stateSelector}
-              onPress={() => setShowStatePicker(!showStatePicker)}
+              onPress={() => setShowStatePicker(true)}
               activeOpacity={0.8}
             >
-              <Text style={styles.stateSelectorText}>{statePurchased}</Text>
-              <Ionicons
-                name={showStatePicker ? 'chevron-up' : 'chevron-down'}
-                size={18}
-                color={Colors.textSecondary}
-              />
-            </TouchableOpacity>
-
-            {showStatePicker && (
-              <View style={styles.stateGrid}>
-                {US_STATES.map((s) => (
-                  <TouchableOpacity
-                    key={s}
-                    style={[styles.stateChip, s === statePurchased && styles.stateChipActive]}
-                    onPress={() => { setStatePurchased(s); setShowStatePicker(false); }}
-                    activeOpacity={0.8}
-                  >
-                    <Text style={[styles.stateChipText, s === statePurchased && styles.stateChipTextActive]}>
-                      {s}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
+              <View>
+                <Text style={styles.stateSelectorText}>
+                  {US_STATE_NAMES.find(([a]) => a === statePurchased)?.[1] ?? statePurchased}
+                </Text>
+                <Text style={styles.stateSelectorAbbr}>{statePurchased}</Text>
               </View>
-            )}
+              <Ionicons name="chevron-down" size={18} color={Colors.textSecondary} />
+            </TouchableOpacity>
           </View>
 
           {/* Live calculations */}
@@ -322,22 +369,34 @@ const styles = StyleSheet.create({
   stateSelector: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border,
-    borderRadius: Radius.lg, paddingHorizontal: Spacing.cardPad, paddingVertical: 16,
+    borderRadius: Radius.lg, paddingHorizontal: Spacing.cardPad, paddingVertical: 14,
   },
-  stateSelectorText: { fontFamily: FontFamily.bold, fontSize: FontSize.subtitle, color: Colors.textPrimary },
+  stateSelectorText: { fontFamily: FontFamily.bold, fontSize: FontSize.body, color: Colors.textPrimary, marginBottom: 2 },
+  stateSelectorAbbr: { fontFamily: FontFamily.regular, fontSize: FontSize.caption, color: Colors.textSecondary },
 
-  stateGrid: {
-    flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12,
-    backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border,
-    borderRadius: Radius.lg, padding: 12,
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'flex-end' },
+  modalSheet: {
+    backgroundColor: Colors.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20,
+    paddingTop: 12, paddingHorizontal: 16, maxHeight: '75%',
   },
-  stateChip: {
-    paddingHorizontal: 10, paddingVertical: 7,
-    borderRadius: Radius.sm, backgroundColor: Colors.surfaceHigh,
+  modalHandle: {
+    width: 40, height: 4, borderRadius: 2, backgroundColor: Colors.border,
+    alignSelf: 'center', marginBottom: 16,
   },
-  stateChipActive:    { backgroundColor: Colors.primaryDim, borderWidth: 1, borderColor: Colors.primaryMid },
-  stateChipText:      { fontFamily: FontFamily.medium, fontSize: FontSize.label, color: Colors.textSecondary },
-  stateChipTextActive: { color: Colors.primary, fontFamily: FontFamily.bold },
+  modalTitle: {
+    fontFamily: FontFamily.bold, fontSize: FontSize.body, color: Colors.textPrimary,
+    marginBottom: 12, paddingHorizontal: 4,
+  },
+  stateRow: {
+    flexDirection: 'row', alignItems: 'center',
+    paddingVertical: 14, paddingHorizontal: 4,
+    borderBottomWidth: 1, borderBottomColor: Colors.borderSubtle,
+  },
+  stateRowActive:     { backgroundColor: Colors.primaryDim, borderRadius: Radius.sm, paddingHorizontal: 8 },
+  stateRowName:       { flex: 1, fontFamily: FontFamily.medium, fontSize: FontSize.body, color: Colors.textPrimary },
+  stateRowNameActive: { color: Colors.primary, fontFamily: FontFamily.semiBold },
+  stateRowAbbr:       { fontFamily: FontFamily.regular, fontSize: FontSize.label, color: Colors.textSecondary, marginRight: 4 },
+  stateRowAbbrActive: { color: Colors.primary },
 
   calcCard: {
     backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border,

@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
+import { clearAllUserData } from '../db/database';
 
 interface AuthContextValue {
   session: Session | null;
@@ -44,6 +45,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   async function signOut() {
+    // Clear local data before ending the session so the next account on this
+    // device starts with a clean slate — prevents cross-account data leaks.
+    clearAllUserData();
     await supabase.auth.signOut();
   }
 

@@ -53,4 +53,19 @@ export async function initI18n(language: SupportedLanguage = 'en'): Promise<void
   });
 }
 
+// Maps the active UI language to a BCP-47 locale for date formatting, so
+// month/weekday names render in the user's language (not always English).
+// Note: number/money formatting deliberately stays 'en-US' app-wide (USD).
+const DATE_LOCALES: Record<SupportedLanguage, string> = {
+  en: 'en-US',
+  es: 'es-MX',
+  pa: 'pa-IN',
+  zh: 'zh-CN',
+};
+
+export function getDateLocale(): string {
+  const lang = i18n.language?.split('-')[0] as SupportedLanguage;
+  return DATE_LOCALES[lang] ?? 'en-US';
+}
+
 export default i18n;

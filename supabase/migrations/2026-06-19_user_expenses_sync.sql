@@ -1,12 +1,25 @@
 -- Migration: 2026-06-19_user_expenses_sync.sql
--- Adds user_expenses table (for cloud sync) and weekly_miles column to profiles.
+-- Creates profiles table + user_expenses table for cloud sync.
 -- Idempotent — safe to re-run.
 
 -- ──────────────────────────────────────────
--- 1. Add weekly_miles to profiles
+-- 1. profiles table (per-user settings synced from the app)
 -- ──────────────────────────────────────────
-alter table public.profiles
-  add column if not exists weekly_miles numeric not null default 0;
+create table if not exists public.profiles (
+  id               uuid primary key references auth.users(id) on delete cascade,
+  weekly_miles     numeric not null default 0,
+  weekly_fuel_cost numeric not null default 0,
+  updated_at       timestamptz not null default now()
+);
+
+alter table public.profiles enable row level security;
+
+do $$ begin
+  create policy "Users can read and write own profile"
+    on public.profiles for all
+    using (auth.uid() = id);
+exception when duplicate_object then null;
+end $$;
 
 -- ──────────────────────────────────────────
 -- 2. user_expenses table

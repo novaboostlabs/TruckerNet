@@ -12,7 +12,7 @@ import { toMonthlyAmount, ExpenseFrequency } from '../../utils/marketRates';
 import 'react-native-get-random-values';
 import { v4 as uuid } from 'uuid';
 
-interface Props { onNext: () => void; }
+interface Props { onNext: () => void; onBack: () => void; }
 
 type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
 
@@ -52,7 +52,7 @@ function emptyDraft(): Draft {
 // Which row the frequency dropdown is currently editing.
 type FreqTarget = { kind: 'fixed'; id: string } | { kind: 'draft' } | null;
 
-export default function OnboardingExpensesScreen({ onNext }: Props) {
+export default function OnboardingExpensesScreen({ onNext, onBack }: Props) {
   const { t } = useTranslation();
 
   const freqLabel = (f: ExpenseFrequency) => t(`onboarding.expenses.frequencies.${f}`);
@@ -72,12 +72,17 @@ export default function OnboardingExpensesScreen({ onNext }: Props) {
   const [draft, setDraft] = useState<Draft>(emptyDraft());
   const [freqTarget, setFreqTarget] = useState<FreqTarget>(null);
 
+  function capAmount(raw: string): string {
+    const n = parseFloat(raw);
+    return (!isNaN(n) && n > 50000) ? '50000' : raw;
+  }
+
   function updateFixed(id: string, value: string) {
-    setFixed((prev) => prev.map((e) => e.id === id ? { ...e, amount: value } : e));
+    setFixed((prev) => prev.map((e) => e.id === id ? { ...e, amount: capAmount(value) } : e));
   }
 
   function updateDraft(field: keyof Draft, value: string) {
-    setDraft((prev) => ({ ...prev, [field]: value }));
+    setDraft((prev) => ({ ...prev, [field]: field === 'amount' ? capAmount(value) : value }));
   }
 
   function selectFrequency(freq: ExpenseFrequency) {
@@ -148,7 +153,7 @@ export default function OnboardingExpensesScreen({ onNext }: Props) {
     }
 
     if (collected.length > 0) {
-      db.runSync(`DELETE FROM user_expenses WHERE category != 'fuel'`);
+      db.runSync('DELETE FROM user_expenses');
       const now = new Date().toISOString();
       for (let i = 0; i < collected.length; i++) {
         const e = collected[i];
@@ -201,6 +206,11 @@ export default function OnboardingExpensesScreen({ onNext }: Props) {
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+
+          {/* Back button */}
+          <TouchableOpacity style={styles.backBtn} onPress={onBack} activeOpacity={0.7}>
+            <Ionicons name="arrow-back" size={20} color={Colors.textSecondary} />
+          </TouchableOpacity>
 
           {/* Progress */}
           <View style={styles.progressRow}>
@@ -384,6 +394,7 @@ const styles = StyleSheet.create({
   flex:    { flex: 1 },
   content: { paddingHorizontal: Spacing.screenH, paddingTop: 16 },
 
+  backBtn: { marginBottom: 12, alignSelf: 'flex-start', padding: 4 },
   progressRow: { flexDirection: 'row', gap: 6, marginBottom: 20 },
   progressDot: { flex: 1, height: 3, borderRadius: 2, backgroundColor: Colors.surface },
   progressDotActive: { backgroundColor: Colors.primary },

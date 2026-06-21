@@ -1,31 +1,71 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import React, { useCallback, useEffect, useState } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
+import {
+  View, Text, StyleSheet, TouchableOpacity, ScrollView, Share, Alert,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, FontFamily, FontSize, Spacing, Radius, SectionLabel } from '../theme/theme';
+import { getLoadCount, getIFTAData, hasIFTAData, IFTARow } from '../db/database';
 
-type Quarter = 'Q1' | 'Q2' | 'Q3' | 'Q4';
-const QUARTERS: Quarter[] = ['Q1', 'Q2', 'Q3', 'Q4'];
+type Quarter = 1 | 2 | 3 | 4;
+const QUARTER_LABELS = ['Q1', 'Q2', 'Q3', 'Q4'] as const;
 
-const DEMO_DATA: Record<Quarter, { state: string; miles: number; gallons: number }[]> = {
-  Q1: [],
-  Q2: [
-    { state: 'TX', miles: 2840, gallons: 74.3 },
-    { state: 'IL', miles: 1421, gallons: 37.2 },
-    { state: 'GA', miles:  662, gallons: 17.4 },
-    { state: 'TN', miles:  560, gallons: 14.7 },
-    { state: 'OK', miles:  380, gallons:  9.9 },
-    { state: 'FL', miles:  340, gallons:  8.9 },
-  ],
-  Q3: [],
-  Q4: [],
-};
+
+function currentQuarter(): Quarter {
+  const m = new Date().getMonth() + 1;
+  return (m <= 3 ? 1 : m <= 6 ? 2 : m <= 9 ? 3 : 4) as Quarter;
+}
+
+function generateCSV(rows: IFTARow[], year: number, q: Quarter): string {
+  const lines = [
+    `IFTA Report - Q${q} ${year}`,
+    'State,Miles,Gallons',
+    ...rows.map(r => `${r.state},${r.miles.toFixed(1)},${r.gallons.toFixed(1)}`),
+    '',
+    `TOTAL,${rows.reduce((s, r) => s + r.miles, 0).toFixed(1)},${rows.reduce((s, r) => s + r.gallons, 0).toFixed(1)}`,
+    '',
+    'Figures are estimates. Verify all totals before filing your IFTA return.',
+  ];
+  return lines.join('\n');
+}
 
 export default function IFTAScreen() {
-  const [quarter, setQuarter] = useState<Quarter>('Q2');
-  const rows = DEMO_DATA[quarter];
+  const thisYear    = new Date().getFullYear();
+  const thisQuarter = currentQuarter();
+
+  const [year,    setYear]    = useState(thisYear);
+  const [quarter, setQuarter] = useState<Quarter>(thisQuarter);
+
+  const [rows, setRows] = useState<IFTARow[]>(() => getIFTAData(thisYear, thisQuarter));
+
+  const loadData = useCallback((y: number, q: Quarter) => {
+    setRows(getIFTAData(y, q));
+  }, []);
+
+  useEffect(() => { loadData(year, quarter); }, [year, quarter, loadData]);
+
+  useFocusEffect(useCallback(() => { loadData(year, quarter); }, [year, quarter, loadData]));
+
   const totalMiles   = rows.reduce((s, r) => s + r.miles,   0);
   const totalGallons = rows.reduce((s, r) => s + r.gallons, 0);
+  const hasData      = rows.length > 0;
+
+  async function handleExport() {
+    if (!hasData) {
+      Alert.alert('No data', `No IFTA data for Q${quarter} ${year}.`);
+      return;
+    }
+    const csv = generateCSV(rows, year, quarter);
+    try {
+      await Share.share({
+        message: csv,
+        title:   `IFTA_Q${quarter}_${year}.csv`,
+      });
+    } catch {
+      Alert.alert('Export failed', 'Could not open the share sheet.');
+    }
+  }
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -37,36 +77,58 @@ export default function IFTAScreen() {
             <Text style={styles.eyebrow}>COMPLIANCE</Text>
             <Text style={styles.title}>IFTA</Text>
           </View>
-          <TouchableOpacity style={styles.exportBtn} activeOpacity={0.8}>
-            <Ionicons name="download-outline" size={15} color={Colors.textSecondary} />
+          <TouchableOpacity style={styles.exportBtn} onPress={handleExport} activeOpacity={0.8}>
+            <Ionicons name="share-outline" size={15} color={Colors.textSecondary} />
             <Text style={styles.exportText}>Export CSV</Text>
           </TouchableOpacity>
         </View>
 
-        {/* Quarter selector */}
-        <View style={styles.quarterBlock}>
-          <Text style={styles.quarterYear}>2026</Text>
+        {/* Year + Quarter selector */}
+        <View style={styles.selectorBlock}>
+          <View style={styles.yearRow}>
+            <TouchableOpacity
+              onPress={() => setYear(y => y - 1)}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <Ionicons name="chevron-back" size={20} color={Colors.textSecondary} />
+            </TouchableOpacity>
+            <Text style={styles.yearLabel}>{year}</Text>
+            <TouchableOpacity
+              onPress={() => setYear(y => y + 1)}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              disabled={year >= new Date().getFullYear()}
+            >
+              <Ionicons
+                name="chevron-forward"
+                size={20}
+                color={year >= new Date().getFullYear() ? Colors.textTertiary : Colors.textSecondary}
+              />
+            </TouchableOpacity>
+          </View>
+
           <View style={styles.quarterRow}>
-            {QUARTERS.map((q) => (
+            {([1, 2, 3, 4] as Quarter[]).map((q) => (
               <TouchableOpacity
                 key={q}
                 style={[styles.quarterChip, quarter === q && styles.quarterChipActive]}
                 onPress={() => setQuarter(q)}
                 activeOpacity={0.8}
               >
-                <Text style={[styles.quarterChipText, quarter === q && styles.quarterChipTextActive]}>{q}</Text>
+                <Text style={[styles.quarterChipText, quarter === q && styles.quarterChipTextActive]}>
+                  {QUARTER_LABELS[q - 1]}
+                </Text>
               </TouchableOpacity>
             ))}
           </View>
         </View>
 
-        {rows.length > 0 ? (
+        {hasData ? (
           <>
             {/* Summary stats */}
             <View style={styles.summaryRow}>
               <View style={styles.summaryCard}>
                 <Text style={styles.summaryLabel}>TOTAL MILES</Text>
-                <Text style={styles.summaryValue}>{totalMiles.toLocaleString()}</Text>
+                <Text style={styles.summaryValue}>{Math.round(totalMiles).toLocaleString()}</Text>
               </View>
               <View style={styles.summaryCard}>
                 <Text style={styles.summaryLabel}>TOTAL GALLONS</Text>
@@ -85,11 +147,9 @@ export default function IFTAScreen() {
               {rows.map((row, i) => (
                 <React.Fragment key={row.state}>
                   <View style={styles.tableRow}>
-                    <View style={[styles.tableCell, { flex: 1 }]}>
-                      <Text style={styles.stateCode}>{row.state}</Text>
-                    </View>
+                    <Text style={[styles.stateCode, { flex: 1 }]}>{row.state}</Text>
                     <Text style={[styles.tableCellText, { flex: 2, textAlign: 'right' }]}>
-                      {row.miles.toLocaleString()}
+                      {Math.round(row.miles).toLocaleString()}
                     </Text>
                     <Text style={[styles.tableCellText, { flex: 2, textAlign: 'right' }]}>
                       {row.gallons.toFixed(1)}
@@ -99,11 +159,10 @@ export default function IFTAScreen() {
                 </React.Fragment>
               ))}
 
-              {/* Totals row */}
               <View style={styles.totalsRow}>
                 <Text style={[styles.totalsLabel, { flex: 1 }]}>TOTAL</Text>
                 <Text style={[styles.totalsValue, { flex: 2, textAlign: 'right' }]}>
-                  {totalMiles.toLocaleString()}
+                  {Math.round(totalMiles).toLocaleString()}
                 </Text>
                 <Text style={[styles.totalsValue, { flex: 2, textAlign: 'right' }]}>
                   {totalGallons.toFixed(1)}
@@ -116,8 +175,10 @@ export default function IFTAScreen() {
             <View style={styles.emptyIcon}>
               <Ionicons name="document-text-outline" size={26} color={Colors.textSecondary} />
             </View>
-            <Text style={styles.emptyTitle}>No data for {quarter} 2026</Text>
-            <Text style={styles.emptySub}>Log loads and fuel entries to auto-build your IFTA report.</Text>
+            <Text style={styles.emptyTitle}>No data for Q{quarter} {year}</Text>
+            <Text style={styles.emptySub}>
+              Log loads with state mileage and fuel entries to auto-build your IFTA report.
+            </Text>
           </View>
         )}
 
@@ -145,62 +206,36 @@ const styles = StyleSheet.create({
   },
   exportText: { fontFamily: FontFamily.medium, fontSize: FontSize.label, color: Colors.textSecondary },
 
-  quarterBlock: { marginBottom: 20 },
-  quarterYear:  { fontFamily: FontFamily.medium, fontSize: FontSize.label, color: Colors.textSecondary, marginBottom: 10 },
-  quarterRow:   { flexDirection: 'row', gap: 8 },
-  quarterChip: {
-    flex: 1, paddingVertical: 11, alignItems: 'center',
-    borderRadius: Radius.pill, borderWidth: 1,
-    borderColor: Colors.border, backgroundColor: Colors.surface,
-  },
-  quarterChipActive:     { borderColor: Colors.primary, backgroundColor: Colors.primaryDim },
-  quarterChipText:       { fontFamily: FontFamily.semiBold, fontSize: FontSize.label, color: Colors.textSecondary },
+  selectorBlock: { marginBottom: 20 },
+  yearRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 16, marginBottom: 12 },
+  yearLabel: { fontFamily: FontFamily.semiBold, fontSize: FontSize.subtitle, color: Colors.textPrimary, minWidth: 56, textAlign: 'center' },
+
+  quarterRow:           { flexDirection: 'row', gap: 8 },
+  quarterChip:          { flex: 1, paddingVertical: 11, alignItems: 'center', borderRadius: Radius.pill, borderWidth: 1, borderColor: Colors.border, backgroundColor: Colors.surface },
+  quarterChipActive:    { borderColor: Colors.primary, backgroundColor: Colors.primaryDim },
+  quarterChipText:      { fontFamily: FontFamily.semiBold, fontSize: FontSize.label, color: Colors.textSecondary },
   quarterChipTextActive: { color: Colors.primary },
 
-  summaryRow: { flexDirection: 'row', gap: 12, marginBottom: 16 },
-  summaryCard: {
-    flex: 1, backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border,
-    borderRadius: Radius.lg, padding: Spacing.cardPad,
-  },
+  summaryRow:   { flexDirection: 'row', gap: 12, marginBottom: 16 },
+  summaryCard:  { flex: 1, backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border, borderRadius: Radius.lg, padding: Spacing.cardPad },
   summaryLabel: { ...SectionLabel, fontSize: 10, marginBottom: 6 },
   summaryValue: { fontFamily: FontFamily.bold, fontSize: FontSize.subtitle, color: Colors.textPrimary },
 
-  tableCard: {
-    backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border,
-    borderRadius: Radius.lg, overflow: 'hidden', marginBottom: 20,
-  },
-  tableHeaderRow: {
-    flexDirection: 'row', paddingHorizontal: Spacing.cardPad,
-    paddingVertical: 12, backgroundColor: Colors.surfaceHigh,
-  },
-  tableHeader: { ...SectionLabel, fontSize: 10, marginBottom: 0 },
-  tableRow:    { flexDirection: 'row', paddingHorizontal: Spacing.cardPad, paddingVertical: 14, alignItems: 'center' },
-  tableCell:   {},
-  stateCode:   { fontFamily: FontFamily.bold, fontSize: FontSize.body, color: Colors.textPrimary },
-  tableCellText: { fontFamily: FontFamily.regular, fontSize: FontSize.body, color: Colors.textPrimary },
-  rowDivider:  { height: 1, backgroundColor: Colors.borderSubtle, marginHorizontal: Spacing.cardPad },
-  totalsRow:   {
-    flexDirection: 'row', paddingHorizontal: Spacing.cardPad, paddingVertical: 14,
-    borderTopWidth: 1, borderTopColor: Colors.border, backgroundColor: Colors.surfaceHigh,
-  },
-  totalsLabel: { fontFamily: FontFamily.bold, fontSize: FontSize.label, color: Colors.textSecondary },
-  totalsValue: { fontFamily: FontFamily.bold, fontSize: FontSize.label, color: Colors.textPrimary },
+  tableCard:      { backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border, borderRadius: Radius.lg, overflow: 'hidden', marginBottom: 20 },
+  tableHeaderRow: { flexDirection: 'row', paddingHorizontal: Spacing.cardPad, paddingVertical: 12, backgroundColor: Colors.surfaceHigh },
+  tableHeader:    { ...SectionLabel, fontSize: 10, marginBottom: 0 },
+  tableRow:       { flexDirection: 'row', paddingHorizontal: Spacing.cardPad, paddingVertical: 14, alignItems: 'center' },
+  stateCode:      { fontFamily: FontFamily.bold, fontSize: FontSize.body, color: Colors.textPrimary },
+  tableCellText:  { fontFamily: FontFamily.regular, fontSize: FontSize.body, color: Colors.textPrimary },
+  rowDivider:     { height: 1, backgroundColor: Colors.borderSubtle, marginHorizontal: Spacing.cardPad },
+  totalsRow:      { flexDirection: 'row', paddingHorizontal: Spacing.cardPad, paddingVertical: 14, borderTopWidth: 1, borderTopColor: Colors.border, backgroundColor: Colors.surfaceHigh },
+  totalsLabel:    { fontFamily: FontFamily.bold, fontSize: FontSize.label, color: Colors.textSecondary },
+  totalsValue:    { fontFamily: FontFamily.bold, fontSize: FontSize.label, color: Colors.textPrimary },
 
-  emptyCard: {
-    backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border,
-    borderRadius: Radius.lg, paddingVertical: 44, paddingHorizontal: Spacing.cardPad,
-    alignItems: 'center', marginBottom: 20,
-  },
-  emptyIcon: {
-    width: 52, height: 52, borderRadius: Radius.pill,
-    backgroundColor: Colors.surfaceHigh, borderWidth: 1, borderColor: Colors.border,
-    alignItems: 'center', justifyContent: 'center', marginBottom: 16,
-  },
+  emptyCard: { backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border, borderRadius: Radius.lg, paddingVertical: 44, paddingHorizontal: Spacing.cardPad, alignItems: 'center', marginBottom: 20 },
+  emptyIcon: { width: 52, height: 52, borderRadius: Radius.pill, backgroundColor: Colors.surfaceHigh, borderWidth: 1, borderColor: Colors.border, alignItems: 'center', justifyContent: 'center', marginBottom: 16 },
   emptyTitle: { fontFamily: FontFamily.semiBold, fontSize: FontSize.body, color: Colors.textPrimary, marginBottom: 6 },
   emptySub:   { fontFamily: FontFamily.regular, fontSize: FontSize.label, color: Colors.textSecondary, textAlign: 'center', lineHeight: 20, maxWidth: 260 },
 
-  disclaimer: {
-    fontFamily: FontFamily.regular, fontSize: FontSize.caption,
-    color: Colors.textTertiary, textAlign: 'center', lineHeight: 18,
-  },
+  disclaimer: { fontFamily: FontFamily.regular, fontSize: FontSize.caption, color: Colors.textTertiary, textAlign: 'center', lineHeight: 18 },
 });

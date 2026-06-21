@@ -16,7 +16,11 @@
 > branch and push `main`** so the user's build always reflects the latest.
 > (Decided 2026-06-19 after changes weren't appearing because `main` was stale.)
 
-_Last updated: 2026-06-19 — PRD/North Star wired into AGENTS.md_
+_Last updated: 2026-06-21 — Backlog #9 done (translation audit): all 4 languages at 100% key parity; LoadDetail + Settings screens (previously hardcoded English) fully localized. Phase 1 backlog remaining: #5 (image/OCR), #7 (fair-market accuracy)._
+
+> **Backend sync state:** Sync is **local-first** — SQLite is source of truth;
+> push on save, pull on sign-in. All 3 slices wired: expenses + fuel + loads.
+> All 3 Supabase migrations applied 2026-06-20. Schema is in sync.
 
 ---
 
@@ -55,14 +59,113 @@ $229.99·mo. Full detail in `PRD.md` §2, §27.
 
 ## 0.5 🚨 RELEASE BLOCKERS — do NOT ship the app without these
 
-- [ ] **Expenses tab redesign / unification.** The Settings "Expenses" tab is a
-  legacy screen writing to the `fixed_expenses` table; it does NOT match the
-  redesigned onboarding expenses UI and uses a different data model than
-  `user_expenses`. Must be reconciled (unify on `user_expenses`, match the
-  onboarding design) before launch. User explicitly flagged this as a
-  must-fix-before-publish item (2026-06-19).
+- [x] **Expenses tab redesign / unification.** ✅ RESOLVED 2026-06-19. The Settings
+  "Expenses" tab now reads/writes `user_expenses` (the same table the break-even
+  engine sums) using the onboarding UI pattern — essentials with frequency
+  dropdowns + dynamic "Other" rows. Was previously writing to the dead
+  `fixed_expenses` table, so editing expenses had NO effect on break-even; that bug
+  is fixed. Monthly-miles field now persists via `weekly_miles` (the real source of
+  truth) so it actually drives Fixed CPM. Note: legacy screen's Supabase sync to
+  `fixed_expenses` was dropped to match onboarding (which is local-only); revisit
+  when wiring full Supabase sync.
 
 _(Add any other launch-gating items here as they come up.)_
+
+---
+
+## 0.6 📋 PHASE 1 BACKLOG — recorded, fix later (do NOT action yet)
+
+User-reported items (2026-06-19). Captured so nothing is forgotten; **explicitly
+deferred** — do not start these until the user calls for them. Newest batch first.
+
+1. **Per-session data congruency / one source of truth.** Expenses page shows
+   conflicting info entered across different sessions (e.g. fuel added one session,
+   insurance another, now conflicting). Each app session should be a clean slate
+   until an account is created; once an account exists, all the user's data
+   consolidates onto that one account (the Uber/Partiful model). Tie-in with the
+   local-first sync work.
+2. ✅ **Auto per-state mileage on Add Load** — done 2026-06-20. Mapbox now returns
+   full route geometry (`overview=full&geometries=geojson`). `src/lib/stateSplit.ts`
+   converts `us-atlas/states-10m.json` TopoJSON → GeoJSON at startup (via
+   `topojson-client`), then walks each route coordinate pair, bounding-box
+   pre-filters to candidate states, runs `turf.booleanPointInPolygon` on the
+   midpoint, and accumulates great-circle distance per state. State mileage rows
+   in AddLoadScreen are auto-populated from the split; user can still edit them.
+   Falls back to address-based 50/50 split if geometry is unavailable.
+3. **Onboarding break-even reveal formula is wrong/incomplete.** The final
+   onboarding page (break-even reveal) shows the calculation as if only fuel was
+   used — it omits the other expenses (ELD, insurance, etc.). The shown formula must
+   include all fixed expenses.
+4. ✅ **Min/max bounds on all inputs** — done 2026-06-20. Caps enforced on every
+   numeric field: fuel weekly $ (≤$5K), expenses (≤$50K), load pay (≤$100K), miles
+   (≤15K), weight (≤80K lbs), gallons (≤500), odometer (≤2M). Fuel entry caps
+   validated on save with descriptive alerts. Onboarding miles screen now requires
+   a value — no more skip.
+5. **Image processing not set up.** BOL photo upload + fuel receipt photo upload
+   (with OCR auto-fill) were discussed but not built.
+6. ✅ **Onboarding back buttons + Settings screen** — done 2026-06-20.
+   - Back buttons on screens 2/3/4 wired through RootNavigator.
+   - Full Settings screen built (`src/screens/SettingsScreen.tsx`): profile card
+     with avatar + account status, Break-Even section (Monthly Expenses → Expenses
+     tab, Weekly Miles inline edit, Replay Setup), Language picker (4 options,
+     inline), About (version), Sign Out (amber button), Delete Account (danger link).
+   - Dashboard gear icon now opens Settings Modal (replaced the old Alert).
+   - "Replay setup" removed from ExpensesScreen header (lives in Settings now).
+7. **Fair-market price accuracy.** Currently driven only off CPM (~$2.50/mi flat for
+   everything). Real rates vary a lot — short hauls (e.g. 20 mi) can pay $5/mi+, plus
+   other complexities. Needs a more accurate model. (Ties to PRD: seeded → opt-in
+   crowdsourced → paid API.)
+8. **Demo data flashes on first view of each tab.** Sample data shows on the first
+   render of each tab until a button is pressed, which then activates real data. The
+   real/empty state should be correct on first paint.
+9. ✅ **Translation accuracy across all languages** — done 2026-06-21.
+   - Structural audit (script-based key diff vs `en.json`): es was missing 25 keys,
+     pa 71, zh 37. All filled with natural (not literal) translations; all 4 langs
+     now at 100% key parity (0 missing, 0 extra).
+   - Root cause of "pages stayed in English": `LoadDetailScreen` used **zero** i18n
+     and `SettingsScreen` only used i18n for the language switcher — both were fully
+     hardcoded English. Added a `loadDetail` namespace + expanded `settings` across
+     all 4 languages and wired both screens to `t()`. LoadDetail reuses
+     `addLoad.loadTypes.*` / `addLoad.statuses.*`; Settings language list now shows
+     each language's name in the active UI language via `language.<code>`.
+   - **Date locale fixed (2026-06-21):** added `getDateLocale()` in `lib/i18n.ts`
+     mapping en→en-US, es→es-MX, pa→pa-IN, zh→zh-CN. Replaced all 7
+     `toLocaleDateString('en-US', …)` calls (History ×4, AddLoad, Fuel, LoadDetail)
+     so month/weekday names render in the active language. **Number/money**
+     formatting (`toLocaleString('en-US', …)`) deliberately left as en-US — USD
+     amounts stay US-grouped app-wide. Note: Punjabi (pa-IN) month-name support
+     depends on the JS engine (Hermes); falls back to en-US if unsupported.
+10. ✅ **Dashboard period cards → History; richer History** — done 2026-06-21 (extended 2026-06-21).
+    - "This Week" and "This Month" cards on Dashboard are now tappable — navigate
+      to History tab with `{ filter: 'week' | 'month' }` param, pre-selecting the
+      right filter and resetting to the current period.
+    - History screen now has `< Jun 16 – Jun 22 >` / `< June 2026 >` period
+      navigator (back/forward arrows) for Week and Month views — browse any past
+      period. Forward arrow disabled when already on the current period.
+    - Filter chips renamed to "Week" / "Month" / "All Time" (cleaner since you can
+      now view any week/month, not just "this" one).
+    - Section label shows period context: "3 LOADS · Jun 16 – Jun 22".
+    - Empty state copy updates based on context (suggests using arrows if no loads).
+    - New DB helpers: `getHistoryLoadsDateRange` + `getHistoryTotalsDateRange`.
+    - **Weekly calendar** — `src/components/WeekCalendar.tsx`: horizontal 7-day
+      strip (Mo–Su), same dot/count/selection/today-ring pattern as monthly.
+      Tap a day → filter list + totals to that day; tap again or tap X to clear.
+    - **Cross-view linking** — switching Week↔Month preserves the period:
+      week of May 21 → tap Month = May 2026; May with Jun 7 selected → tap Week =
+      week containing Jun 7; All Time → Week/Month resets to today.
+      `changeFilter` no longer blindly resets `periodDate` to today.
+    - **Monthly calendar** — `src/components/MonthCalendar.tsx`: 7-column grid,
+      green dot on days with loads, count badge if >1, green circle on selected day,
+      today outline ring. Tap day → filters list to that day + updates totals card.
+      Tap again (or tap X) → deselect and show all month loads.
+    - **Load Detail screen** — `src/screens/LoadDetailScreen.tsx`: opens as
+      `pageSheet` Modal when tapping any load row. Shows route card, full P&L
+      (gross/net/fuel/fixed/RPM/fair-market), load info (type, weight, BOL, broker,
+      notes, backhaul), state mileage table, status + verdict badges.
+    - **Load date field on Add Load** — `< Sat, Jun 21, 2026 >` navigator at the
+      bottom of the form. Default = today; left arrow goes back one day (for
+      backlogs); right arrow disabled on today. "Back to today" link appears when
+      on a past date. `LoadInsert.date` field added; `saveLoad` uses it.
 
 ---
 
@@ -162,11 +265,11 @@ Everything connects:
 | 2 | Expense schema redesign (labeled + frequency) | ✅ Done | `user_expenses` table; `toMonthlyAmount` / `FREQUENCY_TO_MONTHLY` in `utils/marketRates.ts` |
 | 3 | Onboarding flow (4 screens) | ✅ Done | Fuel, Expenses, Miles, Result. Expenses screen redesigned (essentials + dynamic Other) — see Work Log 2026-06-19 |
 | 4 | Fuel Entry form with odometer | ✅ Done | `FuelEntryScreen.tsx` (OCR receipt scan = later phase) |
-| 5 | Live Dashboard (real DB data) | ◐ Partial | UI built but still on `DEMO` placeholder data — **not wired to DB yet** |
+| 5 | Live Dashboard (real DB data) | ✅ Done | Break-even always real; P&L + recent loads from DB when loads exist, DEMO fallback when empty. Active load card shows when status = in_progress. Refreshes on AddLoad save. |
 | 6 | Check Load modal with backhaul | ✅ Done | `CheckLoadScreen.tsx` opens from the Dashboard CTA; live verdict + net pay + rate/mi vs break-even + fair-market range + backhaul reframe. **Mapbox address autocomplete + auto-mileage wired** (see below). Pending: per-state mileage breakdown, and "Accept & Log" → Add Load |
-| 7 | Add Load screen (Mapbox routing) | ✗ Not started | i18n keys (`addLoad.*`) exist; **no screen yet**. Reuse `lib/mapbox.ts` (`searchAddress`/`getRouteMiles`) + `components/AddressAutocomplete.tsx`. Per-state split (Turf.js over Mapbox route geometry) still to build |
-| 8 | History from real DB | ◐ Partial | `HistoryScreen.tsx` exists; verify it reads real loads |
-| 9 | IFTA from real DB + exports | ◐ Partial | `IFTAScreen.tsx` UI exists, **not wired**; no CSV/PDF/share exports |
+| 7 | Add Load screen (Mapbox routing) | ✅ Done | `AddLoadScreen.tsx` — full form with Mapbox autocomplete + auto-mileage, state mileage breakdown (pre-filled from address states, user-editable), live net pay preview, load type + status dropdowns, backhaul toggle, optional details (weight/BOL/broker/notes). FAB on Dashboard opens it; "Accept & Log" in Check Load pre-fills and opens it. Saves to `loads` + `state_mileage`. Per-state auto-split via Turf.js deferred — current approach pre-fills pickup/delivery states and lets user adjust (good enough for MVP). |
+| 8 | History from real DB | ✅ Done | Reads real loads filtered by week/month/all. Totals (gross/net/miles/avg RPM) computed from DB. DEMO fallback when no loads. Empty state shown when filter returns zero results. |
+| 9 | IFTA from real DB + exports | ✅ Done | Aggregates `state_mileage` (from loads) + `fuel_entries` per quarter. Year nav (back/forward). Export CSV via native Share sheet. DEMO fallback when no loads. Empty state per quarter when real data exists but quarter is empty. |
 
 ### Fair Market Rate Engine
 ✅ Built — `utils/marketRates.ts`: 10 load types × 6 distance bands, returns
@@ -175,65 +278,431 @@ calibration = future.
 
 ---
 
-## 4. Current State (verified against code, 2026-06-19)
+## 4. Current State (verified against code, 2026-06-20)
 
-**Done & working:**
+**All core screens built and wired to real DB:**
 - 4-language i18n, language picker, custom fonts.
-- Auth (email + Google/Apple OAuth, guest/skip mode).
-- Onboarding: all 4 screens, with the redesigned expenses screen.
-- Fuel entry with odometer + live MPG/CPM.
-- Fair market rate engine.
-- SQLite schema: `settings`, `user_expenses`, `fuel_entries`, `loads`,
-  `state_mileage` (+ legacy `fixed_expenses`).
+- Auth: email + Google/Apple OAuth, guest/explore mode, sign-out (gear icon on Dashboard).
+- Onboarding: 4 screens (fuel estimate, expenses, miles, break-even reveal).
+  Expenses screen: essentials (truck, insurance, maintenance, ELD, load board, parking)
+  with per-row frequency dropdowns + dynamic "Other" rows.
+- Fuel entry with odometer + live MPG/CPM. FuelScreen reads real DB (CPM hero, monthly
+  stats, trend chart, history list). Refreshes on save + tab focus.
+- Add Load: full form — Mapbox autocomplete, auto-mileage, state mileage breakdown
+  (pre-filled from addresses, user-editable), live net pay, load type/status dropdowns,
+  backhaul toggle, optional details. FAB + Check Load "Accept & Log" both open it.
+- Check Load: Mapbox autocomplete, auto-mileage, load type dropdown, backhaul toggle,
+  verdict, fair-market range. Pre-fills Add Load on "Accept & Log."
+- Dashboard: real break-even, week/month P&L, recent loads, active-load card.
+  Gear icon → sign-out. Refreshes on load save.
+- History: real loads, week/month/all filters, totals card. Refreshes on tab focus.
+- IFTA: aggregates state_mileage + fuel_entries per quarter. Year nav. CSV export.
+  Refreshes on tab focus.
+- Expenses (Settings tab): reads/writes `user_expenses` (same table as break-even
+  engine). Frequency dropdowns, "Other" rows, monthly miles, live Fixed CPM hero.
 
-- **Check Load** (Flow 2) — `CheckLoadScreen.tsx`, opens from the Dashboard CTA.
-  Load-type dropdown, pickup/delivery **address autocomplete + auto-mileage via
-  Mapbox**, route caching, per-account onboarding gating. Routing/geocoding live
-  in `lib/mapbox.ts`; reusable `components/AddressAutocomplete.tsx`.
+**Data / session model:**
+- Guest (explore without account): clean slate on every cold start. No data persists
+  across restarts. Tapping "Explore without account" always wipes DB first.
+- Real account: data persists, syncs to Supabase (local-first). Sign-out clears local
+  data; sign-in pulls cloud data back.
+- `has_real_account` flag protects real-account data if session temporarily expires
+  (offline, token expiry) — data is preserved and user is sent to sign-in to re-auth.
+
+**Backend sync (local-first, all 3 slices done):**
+- Expenses + weekly miles + weekly fuel cost → `user_expenses` + `profiles`
+- Fuel entries → `fuel_entries`
+- Loads + state mileage → `loads` + `state_mileage`
+- Push on every save, pull + reconcile on sign-in, clear on sign-out.
+- **All 3 migrations applied** to Supabase 2026-06-20. Files in `supabase/migrations/`.
 
 **Provider / config notes:**
-- **Mapbox** is the chosen geocoding + routing provider (REST, Expo Go safe).
-  Needs `EXPO_PUBLIC_MAPBOX_TOKEN` (pk. token) in `.env` — see `.env.example`.
-  Public tokens include Directions by default (no extra scope).
+- **Mapbox** — geocoding + routing (REST, Expo Go safe). `EXPO_PUBLIC_MAPBOX_TOKEN`
+  (pk. token) in `.env`. Public tokens include Directions by default.
+- **Supabase** — auth + cloud sync. `EXPO_PUBLIC_SUPABASE_URL` + `EXPO_PUBLIC_SUPABASE_ANON_KEY`.
+- SecureStore uses `AFTER_FIRST_UNLOCK` so background token refresh doesn't error.
 
-**Built UI but NOT wired to the database:**
-- **Dashboard** — uses a hardcoded `DEMO` object. Needs real queries:
-  break-even (`calcBreakEven`), week/month net & gross from `loads`, recent
-  loads, active-load card.
-- **IFTA** — static UI, no aggregation from `loads`/`fuel_entries`.
-
-**Not started:**
-- **Add Load** screen (Flow 3). Reuse the Mapbox helpers above; add per-state
-  mileage split. There is currently **no entry point to add a load** in the tab
-  navigator.
-- **Per-state mileage breakdown** (Turf.js over Mapbox route geometry) — needed
-  for IFTA; not built.
-- IFTA exports (CSV/PDF/share).
-- Receipt OCR.
+**Known bugs / deferred (§0.6 backlog):** 10 items documented. Highlights:
+- Break-even formula display on result screen shows `—` for FIXED/MO (monthlyFixed
+  never set — UI bug, not backend).
+- "See All" on Dashboard does nothing (should navigate to History tab).
+- Onboarding has no back buttons.
+- Settings gear button on Dashboard now opens sign-out — full settings screen is Phase 2.
+- Fair-market price model is rough (flat CPM-based). Needs richer model.
+- Auto per-state mileage split (Turf.js) deferred — user edits manually for now.
+- Translation completeness: some pages in English when non-English language selected.
 
 ---
 
-## 5. Next Steps (recommended order)
+## 5. Next Steps (Phase 1 remaining bugs → then Phase 2)
 
-The documented build order lists Dashboard (#5) before Add Load (#7), but a live
-Dashboard has nothing real to show until loads can be created. Recommended path:
+**Active bug list (working through in order):**
+1. ✅ SecureStore / auto-refresh error — fixed (AFTER_FIRST_UNLOCK + try-catch)
+2. ✅ History/IFTA data not showing on first tab visit — fixed (useFocusEffect)
+3. ✅ Break-even formula display — fixed (`monthlyFixed` wired; `weekly_fuel_cost` now
+   synced to Supabase `profiles.weekly_fuel_cost`; formula shows all components).
+4. ✅ "See All" on Dashboard → navigates to History tab (fixed in prior session).
+5. ✅ **Fuel tab — rolling CPM + state picker + refresh** — fixed 2026-06-20:
+   - `getLatestFuelCPM()` already used weighted rolling avg of last 10 fill-ups.
+   - `getFuelStats()` now returns `rollingCount` + uses rolling avg for hero (was
+     showing single fill-up CPM; now shows `SUM($)/SUM(miles)` over last 10).
+   - FuelScreen hero subtitle updated: "Avg of your last N fill-ups · Updated {date}".
+   - State picker replaced: chip grid → scrollable bottom-sheet Modal with full
+     state names (e.g. "Texas / TX"), matching the load-type dropdown pattern.
+   - Refresh on save already wired via `onSaved → refresh()` in FuelScreen.
 
-1. **Add Load screen (Flow 3)** — the core missing flow. Reuse `lib/mapbox.ts`
-   (`searchAddress`/`getRouteMiles`) + `AddressAutocomplete`. Build the form
-   (address-first), compute miles + **per-state breakdown** (Turf.js over the
-   Mapbox route geometry), net pay live, fair-market total, save to `loads` +
-   `state_mileage`. Add an entry point (e.g. a center "+" action) in the navigator.
-2. **Per-state mileage breakdown** — pairs with Add Load and unblocks IFTA.
-3. **Wire "Accept & Log This Load"** in Check Load → prefill + open Add Load.
-4. **Wire the Dashboard (Flow 5)** to real DB data — replace `DEMO` with live
-   break-even, week/month P&L, recent loads, active-load card.
-5. **History (Flow 8)** from real `loads`.
-6. **IFTA (Flow 9)** aggregation + CSV/PDF/share exports.
-7. Later phases: receipt OCR, push notifications, paywall, analytics.
+**🔧 USER ACTION ITEMS — do these outside the app:**
+- [ ] **Add DNS subdomain:** in novaboostlabs.co DNS settings, create a CNAME record:
+  `truckernet` → your hosting provider (Vercel, Netlify, etc.). This makes
+  `truckernet.novaboostlabs.co` live.
+- [ ] **Create Terms & Conditions page** at `truckernet.novaboostlabs.co/terms`
+  (Notion public page, Vercel deploy, or simple hosted HTML — all work).
+- [ ] **Create Privacy Policy page** at `truckernet.novaboostlabs.co/privacy`
+  (same hosting as T&C).
+- [ ] **Add email alias** in Google Workspace admin: add `truckernet@novaboostlabs.co`
+  as an alias on your existing account. All emails land in your normal inbox.
+- [ ] **Update App Store listing** (when ready): use `truckernet.novaboostlabs.co`
+  as the Support URL and Privacy Policy URL — Apple and Google both require these.
+
+**Phase 2 (after all Phase 1 bugs cleared):**
+- Aesthetic redesign (Partiful/Wise/Calm-tier polish)
+- **RevenueCat paywall** — wire Driver Pro / Fleet / Enterprise tiers. Gate premium
+  features. RevenueCat SDK (`react-native-purchases`) already in package.json.
+- **Push notifications** — load reminders, IFTA quarter-end alerts, weekly P&L
+  summary. Expo Notifications + Supabase Edge Function triggers.
+- Splash screen + app icons
+- ✅ Full settings screen — built 2026-06-20
+- Receipt OCR (BOL + fuel receipt photo → auto-fill)
+- Supabase Realtime for multi-device live sync
+- **Geocoding result cache** — at ~500+ users, add in-memory LRU cache for recent
+  geocoding queries (same pattern as `routeCache` in `mapbox.ts`). Low priority.
 
 ---
 
 ## 6. Work Log (newest first)
+
+### 2026-06-21 — Session: backlog #9 (translation audit) complete
+- **Structural gap fill:** script-based key diff vs `en.json` found es missing 25
+  keys, pa 71, zh 37 (notably pa was missing whole `fuel.form`, `ifta`, `expenses`,
+  `settings` sections). Filled all with natural translations; all 4 languages now at
+  100% parity (verified 0 missing / 0 extra).
+- **Hardcoded-English screens localized:** `LoadDetailScreen.tsx` (used no i18n at
+  all) and `SettingsScreen.tsx` (i18n only for the language switcher) were fully
+  English. Added a new `loadDetail.*` namespace and expanded `settings.*` across
+  en/es/pa/zh, then wired both screens to `t()`. LoadDetail reuses existing
+  `addLoad.loadTypes.*` / `addLoad.statuses.*` (status snake_case → camelCase via a
+  small `STATUS_I18N` map) and a new `loadDetail.verdict.*`. Settings alerts
+  (sign out / delete account / replay), profile card, break-even rows, about rows,
+  and language list all localized; language list secondary label now shows each
+  language's name in the active UI language.
+- **Date locale localized:** added `getDateLocale()` to `lib/i18n.ts` (en→en-US,
+  es→es-MX, pa→pa-IN, zh→zh-CN) and swapped all 7 `toLocaleDateString('en-US', …)`
+  calls (History ×4, AddLoad, Fuel, LoadDetail) to use it. Number/money
+  `toLocaleString('en-US')` calls left as-is (USD stays US-grouped app-wide).
+- `tsc --noEmit` clean.
+
+### 2026-06-21 — Session: backlog #10 + History overhaul + autocomplete fix + Add Load polish
+
+**Backlog #10 — Richer History + Dashboard period cards linked:**
+- Dashboard "This Week" and "This Month" period cards are now `TouchableOpacity`.
+  Tapping either navigates to the History tab with `{ filter: 'week' | 'month' }`
+  param pre-selecting the correct filter and resetting to the current period.
+- History filter chips renamed: "Week" / "Month" / "All Time" (was "This Week" /
+  "This Month" / "All Time") since you can now view any past period.
+- Period navigator (`< Jun 16 – Jun 22 >` / `< June 2026 >`) added between filter
+  chips and totals card for Week and Month views. Back/forward arrows; forward
+  disabled when on current period.
+- **Cross-view linking:** switching Week↔Month preserves context — week of May 21
+  → tap Month = May 2026; May with Jun 7 selected → tap Week = week of Jun 7.
+  `changeFilter()` no longer blindly resets `periodDate` to today.
+- **Monthly calendar** (`src/components/MonthCalendar.tsx`): 7-column grid,
+  green dot on days with loads, count badge if >1, green circle on selected day,
+  today outline ring. Tap day → filters list + totals to that day. Tap X to clear.
+- **Weekly calendar** (`src/components/WeekCalendar.tsx`): compact horizontal
+  7-day strip (Mo–Su), same dot/count/selected/today pattern as monthly.
+- **Load Detail screen** (`src/screens/LoadDetailScreen.tsx`): tapping any load
+  row opens a `pageSheet` Modal. Shows: route card (full addresses + miles),
+  P&L (gross/net hero, fuel/fixed cost, gross+net RPM, fair-market range), load
+  info (equipment, weight, BOL, broker, backhaul, notes), state mileage table,
+  status + verdict color-coded pill badges, date.
+- **Backlog load date field on Add Load**: `< Sat, Jun 21, 2026 >` navigator at
+  bottom of form. Default = today (shows green "Today" pill badge). Left arrow
+  goes back one day; right arrow disabled on today. "Back to today" tap link
+  appears when on a past date. `LoadInsert.date` optional field added; `saveLoad`
+  uses it. New DB helpers: `getLoadById`, `LoadDetail`, `getHistoryLoadsDateRange`,
+  `getHistoryTotalsDateRange`.
+
+**Address autocomplete double-tap bug — fixed:**
+- Root cause diagnosed: our previous fix (`onBlur` 150ms + `onPress`) introduced
+  a race where `onBlur` unmounted the dropdown before `onPress` (touch-UP) could
+  fire → `pick()` never ran → text stayed as the partial query ("Phoe").
+- Fix: reverted to `onPressIn` (fires on touch-DOWN, before any layout shift or
+  unmount can occur). Reverted inner `ScrollView` back to `View`. Kept `onBlur`
+  with 150ms delay (harmless with `onPressIn` since `pick()` already runs and calls
+  `setFocused(false)` before blur fires; useful for closing dropdown if user taps
+  elsewhere without picking).
+- Changed outer ScrollViews in `AddLoadScreen` + `CheckLoadScreen` from
+  `keyboardShouldPersistTaps="handled"` → `"always"` to eliminate the original
+  intermittent miss where keyboard-dismissal was intercepting touches.
+
+**Small polish:**
+- Add Load date row: when date = today, shows a green "Today" pill badge. When
+  on a past date, shows "Back to today" tap link instead.
+
+### 2026-06-20 — Session: backlog items #2, #4, #6 + fuel improvements + migrations
+
+**Backlog #2 — Auto per-state mileage (Turf.js):**
+- Installed `us-atlas@3` (state boundary TopoJSON, 112KB) + `@types/topojson-client`.
+- Updated Mapbox Directions call to `overview=full&geometries=geojson` — now returns
+  full route geometry alongside distance. Route cache upgraded to store both.
+- New `src/lib/stateSplit.ts`: converts TopoJSON → GeoJSON once at startup, walks
+  route coordinate pairs, bounding-box pre-filters candidate states, runs
+  `turf.booleanPointInPolygon` on each segment midpoint with fast-path cache for
+  the previous state. Returns `{state, miles}[]` sorted by miles desc.
+- `AddLoadScreen` now calls `getRouteData` (instead of `getRouteMiles`) and pipes
+  geometry through `splitRouteByState`. State mileage rows auto-populate from the
+  actual route. Falls back to 50/50 address split if geometry unavailable.
+- Confirmed: miles are road miles (geometry traces actual roads; summing segment
+  distances = total road distance, matches Mapbox's `route.distance`).
+
+**Backlog #4 — Min/max bounds on all inputs:**
+- Caps enforced on every numeric field: fuel weekly $ (≤$5K via onChangeText),
+  expenses (≤$50K), onboarding miles (≤15K), load pay (≤$100K), load miles (≤15K),
+  state miles rows (≤15K), weight (≤80K lbs), fuel dollars (≤$2K alert on save),
+  gallons (≤500 alert on save), odometer (≤2M alert on save).
+- Onboarding Miles screen (Screen 3): removed "Skip" — button now disabled until
+  miles > 0. Miles are required for break-even to mean anything.
+
+**Backlog #6 — Settings screen:**
+- `src/screens/SettingsScreen.tsx` built. Opens as `pageSheet` Modal from gear icon.
+- Profile card: avatar circle (user initial), email, "Active Account" / "Guest Mode".
+- Break-Even section: Monthly Expenses (→ Expenses tab), Weekly Miles (inline edit
+  — input + save/cancel appear in-row, no sub-modal), Replay Setup (confirmation).
+- Language section: 4 inline selectable rows; switching is instant, persisted to DB.
+- About section: App Version.
+- Sign Out: amber full-width button with confirmation. Delete Account: small danger
+  link with explanation (local clear + sign out; permanent deletion via email).
+- Dashboard gear now opens Settings Modal (old Alert removed). "Replay setup"
+  removed from ExpensesScreen header (now lives in Settings only).
+
+**Fuel tab improvements:**
+- Rolling CPM hero: `getFuelStats()` now uses `SUM($)/SUM(miles)` over last 10
+  fill-ups (same weighted formula as `getLatestFuelCPM` used by break-even).
+  `rollingCount` field added so FuelScreen shows "Avg of your last N fill-ups".
+- First fill-up baseline message: when 1 fill-up exists but CPM = 0 (no miles yet),
+  hero shows "First fill-up sets your odometer baseline — log your next fill-up…"
+- State picker: replaced chip grid with bottom-sheet Modal, full state names.
+- `autoFocus` removed from onboarding fuel + miles inputs (keyboard no longer
+  pops automatically on screen mount).
+
+**Onboarding back buttons:**
+- `onBack` prop added to screens 2, 3, 4. Wired in RootNavigator:
+  Expenses ← Fuel, Miles ← Expenses, Result ← Miles.
+
+**Supabase migrations (all 3 applied):**
+- `2026-06-19_user_expenses_sync.sql` — updated to create `profiles` table first
+  (was missing; caused ERROR 42P01 on first run). Also adds `weekly_fuel_cost` col.
+- `2026-06-19_fuel_entries_sync.sql` — adds `mpg` + `odometer_reading`.
+- `2026-06-19_loads_sync.sql` — adds 6 missing columns to `loads`.
+- All applied in Supabase SQL Editor 2026-06-20. Schema is now in sync.
+
+### 2026-06-20 — Tab refresh + SecureStore error + all demo data removed
+- **SecureStore / auto-refresh error fixed:** Supabase token timer fires in background
+  and hit SecureStore while device was locked → "User interaction is not allowed."
+  Fix: `keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK` on all SecureStore calls
+  + try-catch in getItem (returns null on failure so Supabase retries silently).
+- **History / IFTA / Fuel tab refresh fixed:** `useFocusEffect` added to all three.
+  Tab bar keeps screens mounted between visits so useEffect doesn't re-run on re-focus.
+  Now reloads data every time the tab gains focus.
+- **All demo/sample data removed:** DEMO constants deleted from Dashboard, History,
+  IFTA, FuelScreen. All screens show real data or proper empty states only.
+- **Guest clean-slate enforced:** `enterGuestMode()` now calls `clearAllUserData()`
+  before starting the guest flow — blank DB guaranteed every session regardless of
+  `has_real_account` flag state.
+- **Sign-out moved to Dashboard gear icon** (removed from ExpensesScreen). Gear →
+  Alert shows account email + Sign Out. Correct UX location.
+
+### 2026-06-20 — Fix #1 (guest data persistence) + Fix #8 (demo flash + FuelScreen wiring)
+**Backlog items #1 and #8 resolved.**
+
+**#1 — Clean slate for every session without an account:**
+- `RootNavigator.init()` now clears ALL local user data (`clearAllUserData()`) on
+  every cold start when there is no active session AND the device has never had a
+  real account. This is enforced by a `has_real_account` flag in settings:
+  - Set to `'true'` whenever a real session is detected (cold start or sign-in).
+  - Cleared by `clearAllUserData()` on explicit sign-out.
+  - When session is null and `has_real_account` is not set → data wiped, sign-in.
+  - When session is null and `has_real_account` IS set → session may be temporarily
+    expired (offline) → data preserved, routed to sign-in to re-authenticate.
+- Guest flow on restart: tap "Explore without account" → fresh onboarding, 
+  clean DB every time. No data survives a cold start without an account.
+- Simplified sign-out routing: removed the `guest_mode` check (now cleared by
+  `clearAllUserData`); always routes to sign-in when session ends.
+- `clearAllUserData` updated: also clears `guest_mode` and `has_real_account`.
+
+**#8 — Demo data showing on first paint / FuelScreen never wired:**
+- **FuelScreen**: fully wired to real DB. Shows latest CPM (real), avg CPM this
+  month, total spent and gallons this month, CPM trend chart (last 5 fill-ups),
+  full fill-up history list. DEMO fallback when no fuel entries. Refreshes on save.
+  MPG shown in fill-up detail rows.
+- **HistoryScreen**: initial state now loaded synchronously (lazy useState) —
+  eliminates the DEMO flash on first paint before useEffect fires.
+- **IFTAScreen**: same synchronous init fix for first paint.
+- Dashboard was already correct (used synchronous init via `readDashData()`).
+
+### 2026-06-20 — Backend deep audit: 5 bugs fixed, 1 UI bug added to backlog
+- **Bug fixed — `guest_mode` not cleared on sign-out:** `clearAllUserData` now also
+  deletes the `guest_mode` setting. Without this: a user who started as a guest,
+  created an account, then signed out would have `guest_mode='true'` still set.
+  RootNavigator checks `if (guest !== 'true') setStep('signin')` — so with
+  `guest_mode='true'` and `session=null`, it would never route to sign-in. User
+  would be stuck on the app screen with no active session.
+- **Bug fixed — profile `update` → `upsert`:** `pushExpenses` was calling
+  `.update({ weekly_miles })` on the profiles table. If the profile row doesn't
+  exist (trigger race condition or edge case), UPDATE silently saves nothing. Now
+  uses `.upsert({ id, weekly_miles, weekly_fuel_cost }, onConflict: 'id')` which
+  creates the row if missing.
+- **Bug fixed — `weekly_fuel_cost` not synced:** The onboarding result screen reads
+  `weekly_fuel_cost` directly from SQLite settings (not from fuel_entries). This
+  value was never pushed to Supabase, so on a fresh install + sign-in, "Replay
+  setup" would always show `—` for FUEL/MO in the formula. Now synced to/from
+  `profiles.weekly_fuel_cost`. Added column to migration #1 (not run yet, still
+  safe to add). `pullExpenses` now restores it from the profile.
+- **Also fixed (from previous audit):** UUID quoting (×3) and sign-out data leak.
+  Total bugs found and fixed this session: 5.
+- **UI bug added to backlog (§0.6 item #3):** `monthlyFixed` in
+  OnboardingResultScreen is declared with useState(0) but `setMonthlyFixed` is
+  never called — FIXED/MO always shows `—` in the formula. Backend is not the
+  cause; it's a pure UI read bug. Confirmed and added as a note to backlog item #3.
+
+### 2026-06-20 — Backend audit: 2 bugs fixed, 2 limitations documented
+- **Bug fixed — UUID quoting in push cleanup (all 3 sync modules):** The `.not('id',
+  'in', ...)` queries were wrapping UUIDs in double-quotes (`"uuid"`), which
+  PostgREST ignores for UUID columns. The "delete cloud rows no longer in local" 
+  cleanup was silently doing nothing. Fixed to `localIds.join(',')` (bare UUIDs).
+- **Bug fixed — sign-out data leak:** `signOut()` now calls `clearAllUserData()`
+  before ending the Supabase session. Previously, User A's data stayed in SQLite
+  after sign-out; if User B (with no cloud data) signed in next, `syncOnSignIn`
+  would push User A's data to User B's account. `clearAllUserData()` wipes
+  user_expenses, fuel_entries, loads (cascades to state_mileage), and 
+  user-specific settings (weekly_miles, weekly_fuel) while preserving language.
+- **Limitation documented — no real-time multi-device push:** sync only fires on
+  save and sign-in. Data logged on Device A won't appear on Device B until sign-out
+  and sign-in. Fix = Supabase Realtime subscriptions (Phase 2).
+- **Limitation documented — text vs timestamptz date columns:** local stores dates
+  as YYYY-MM-DD text; remote is timestamptz. Works in practice (pull strips the
+  time with `.split('T')[0]`), but midnight-timezone edge cases could flip a date
+  by one day. Noted; low priority.
+- All other aspects audited and confirmed correct: RLS policies, nested state_mileage
+  select, syncOnSignIn error guards, IFTA coverage via synced tables.
+
+### 2026-06-19 — Loads ↔ Supabase sync (3rd vertical slice) + UUID migration
+- **Decision (user):** use real UUIDs everywhere — the proper distributed-systems
+  standard (Uber-tier). Remote `loads.id` is already `uuid`; switching local IDs
+  to match instead of changing the remote column type.
+- **Local ID migration (runs once at startup):** `initDatabase()` detects any loads
+  with legacy `load-<timestamp>` IDs and converts them to real UUIDs, updating
+  `state_mileage.load_id` FK in lockstep with FKs temporarily disabled.
+- **`saveLoad()` updated:** now calls `uuidv4()` for all new loads.
+- **Migration (user runs — 3rd pending):**
+  `supabase/migrations/2026-06-19_loads_sync.sql` — adds 6 missing columns to
+  remote `loads` (`pickup_address`, `delivery_address`, `is_backhaul`, `status`,
+  `benchmark_fair_pay_min/max`). `state_mileage` remote schema already correct.
+- **New module:** `src/lib/sync/loadsSync.ts` — `pushLoads` (upserts loads, then
+  delete+re-inserts state_mileage per load, removes cloud-only loads), `pullLoads`
+  (one round-trip via Supabase nested select `loads(state_mileage(*))`), 
+  `syncLoadsOnSignIn`. Boolean columns coerced (SQLite 0/1 ↔ Postgres boolean).
+- **DB helpers:** `getAllLoads`, `getAllStateMileage`, `replaceLoads`, `LoadRow`,
+  `StateMileageRow`.
+- **Wired:** AddLoadScreen save → `pushLoads`; RootNavigator sign-in →
+  `syncLoadsOnSignIn` (alongside expenses + fuel).
+- TypeScript clean. **Pending user action:** run the migration SQL (3rd migration).
+
+### 2026-06-19 — Fuel ↔ Supabase sync (2nd vertical slice)
+- Next slice after expenses; chosen for lowest risk — local fuel ids are already
+  real UUIDs (match remote `uuid` PK), so only 2 columns needed adding remotely.
+- **Migration (user runs):** `supabase/migrations/2026-06-19_fuel_entries_sync.sql`
+  — adds `mpg` + `odometer_reading` to remote `fuel_entries`. Idempotent.
+- **New module:** `src/lib/sync/fuelSync.ts` — `pushFuel`, `pullFuel`,
+  `syncFuelOnSignIn` (same shape/safety as expensesSync). Pull normalizes remote
+  timestamptz `date` back to local `YYYY-MM-DD`.
+- **DB helpers:** `getAllFuelEntries`, `replaceFuelEntries`, `FuelEntryRow`.
+- **Wired:** FuelEntryScreen save → `pushFuel`; RootNavigator sign-in →
+  `syncFuelOnSignIn` (alongside expenses).
+- Note: FuelScreen *list/hero* still shows DEMO — that display-wiring is a separate
+  task (like Dashboard/History were), not part of sync. Fuel DATA is real (entry
+  form writes SQLite; break-even reads it), so syncing it is meaningful now.
+- TypeScript clean. **Pending user action:** run the migration SQL.
+
+### 2026-06-19 — Expenses ↔ Supabase sync (local-first vertical slice)
+- **Decisions (user):** scope = expenses only (vertical slice); model = local-first
+  (SQLite is source of truth, push on save, pull on login). Prove this pattern,
+  then replicate to loads/fuel/IFTA.
+- **Finding:** before this, the app synced *nothing* to Supabase (auth only); the
+  remote `schema.sql` had no `user_expenses` table and was stale for loads/fuel.
+- **Migration (user runs):** `supabase/migrations/2026-06-19_user_expenses_sync.sql`
+  — adds `public.user_expenses` (+ RLS, mirrors local) and `profiles.weekly_miles`.
+  Idempotent (IF NOT EXISTS / DROP POLICY IF EXISTS).
+- **New module:** `src/lib/sync/expensesSync.ts` — `pushExpenses` (upsert local →
+  cloud, delete cloud rows no longer local, store weekly miles on profile),
+  `pullExpenses` (cloud → local restore), `syncExpensesOnSignIn` (pull; if cloud
+  empty, push local up so guest→account loses nothing). All wrapped: a network
+  failure never throws/blocks; guests + unconfigured Supabase are no-ops.
+- **Guard:** `isSupabaseConfigured()` added to `lib/supabase.ts`; client no longer
+  uses `!` non-null assertions on env.
+- **Wired:** ExpensesScreen save → `pushExpenses`; onboarding completion →
+  `pushExpenses`; RootNavigator sign-in transition → `syncExpensesOnSignIn`.
+- TypeScript clean. **Pending user action:** run the migration SQL, then test
+  save-on-device-A → login-device-B restore.
+
+### 2026-06-19 — Expenses tab unified on `user_expenses` (release blocker cleared)
+- **Bug fixed:** the Settings Expenses tab wrote to the legacy `fixed_expenses`
+  table, but `calcBreakEven()` / `getTotalMonthlyExpenses()` read from
+  `user_expenses` — so editing expenses in Settings had zero effect on break-even.
+  Same with its miles field (break-even reads `weekly_miles` from settings).
+- Rewrote `ExpensesScreen.tsx` to mirror onboarding: essentials (truck, insurance,
+  maintenance, eld, loadboard, parking) with per-row frequency dropdowns + dynamic
+  "Other" rows. Loads existing values from `user_expenses` (matches essentials by
+  category, rest → Other), saves via `replaceUserExpenses()`.
+- Monthly-miles field reads/writes `weekly_miles` (× 4.333) via new
+  `getWeeklyMiles()` / `setMonthlyMiles()` so it actually drives Fixed CPM.
+- DB helpers added: `getWeeklyMiles`, `setMonthlyMiles`, `getUserExpenses`,
+  `replaceUserExpenses`, `UserExpenseRow`.
+- Dropped the legacy Supabase sync to `fixed_expenses` (onboarding is local-only;
+  revisit with full Supabase sync). Kept the "Replay setup" button.
+
+### 2026-06-19 — IFTA wired to real DB + CSV export
+- `IFTAScreen.tsx`: aggregates `state_mileage` (joined to loads by date) +
+  `fuel_entries` gallons per state, per quarter. Year nav (back/forward, capped at
+  current year). Export CSV via native `Share` sheet. DEMO fallback when no loads;
+  per-quarter empty state once real data exists.
+- DB helpers: `getIFTAData(year, q)`, `hasIFTAData(year, q)`, `IFTARow`.
+
+### 2026-06-19 — History wired to real DB
+- `HistoryScreen.tsx`: week/month/all filters query real loads; totals
+  (gross/net/miles/avg RPM) computed from DB. DEMO fallback when empty; empty state
+  when a filter returns nothing. DB helpers: `getHistoryLoads`, `getHistoryTotals`.
+
+### 2026-06-19 — Dashboard wired to real DB (DEMO fallback)
+- `DashboardScreen.tsx`: break-even always real; week/month P&L + recent loads from
+  DB when loads exist, DEMO sample data when empty (preserves demo-ability).
+  Active-load card shows when a load is `in_progress`. Refreshes on Add Load save.
+- DB helpers: `getLoadCount`, `getWeekPnL`, `getMonthPnL`, `getRecentLoads`,
+  `getActiveLoad`.
+
+### 2026-06-19 — Add Load screen built (Flow 3)
+- `src/screens/AddLoadScreen.tsx` — full Add Load flow:
+  - Pickup + delivery with `AddressAutocomplete` (Mapbox); auto-mileage fires when both endpoints are selected.
+  - State mileage breakdown: pre-filled from pickup/delivery address states (50/50 split if different states), fully user-editable, +/- row controls, live total-vs-route validator.
+  - Live net pay preview card (same `calcBreakEven` engine as Check Load), fair-market range row.
+  - Load type dropdown, load status dropdown (Upcoming / In Progress / Completed / Cancelled), backhaul toggle.
+  - Collapsible "Add details" section for weight, BOL#, broker name/MC, notes.
+  - Saves to `loads` + `state_mileage` tables via new `saveLoad()` in `database.ts`.
+- `src/db/database.ts` — added `saveLoad()`, `LoadInsert`, `StateMileageInsert` exports.
+- `DashboardScreen` — FAB now opens Add Load; `onLogLoad` from Check Load pre-fills and opens Add Load.
+- `CheckLoadScreen` — `onLogLoad` callback now passes `AddLoadPrefill` data (pay, miles, addresses, load type, backhaul) instead of calling a no-arg callback.
+- Translations — added missing `addLoad.*` keys (`status`, `statuses`, `backhaul`, `netPayPreview`, `brokerName`, `brokerMC`, etc.) to es/pa/zh.
+- TypeScript: `tsc --noEmit` passes clean.
 
 ### 2026-06-19 — Onboarding completion is now per-account
 - Replaced the global `onboarding_completed` flag with a per-user key

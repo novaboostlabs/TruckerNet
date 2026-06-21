@@ -9,9 +9,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { Colors, FontFamily, FontSize, Spacing, Radius, SectionLabel } from '../../theme/theme';
 import { setSetting } from '../../db/database';
 
-interface Props { onNext: () => void; }
+interface Props { onNext: () => void; onBack: () => void; }
 
-export default function OnboardingMilesScreen({ onNext }: Props) {
+export default function OnboardingMilesScreen({ onNext, onBack }: Props) {
   const { t }  = useTranslation();
   const [miles,   setMiles]   = useState('');
   const [focused, setFocused] = useState(false);
@@ -19,8 +19,15 @@ export default function OnboardingMilesScreen({ onNext }: Props) {
   const weekly  = parseFloat(miles) || 0;
   const monthly = weekly * 4.333;
 
+  function handleMilesChange(v: string) {
+    const n = parseFloat(v);
+    if (!isNaN(n) && n > 15000) return; // cap at 15,000 mi/week
+    setMiles(v);
+  }
+
   function handleNext() {
-    if (weekly > 0) setSetting('weekly_miles', String(weekly));
+    if (weekly <= 0) return;
+    setSetting('weekly_miles', String(weekly));
     onNext();
   }
 
@@ -38,6 +45,11 @@ export default function OnboardingMilesScreen({ onNext }: Props) {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
+          {/* Back button */}
+          <TouchableOpacity style={styles.backBtn} onPress={onBack} activeOpacity={0.7}>
+            <Ionicons name="arrow-back" size={20} color={Colors.textSecondary} />
+          </TouchableOpacity>
+
           {/* Progress */}
           <View style={styles.progressRow}>
             {[1, 2, 3, 4].map((s) => (
@@ -61,13 +73,12 @@ export default function OnboardingMilesScreen({ onNext }: Props) {
               <TextInput
                 style={styles.input}
                 value={miles}
-                onChangeText={setMiles}
+                onChangeText={handleMilesChange}
                 keyboardType="number-pad"
                 placeholder={t('onboarding.miles.placeholder')}
                 placeholderTextColor={Colors.textTertiary}
                 onFocus={() => setFocused(true)}
                 onBlur={() => setFocused(false)}
-                autoFocus
               />
               <Text style={styles.suffix}>mi / week</Text>
             </View>
@@ -89,17 +100,18 @@ export default function OnboardingMilesScreen({ onNext }: Props) {
         {/* Button anchored above keyboard */}
         <View style={styles.buttonWrap}>
           <TouchableOpacity
-            style={[styles.button, !miles && styles.buttonDim]}
+            style={[styles.button, !weekly && styles.buttonDim]}
             onPress={handleNext}
+            disabled={!weekly}
             activeOpacity={0.85}
           >
-            <Text style={[styles.buttonText, !miles && styles.buttonTextDim]}>
-              {miles ? t('common.next') : t('common.skip')}
+            <Text style={[styles.buttonText, !weekly && styles.buttonTextDim]}>
+              {t('common.next')}
             </Text>
             <Ionicons
               name="arrow-forward"
               size={18}
-              color={miles ? Colors.background : Colors.textSecondary}
+              color={weekly ? Colors.background : Colors.textSecondary}
             />
           </TouchableOpacity>
         </View>
@@ -114,6 +126,7 @@ const styles = StyleSheet.create({
   scroll:        { flex: 1 },
   scrollContent: { paddingHorizontal: Spacing.screenH, paddingTop: 16, paddingBottom: 12 },
 
+  backBtn: { marginBottom: 12, alignSelf: 'flex-start', padding: 4 },
   progressRow:       { flexDirection: 'row', gap: 6, marginBottom: 20 },
   progressDot:       { flex: 1, height: 3, borderRadius: 2, backgroundColor: Colors.surface },
   progressDotActive: { backgroundColor: Colors.primary },
