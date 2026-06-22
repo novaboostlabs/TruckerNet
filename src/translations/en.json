@@ -27,7 +27,8 @@
     "perMonth": "per month",
     "miles": "miles",
     "gallons": "gallons",
-    "gross": "gross"
+    "gross": "gross",
+    "saving": "Saving..."
   },
   "auth": {
     "welcomeBack": "Welcome back.",
@@ -50,7 +51,12 @@
     "backToSignIn": "Back to Sign In",
     "errorEmailPassword": "Please enter your email and password.",
     "errorEmailRequired": "Please enter your email address.",
-    "errorPasswordLength": "Password must be at least 8 characters."
+    "errorPasswordLength": "Password must be at least 8 characters.",
+    "tagline": "Know your real number.",
+    "or": "or",
+    "guestMode": "Explore the app without an account →",
+    "googleFailed": "Google sign-in failed. Please try again.",
+    "appleFailed": "Apple sign-in failed. Please try again."
   },
   "onboarding": {
     "step": "Step {{current}} of {{total}}",
@@ -59,7 +65,10 @@
       "subtitle": "Your best guess is fine — you can update this anytime.",
       "label": "WEEKLY FUEL COST",
       "placeholder": "e.g. 600",
-      "hint": "Think about your last few fill-ups"
+      "hint": "Think about your last few fill-ups",
+      "perWeek": "/ week",
+      "estMonthly": "ESTIMATED MONTHLY FUEL",
+      "perMo": "/ mo"
     },
     "expenses": {
       "title": "What are your monthly expenses?",
@@ -109,14 +118,19 @@
         "maintenance": "Maintenance Fund",
         "parking": "Truck Parking"
       },
-      "emptyHint": "Tap \"+ Add Expense\" to get started"
+      "emptyHint": "Tap \"+ Add Expense\" to get started",
+      "totalMonthly": "TOTAL MONTHLY EXPENSES",
+      "perMo": "/mo"
     },
     "miles": {
       "title": "How many miles per week?",
       "subtitle": "We'll calculate your monthly miles from this.",
       "label": "WEEKLY MILES",
       "placeholder": "e.g. 2500",
-      "hint": "Average over a typical week"
+      "hint": "Average over a typical week",
+      "perWeek": "mi / week",
+      "estMonthly": "ESTIMATED MONTHLY MILES",
+      "perMo": " mi / mo"
     },
     "result": {
       "title": "Your break-even rate",
@@ -125,7 +139,11 @@
       "formula": "({{fuel}} fuel + {{fixed}} fixed costs) ÷ {{miles}} monthly miles",
       "startTracking": "Start Tracking →",
       "fuelCPM": "Fuel CPM",
-      "fixedCPM": "Fixed CPM"
+      "fixedCPM": "Fixed CPM",
+      "fuelMo": "FUEL / MO",
+      "fixedMo": "FIXED / MO",
+      "milesMo": "MILES / MO",
+      "nudge": "Add your expenses and miles to calculate your break-even rate. You can do this anytime in the app."
     }
   },
   "dashboard": {
@@ -147,7 +165,10 @@
     "markComplete": "Mark Complete",
     "viewDetails": "View Details",
     "weeklyPnL": "You're up {{amount}} this week",
-    "weeklyLoss": "You're down {{amount}} this week"
+    "weeklyLoss": "You're down {{amount}} this week",
+    "inProgress": "IN PROGRESS",
+    "breakEvenUnit": "per mile — below this you lose money",
+    "checkLoadBtn": "Check Load"
   },
   "checkLoad": {
     "title": "Check Load",
@@ -185,7 +206,7 @@
     "eyebrow": "TRACKING",
     "currentCPM": "CURRENT FUEL COST PER MILE",
     "logFillup": "Log Fill-up",
-    "cpmTrend": "CPM TREND — LAST 5 FILL-UPS",
+    "cpmTrend": "CPM TREND — LAST {{count}} FILL-UPS",
     "fillupHistory": "FILL-UP HISTORY",
     "noEntries": "No fuel entries yet",
     "noEntriesHint": "Every fill-up updates your real cost-per-mile.",
@@ -208,8 +229,36 @@
         "costPerMile": "Cost per mile",
         "mpg": "Miles per gallon",
         "milesDriven": "Miles driven"
-      }
-    }
+      },
+      "detailsSection": "FILL-UP DETAILS",
+      "galUnit": "gal",
+      "miUnit": "mi",
+      "odometerSection": "ODOMETER READING",
+      "currentMiles": "CURRENT MILES ON TRUCK",
+      "lastRecorded": "Last recorded: {{miles}} mi",
+      "milesDrivenNote": " — {{driven}} miles driven",
+      "statePickerTitle": "State Purchased",
+      "calculationsSection": "CALCULATIONS",
+      "perGallonLive": "= ${{price}} per gallon",
+      "saveErrorTitle": "Error",
+      "saveError": "Could not save fuel entry. Please try again.",
+      "missingInfoTitle": "Missing info",
+      "missingInfo": "Please enter amount spent, gallons, and your current odometer reading.",
+      "checkAmountTitle": "Check amount",
+      "checkAmount": "A single fill-up over $2,000 seems unlikely. Please double-check the amount.",
+      "checkGallonsTitle": "Check gallons",
+      "checkGallons": "Over 500 gallons seems unlikely. Please double-check.",
+      "checkOdometerTitle": "Check odometer",
+      "checkOdometerHigh": "Odometer reading over 2,000,000 miles seems unlikely. Please double-check.",
+      "checkOdometerLow": "Your last recorded reading was {{miles}} mi. New reading must be higher."
+    },
+    "heroAvg": "Avg of your last {{count}} fill-ups · Updated {{date}}",
+    "heroBaseline": "First fill-up sets your odometer baseline — log your next fill-up to see your cost per mile",
+    "heroEmpty": "Log a fill-up to see your real cost per mile",
+    "avgThisMonth": "AVG THIS MONTH",
+    "totalSpent": "TOTAL SPENT",
+    "totalGallons": "TOTAL GALLONS",
+    "noChartData": "No fill-ups logged yet"
   },
   "addLoad": {
     "title": "Add Load",
@@ -257,7 +306,21 @@
       "rgn": "RGN / Lowboy",
       "power_only": "Power Only",
       "auto_transport": "Auto Transport"
-    }
+    },
+    "milesCol": "MILES",
+    "addState": "Add State",
+    "hideDetails": "Hide details",
+    "addDetails": "Add details (BOL, broker, notes)",
+    "notesPlaceholder": "Anything worth noting...",
+    "date": "DATE",
+    "today": "Today",
+    "backToToday": "Back to today",
+    "routeError": "Couldn't auto-calculate — enter miles manually above.",
+    "autoCalculated": "Auto-calculated · editable",
+    "missingInfoTitle": "Missing info",
+    "missingInfo": "Enter the load pay and miles to continue.",
+    "saveErrorTitle": "Error",
+    "saveError": "Failed to save load. Please try again."
   },
   "ifta": {
     "title": "IFTA",
@@ -274,7 +337,11 @@
     "total": "TOTAL",
     "totalMiles": "TOTAL MILES",
     "totalGallons": "TOTAL GALLONS",
-    "disclaimer": "Figures are estimates based on logged data. Verify all totals before filing your IFTA return."
+    "disclaimer": "Figures are estimates based on logged data. Verify all totals before filing your IFTA return.",
+    "exportNoDataTitle": "No data",
+    "exportNoDataMsg": "No IFTA data for {{quarter}} {{year}}.",
+    "exportFailedTitle": "Export failed",
+    "exportFailedMsg": "Could not open the share sheet."
   },
   "expenses": {
     "title": "Expenses",
@@ -284,7 +351,11 @@
     "monthlyMiles": "MONTHLY MILES",
     "breakdown": "BREAKDOWN",
     "save": "Save Expenses",
-    "saved": "Saved"
+    "saved": "Saved",
+    "heroEmpty": "Enter your expenses and miles below to calculate",
+    "milesPerMo": "mi / mo",
+    "totalMonthly": "TOTAL MONTHLY EXPENSES",
+    "perMo": "/mo"
   },
   "history": {
     "title": "History",
@@ -298,7 +369,15 @@
     "avgRPM": "AVG RPM",
     "loads": "{{count}} LOADS",
     "noLoads": "No loads recorded",
-    "noLoadsHint": "Every load you log will appear here with full profit breakdown."
+    "noLoadsHint": "Every load you log will appear here with full profit breakdown.",
+    "week": "Week",
+    "month": "Month",
+    "showAll": "Show all",
+    "noLoadsOnDay": "No loads on {{day}}",
+    "noLoadsPeriod": "No loads this period",
+    "hintSelectedDay": "Tap another day on the calendar, or tap the X above to see all loads.",
+    "hintAllTime": "Loads you log will appear here.",
+    "hintBrowse": "Use the arrows above to browse other periods."
   },
   "settings": {
     "title": "Settings",

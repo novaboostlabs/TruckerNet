@@ -75,7 +75,7 @@ export default function OnboardingFuelScreen({ onNext }: Props) {
                 onFocus={() => setFocused(true)}
                 onBlur={() => setFocused(false)}
               />
-              <Text style={styles.suffix}>/ week</Text>
+              <Text style={styles.suffix}>{t('onboarding.fuel.perWeek')}</Text>
             </View>
             <Text style={styles.hint}>{t('onboarding.fuel.hint')}</Text>
           </View>
@@ -83,10 +83,10 @@ export default function OnboardingFuelScreen({ onNext }: Props) {
           {/* Live monthly calculation */}
           {weekly > 0 && (
             <View style={styles.calcCard}>
-              <Text style={styles.calcLabel}>ESTIMATED MONTHLY FUEL</Text>
+              <Text style={styles.calcLabel}>{t('onboarding.fuel.estMonthly')}</Text>
               <Text style={styles.calcValue}>
                 ${monthly.toFixed(0)}
-                <Text style={styles.calcSub}> / mo</Text>
+                <Text style={styles.calcSub}> {t('onboarding.fuel.perMo')}</Text>
               </Text>
             </View>
           )}

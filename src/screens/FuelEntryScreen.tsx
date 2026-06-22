@@ -64,23 +64,23 @@ export default function FuelEntryScreen({ onSaved, onCancel }: Props) {
 
   function handleSave() {
     if (!canSave) {
-      Alert.alert('Missing info', 'Please enter amount spent, gallons, and your current odometer reading.');
+      Alert.alert(t('fuel.form.missingInfoTitle'), t('fuel.form.missingInfo'));
       return;
     }
     if (dollars > 2000) {
-      Alert.alert('Check amount', 'A single fill-up over $2,000 seems unlikely. Please double-check the amount.');
+      Alert.alert(t('fuel.form.checkAmountTitle'), t('fuel.form.checkAmount'));
       return;
     }
     if (gals > 500) {
-      Alert.alert('Check gallons', 'Over 500 gallons seems unlikely. Please double-check.');
+      Alert.alert(t('fuel.form.checkGallonsTitle'), t('fuel.form.checkGallons'));
       return;
     }
     if (odomReading > 2_000_000) {
-      Alert.alert('Check odometer', 'Odometer reading over 2,000,000 miles seems unlikely. Please double-check.');
+      Alert.alert(t('fuel.form.checkOdometerTitle'), t('fuel.form.checkOdometerHigh'));
       return;
     }
     if (odomReading <= lastOdometer && lastOdometer > 0) {
-      Alert.alert('Check odometer', `Your last recorded reading was ${lastOdometer.toLocaleString()} mi. New reading must be higher.`);
+      Alert.alert(t('fuel.form.checkOdometerTitle'), t('fuel.form.checkOdometerLow', { miles: lastOdometer.toLocaleString() }));
       return;
     }
 
@@ -107,7 +107,7 @@ export default function FuelEntryScreen({ onSaved, onCancel }: Props) {
       onSaved();
     } catch (e) {
       console.error('Error saving fuel entry:', e);
-      Alert.alert('Error', 'Could not save fuel entry. Please try again.');
+      Alert.alert(t('fuel.form.saveErrorTitle'), t('fuel.form.saveError'));
     } finally {
       setSaving(false);
     }
@@ -123,13 +123,13 @@ export default function FuelEntryScreen({ onSaved, onCancel }: Props) {
             <TouchableOpacity onPress={onCancel} style={styles.backBtn}>
               <Ionicons name="arrow-back" size={20} color={Colors.textPrimary} />
             </TouchableOpacity>
-            <Text style={styles.headerTitle}>Log Fill-up</Text>
+            <Text style={styles.headerTitle}>{t('fuel.logFillup')}</Text>
             <View style={{ width: 36 }} />
           </View>
 
           {/* Fields */}
           <View style={styles.section}>
-            <Text style={styles.sectionLabel}>FILL-UP DETAILS</Text>
+            <Text style={styles.sectionLabel}>{t('fuel.form.detailsSection')}</Text>
             <View style={styles.card}>
 
               {/* Dollars spent */}
@@ -160,22 +160,22 @@ export default function FuelEntryScreen({ onSaved, onCancel }: Props) {
                     placeholder="0.0"
                     placeholderTextColor={Colors.textTertiary}
                   />
-                  <Text style={styles.suffix}>gal</Text>
+                  <Text style={styles.suffix}>{t('fuel.form.galUnit')}</Text>
                 </View>
               </Field>
 
               {/* Price per gallon live calc */}
               {pricePerGallon > 0 && (
-                <Text style={styles.liveCalc}>= ${pricePerGallon.toFixed(3)} per gallon</Text>
+                <Text style={styles.liveCalc}>{t('fuel.form.perGallonLive', { price: pricePerGallon.toFixed(3) })}</Text>
               )}
             </View>
           </View>
 
           {/* Odometer */}
           <View style={styles.section}>
-            <Text style={styles.sectionLabel}>ODOMETER READING</Text>
+            <Text style={styles.sectionLabel}>{t('fuel.form.odometerSection')}</Text>
             <View style={styles.card}>
-              <Field label="CURRENT MILES ON TRUCK" required>
+              <Field label={t('fuel.form.currentMiles')} required>
                 <View style={styles.suffixRow}>
                   <TextInput
                     style={[styles.fieldInput, { textAlign: 'right' }]}
@@ -185,7 +185,7 @@ export default function FuelEntryScreen({ onSaved, onCancel }: Props) {
                     placeholder="487,892"
                     placeholderTextColor={Colors.textTertiary}
                   />
-                  <Text style={styles.suffix}>mi</Text>
+                  <Text style={styles.suffix}>{t('fuel.form.miUnit')}</Text>
                 </View>
               </Field>
 
@@ -193,8 +193,8 @@ export default function FuelEntryScreen({ onSaved, onCancel }: Props) {
                 <View style={styles.odometerHint}>
                   <Ionicons name="time-outline" size={14} color={Colors.textSecondary} />
                   <Text style={styles.odometerHintText}>
-                    Last recorded: {lastOdometer.toLocaleString()} mi
-                    {milesDriven > 0 && ` — ${milesDriven.toLocaleString()} miles driven`}
+                    {t('fuel.form.lastRecorded', { miles: lastOdometer.toLocaleString() })}
+                    {milesDriven > 0 && t('fuel.form.milesDrivenNote', { driven: milesDriven.toLocaleString() })}
                   </Text>
                 </View>
               )}
@@ -220,7 +220,7 @@ export default function FuelEntryScreen({ onSaved, onCancel }: Props) {
             >
               <View style={styles.modalSheet}>
                 <View style={styles.modalHandle} />
-                <Text style={styles.modalTitle}>State Purchased</Text>
+                <Text style={styles.modalTitle}>{t('fuel.form.statePickerTitle')}</Text>
                 <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
                   {US_STATE_NAMES.map(([abbr, name]) => (
                     <TouchableOpacity
@@ -248,7 +248,7 @@ export default function FuelEntryScreen({ onSaved, onCancel }: Props) {
 
           {/* State */}
           <View style={styles.section}>
-            <Text style={styles.sectionLabel}>STATE PURCHASED</Text>
+            <Text style={styles.sectionLabel}>{t('fuel.form.state')}</Text>
             <TouchableOpacity
               style={styles.stateSelector}
               onPress={() => setShowStatePicker(true)}
@@ -267,19 +267,19 @@ export default function FuelEntryScreen({ onSaved, onCancel }: Props) {
           {/* Live calculations */}
           {(costPerMile > 0 || mpg > 0) && (
             <View style={styles.section}>
-              <Text style={styles.sectionLabel}>CALCULATIONS</Text>
+              <Text style={styles.sectionLabel}>{t('fuel.form.calculationsSection')}</Text>
               <View style={styles.calcCard}>
                 {costPerMile > 0 && (
-                  <CalcRow label="Cost per mile" value={`$${costPerMile.toFixed(3)}`} highlight />
+                  <CalcRow label={t('fuel.form.calculations.costPerMile')} value={`$${costPerMile.toFixed(3)}`} highlight />
                 )}
                 {mpg > 0 && (
-                  <CalcRow label="Miles per gallon" value={`${mpg.toFixed(1)} MPG`} />
+                  <CalcRow label={t('fuel.form.calculations.mpg')} value={`${mpg.toFixed(1)} MPG`} />
                 )}
                 {milesDriven > 0 && (
-                  <CalcRow label="Miles driven" value={`${milesDriven.toLocaleString()} mi`} />
+                  <CalcRow label={t('fuel.form.calculations.milesDriven')} value={`${milesDriven.toLocaleString()} mi`} />
                 )}
                 {pricePerGallon > 0 && (
-                  <CalcRow label="Price per gallon" value={`$${pricePerGallon.toFixed(3)}`} />
+                  <CalcRow label={t('fuel.form.calculations.pricePerGallon')} value={`$${pricePerGallon.toFixed(3)}`} />
                 )}
               </View>
             </View>
@@ -294,7 +294,7 @@ export default function FuelEntryScreen({ onSaved, onCancel }: Props) {
           >
             <Ionicons name="checkmark" size={18} color={Colors.background} />
             <Text style={styles.saveBtnText}>
-              {saving ? 'Saving...' : t('fuel.form.save')}
+              {saving ? t('common.saving') : t('fuel.form.save')}
             </Text>
           </TouchableOpacity>
 

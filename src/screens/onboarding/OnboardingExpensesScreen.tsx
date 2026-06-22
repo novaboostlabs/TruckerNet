@@ -340,8 +340,8 @@ export default function OnboardingExpensesScreen({ onNext, onBack }: Props) {
           {/* Total */}
           {total > 0 && (
             <View style={styles.totalCard}>
-              <Text style={styles.totalLabel}>TOTAL MONTHLY EXPENSES</Text>
-              <Text style={styles.totalValue}>${total.toFixed(0)}<Text style={styles.totalSub}>/mo</Text></Text>
+              <Text style={styles.totalLabel}>{t('onboarding.expenses.totalMonthly')}</Text>
+              <Text style={styles.totalValue}>${total.toFixed(0)}<Text style={styles.totalSub}>{t('onboarding.expenses.perMo')}</Text></Text>
             </View>
           )}
 

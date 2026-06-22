@@ -4,6 +4,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { Colors, FontFamily, FontSize, Spacing, Radius, SectionLabel } from '../theme/theme';
 import {
   calcBreakEven, getLoadCount, getWeekPnL, getMonthPnL,
@@ -66,6 +67,7 @@ function fmt(n: number, decimals = 0): string {
 }
 
 export default function DashboardScreen() {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const navigation = useNavigation<any>();
   const [data,          setData]          = useState<DashData>(() => readDashData());
@@ -124,8 +126,8 @@ export default function DashboardScreen() {
         {/* ── Header ── */}
         <View style={styles.header}>
           <View>
-            <Text style={styles.headerEyebrow}>OVERVIEW</Text>
-            <Text style={styles.headerTitle}>Dashboard</Text>
+            <Text style={styles.headerEyebrow}>{t('dashboard.eyebrow')}</Text>
+            <Text style={styles.headerTitle}>{t('dashboard.title')}</Text>
           </View>
           <TouchableOpacity style={styles.settingsBtn} onPress={() => setShowSettings(true)}>
             <Ionicons name="settings-outline" size={19} color={Colors.textSecondary} />
@@ -138,14 +140,14 @@ export default function DashboardScreen() {
             <View style={styles.activeTopRow}>
               <View style={styles.activePill}>
                 <View style={styles.activeDot} />
-                <Text style={styles.activePillText}>IN PROGRESS</Text>
+                <Text style={styles.activePillText}>{t('dashboard.inProgress')}</Text>
               </View>
             </View>
             <Text style={styles.activeRoute} numberOfLines={1}>
               {d.activeLoad.pickup_city} → {d.activeLoad.delivery_city}
             </Text>
             <Text style={styles.activeMeta}>
-              {fmt(d.activeLoad.total_miles)} mi · ${fmt(d.activeLoad.gross_pay)} gross
+              {fmt(d.activeLoad.total_miles)} mi · ${fmt(d.activeLoad.gross_pay)} {t('common.gross')}
             </Text>
           </View>
         )}
@@ -153,30 +155,30 @@ export default function DashboardScreen() {
         {/* ── Break-even hero ── */}
         <View style={styles.heroCard}>
           <View style={styles.heroTopRow}>
-            <Text style={styles.heroEyebrow}>BREAK-EVEN RATE</Text>
+            <Text style={styles.heroEyebrow}>{t('dashboard.breakEven')}</Text>
             <View style={styles.livePill}>
               <View style={styles.liveDot} />
-              <Text style={styles.liveText}>Live</Text>
+              <Text style={styles.liveText}>{t('dashboard.live')}</Text>
             </View>
           </View>
 
           <Text style={styles.heroNumber}>
             {d.breakEvenRPM > 0 ? `$${d.breakEvenRPM.toFixed(3)}` : '—'}
           </Text>
-          <Text style={styles.heroUnit}>per mile — below this you lose money</Text>
+          <Text style={styles.heroUnit}>{t('dashboard.breakEvenUnit')}</Text>
 
           <View style={styles.heroDivider} />
 
           <View style={styles.cpmRow}>
             <View style={styles.cpmCell}>
-              <Text style={styles.cpmEyebrow}>FUEL CPM</Text>
+              <Text style={styles.cpmEyebrow}>{t('dashboard.fuelCPM')}</Text>
               <Text style={styles.cpmValue}>
                 {d.fuelCPM > 0 ? `$${d.fuelCPM.toFixed(3)}` : '—'}
               </Text>
             </View>
             <View style={styles.cpmSep} />
             <View style={styles.cpmCell}>
-              <Text style={styles.cpmEyebrow}>FIXED CPM</Text>
+              <Text style={styles.cpmEyebrow}>{t('dashboard.fixedCPM')}</Text>
               <Text style={styles.cpmValue}>
                 {d.fixedCPM > 0 ? `$${d.fixedCPM.toFixed(3)}` : '—'}
               </Text>
@@ -191,11 +193,11 @@ export default function DashboardScreen() {
             onPress={() => navigation.navigate('History', { filter: 'week' })}
             activeOpacity={0.75}
           >
-            <Text style={styles.periodEyebrow}>THIS WEEK</Text>
+            <Text style={styles.periodEyebrow}>{t('dashboard.thisWeek')}</Text>
             <Text style={[styles.periodNet, { color: d.weekNet >= 0 ? Colors.primary : Colors.danger }]}>
               {signedNet(d.weekNet)}
             </Text>
-            <Text style={styles.periodGross}>of ${fmt(d.weekGross)} gross</Text>
+            <Text style={styles.periodGross}>{t('dashboard.ofGross', { amount: `$${fmt(d.weekGross)}` })}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -203,35 +205,35 @@ export default function DashboardScreen() {
             onPress={() => navigation.navigate('History', { filter: 'month' })}
             activeOpacity={0.75}
           >
-            <Text style={styles.periodEyebrow}>THIS MONTH</Text>
+            <Text style={styles.periodEyebrow}>{t('dashboard.thisMonth')}</Text>
             <Text style={[styles.periodNet, { color: d.monthNet >= 0 ? Colors.primary : Colors.danger }]}>
               {signedNet(d.monthNet)}
             </Text>
-            <Text style={styles.periodGross}>of ${fmt(d.monthGross)} gross</Text>
+            <Text style={styles.periodGross}>{t('dashboard.ofGross', { amount: `$${fmt(d.monthGross)}` })}</Text>
           </TouchableOpacity>
         </View>
 
         {/* ── Check Load CTA ── */}
         <TouchableOpacity style={styles.evalButton} activeOpacity={0.8} onPress={() => setShowCheckLoad(true)}>
           <Ionicons name="flash" size={15} color={Colors.background} />
-          <Text style={styles.evalText}>Check Load</Text>
+          <Text style={styles.evalText}>{t('dashboard.checkLoadBtn')}</Text>
           <Ionicons name="chevron-forward" size={15} color={Colors.background} />
         </TouchableOpacity>
 
         {/* ── Recent Loads ── */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionLabel}>RECENT LOADS</Text>
+            <Text style={styles.sectionLabel}>{t('dashboard.recentLoads')}</Text>
             <TouchableOpacity onPress={() => navigation.navigate('History')}>
-              <Text style={styles.sectionAction}>See all</Text>
+              <Text style={styles.sectionAction}>{t('common.seeAll')}</Text>
             </TouchableOpacity>
           </View>
 
           {d.loads.length === 0 ? (
             <View style={styles.emptyCard}>
               <Ionicons name="cube-outline" size={32} color={Colors.textTertiary} style={{ marginBottom: 10 }} />
-              <Text style={styles.emptyTitle}>No loads yet</Text>
-              <Text style={styles.emptyHint}>Tap + to log your first load and see your real net pay.</Text>
+              <Text style={styles.emptyTitle}>{t('dashboard.noLoads')}</Text>
+              <Text style={styles.emptyHint}>{t('dashboard.noLoadsHint')}</Text>
             </View>
           ) : (
             <View style={styles.loadsCard}>
@@ -248,7 +250,7 @@ export default function DashboardScreen() {
                       <Text style={[styles.loadNet, { color: load.positive ? Colors.primary : Colors.danger }]}>
                         {load.positive ? '+' : '-'}${fmt(Math.abs(load.net))}
                       </Text>
-                      <Text style={styles.loadGross}>${fmt(load.gross)} gross</Text>
+                      <Text style={styles.loadGross}>${fmt(load.gross)} {t('common.gross')}</Text>
                     </View>
                     <Ionicons name="chevron-forward" size={14} color={Colors.textTertiary} style={{ marginLeft: 8 }} />
                   </TouchableOpacity>

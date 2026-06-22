@@ -381,6 +381,26 @@ calibration = future.
 
 ## 6. Work Log (newest first)
 
+### 2026-06-21 — Session: full app-wide i18n sweep (backlog #9, round 2)
+- **Why:** user reported lots of English still showing with Spanish selected
+  (onboarding, dashboard cards, etc.). Root cause: the first pass only fixed key
+  parity + 2 screens. Seven more screens used **no i18n at all** and several i18n
+  screens had leftover hardcoded strings.
+- **Screens fully wired to `t()` this round:** DashboardScreen, FuelScreen,
+  IFTAScreen, HistoryScreen, SignInScreen, SignUpScreen (these 6 imported no i18n
+  before). Leftover hardcoded strings also fixed in: OnboardingFuel/Miles/Expenses/
+  Result, ExpensesScreen, FuelEntryScreen, AddLoadScreen — including all validation
+  `Alert.alert` messages.
+- Added ~120 new keys across 4 languages (en/es/pa/zh) under common/auth/dashboard/
+  fuel/fuel.form/ifta/history/expenses/onboarding/addLoad. Total keys now 386,
+  all 4 languages at 100% parity (verified 0 missing / 0 extra).
+- **Deliberately left in English:** LanguagePickerScreen (shown *before* a language
+  is chosen — multilingual by design); unit abbreviations (mi, gal, lbs, MPG, /mi);
+  brand names (TruckerNet, Apple, Google); USD number grouping; numeric placeholder
+  examples (e.g. "0.00", "TX", "BOL-12345").
+- Verified: `tsc --noEmit` clean; automated sweep finds zero remaining hardcoded
+  JSX text nodes or Alert string literals across src/screens + src/components.
+
 ### 2026-06-21 — Session: backlog #9 (translation audit) complete
 - **Structural gap fill:** script-based key diff vs `en.json` found es missing 25
   keys, pa 71, zh 37 (notably pa was missing whole `fuel.form`, `ifta`, `expenses`,

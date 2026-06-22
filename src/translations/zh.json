@@ -27,7 +27,8 @@
     "gallons": "加仑",
     "gross": "总收入",
     "optional": "可选",
-    "required": "必填"
+    "required": "必填",
+    "saving": "保存中..."
   },
   "auth": {
     "welcomeBack": "欢迎回来。",
@@ -50,7 +51,12 @@
     "errorEmailPassword": "请输入您的邮箱和密码。",
     "errorEmailRequired": "请输入您的邮箱地址。",
     "errorPasswordLength": "密码至少需要8个字符。",
-    "passwordMinLength": "至少8个字符"
+    "passwordMinLength": "至少8个字符",
+    "tagline": "了解你的真实数字。",
+    "or": "或",
+    "guestMode": "无需账户即可体验应用 →",
+    "googleFailed": "Google 登录失败。请重试。",
+    "appleFailed": "Apple 登录失败。请重试。"
   },
   "onboarding": {
     "step": "第 {{current}} 步，共 {{total}} 步",
@@ -59,7 +65,10 @@
       "subtitle": "大概估计即可 — 随时可以更新。",
       "label": "每周燃油费用",
       "placeholder": "例如 600",
-      "hint": "想想您最近几次加油的费用"
+      "hint": "想想您最近几次加油的费用",
+      "perWeek": "/ 周",
+      "estMonthly": "预计每月燃油",
+      "perMo": "/ 月"
     },
     "expenses": {
       "title": "您每月有哪些费用？",
@@ -109,14 +118,19 @@
         "maintenance": "维修基金",
         "parking": "停车费"
       },
-      "emptyHint": "点击\"+ 添加费用\"开始"
+      "emptyHint": "点击\"+ 添加费用\"开始",
+      "totalMonthly": "每月总费用",
+      "perMo": "/月"
     },
     "miles": {
       "title": "您每周行驶多少英里？",
       "subtitle": "我们将据此计算您的月度里程。",
       "label": "每周英里数",
       "placeholder": "例如 2500",
-      "hint": "典型一周的平均里程"
+      "hint": "典型一周的平均里程",
+      "perWeek": "英里 / 周",
+      "estMonthly": "预计每月里程",
+      "perMo": " 英里 / 月"
     },
     "result": {
       "title": "您的盈亏平衡费率",
@@ -125,7 +139,11 @@
       "formula": "（{{fuel}} 燃油 + {{fixed}} 固定费用）÷ {{miles}} 月行驶里程",
       "startTracking": "开始追踪 →",
       "fuelCPM": "燃油每英里成本",
-      "fixedCPM": "固定每英里成本"
+      "fixedCPM": "固定每英里成本",
+      "fuelMo": "燃油 / 月",
+      "fixedMo": "固定 / 月",
+      "milesMo": "里程 / 月",
+      "nudge": "添加您的费用和里程以计算盈亏平衡费率。您可以随时在应用中进行此操作。"
     }
   },
   "dashboard": {
@@ -147,7 +165,10 @@
     "markComplete": "标记完成",
     "viewDetails": "查看详情",
     "weeklyPnL": "本周您盈利 {{amount}}",
-    "weeklyLoss": "本周您亏损 {{amount}}"
+    "weeklyLoss": "本周您亏损 {{amount}}",
+    "inProgress": "进行中",
+    "breakEvenUnit": "每英里 — 低于此值就会亏损",
+    "checkLoadBtn": "查看订单"
   },
   "checkLoad": {
     "title": "查看订单",
@@ -185,7 +206,7 @@
     "eyebrow": "追踪",
     "currentCPM": "当前每英里燃油成本",
     "logFillup": "记录加油",
-    "cpmTrend": "每英里成本趋势 — 最近5次加油",
+    "cpmTrend": "每英里成本趋势 — 最近 {{count}} 次加油",
     "fillupHistory": "加油历史",
     "noEntries": "暂无燃油记录",
     "noEntriesHint": "每次加油都会更新您的真实每英里成本。",
@@ -208,8 +229,36 @@
         "costPerMile": "每英里成本",
         "mpg": "每加仑英里数",
         "milesDriven": "行驶里程"
-      }
-    }
+      },
+      "detailsSection": "加油详情",
+      "galUnit": "加仑",
+      "miUnit": "英里",
+      "odometerSection": "里程表读数",
+      "currentMiles": "卡车当前里程",
+      "lastRecorded": "上次记录：{{miles}} 英里",
+      "milesDrivenNote": " — 已行驶 {{driven}} 英里",
+      "statePickerTitle": "购买州份",
+      "calculationsSection": "计算",
+      "perGallonLive": "= 每加仑 ${{price}}",
+      "saveErrorTitle": "错误",
+      "saveError": "无法保存加油记录。请重试。",
+      "missingInfoTitle": "信息缺失",
+      "missingInfo": "请输入花费金额、加仑数和当前里程表读数。",
+      "checkAmountTitle": "核对金额",
+      "checkAmount": "单次加油超过 $2,000 似乎不太可能。请核对金额。",
+      "checkGallonsTitle": "核对加仑数",
+      "checkGallons": "超过 500 加仑似乎不太可能。请再次核对。",
+      "checkOdometerTitle": "核对里程表",
+      "checkOdometerHigh": "里程表读数超过 2,000,000 英里似乎不太可能。请再次核对。",
+      "checkOdometerLow": "您上次记录的读数为 {{miles}} 英里。新读数必须更高。"
+    },
+    "heroAvg": "最近 {{count}} 次加油的平均值 · 更新于 {{date}}",
+    "heroBaseline": "首次加油设定里程表基准 — 记录下次加油即可查看每英里成本",
+    "heroEmpty": "记录一次加油即可查看真实每英里成本",
+    "avgThisMonth": "本月平均",
+    "totalSpent": "总花费",
+    "totalGallons": "总加仑数",
+    "noChartData": "暂无加油记录"
   },
   "addLoad": {
     "title": "添加订单",
@@ -257,7 +306,21 @@
       "rgn": "RGN低床车",
       "power_only": "单头牵引",
       "auto_transport": "汽车运输"
-    }
+    },
+    "milesCol": "英里",
+    "addState": "添加州",
+    "hideDetails": "隐藏详情",
+    "addDetails": "添加详情（BOL、经纪人、备注）",
+    "notesPlaceholder": "任何需要备注的内容...",
+    "date": "日期",
+    "today": "今天",
+    "backToToday": "回到今天",
+    "routeError": "无法自动计算 — 请在上方手动输入英里数。",
+    "autoCalculated": "自动计算 · 可编辑",
+    "missingInfoTitle": "信息缺失",
+    "missingInfo": "请输入订单报酬和英里数以继续。",
+    "saveErrorTitle": "错误",
+    "saveError": "保存订单失败。请重试。"
   },
   "history": {
     "title": "历史记录",
@@ -271,7 +334,15 @@
     "net": "净收入",
     "miles": "英里",
     "avgRPM": "平均每英里收入",
-    "loads": "{{count}} 个订单"
+    "loads": "{{count}} 个订单",
+    "week": "周",
+    "month": "月",
+    "showAll": "显示全部",
+    "noLoadsOnDay": "{{day}} 无订单",
+    "noLoadsPeriod": "本期间无订单",
+    "hintSelectedDay": "点击日历上的其他日期，或点击上方的 X 查看所有订单。",
+    "hintAllTime": "您记录的订单将显示在这里。",
+    "hintBrowse": "使用上方的箭头浏览其他期间。"
   },
   "ifta": {
     "title": "IFTA",
@@ -288,7 +359,11 @@
     "gallons": "加仑",
     "total": "合计",
     "totalMiles": "总英里数",
-    "totalGallons": "总加仑数"
+    "totalGallons": "总加仑数",
+    "exportNoDataTitle": "无数据",
+    "exportNoDataMsg": "{{year}} 年 {{quarter}} 无 IFTA 数据。",
+    "exportFailedTitle": "导出失败",
+    "exportFailedMsg": "无法打开分享菜单。"
   },
   "expenses": {
     "title": "费用",
@@ -298,7 +373,11 @@
     "monthlyMiles": "每月里程",
     "breakdown": "明细",
     "save": "保存费用",
-    "saved": "已保存"
+    "saved": "已保存",
+    "heroEmpty": "在下方输入您的费用和里程进行计算",
+    "milesPerMo": "英里/月",
+    "totalMonthly": "每月总费用",
+    "perMo": "/月"
   },
   "settings": {
     "title": "设置",

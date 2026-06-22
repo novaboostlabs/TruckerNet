@@ -4,6 +4,7 @@ import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Modal } from 'rea
 import FuelEntryScreen from './FuelEntryScreen';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { Colors, FontFamily, FontSize, Spacing, Radius, SectionLabel } from '../theme/theme';
 import { getDateLocale } from '../lib/i18n';
 import { getFuelStats, getFuelEntryCount, FuelStats, FuelEntryDisplay } from '../db/database';
@@ -21,6 +22,7 @@ function formatDate(iso: string): string {
 }
 
 export default function FuelScreen() {
+  const { t } = useTranslation();
   const [showEntry, setShowEntry] = useState(false);
   const [stats, setStats] = useState<FuelStats>(() =>
     getFuelEntryCount() > 0 ? getFuelStats() : EMPTY_STATS
@@ -51,44 +53,44 @@ export default function FuelScreen() {
         {/* Header */}
         <View style={styles.header}>
           <View>
-            <Text style={styles.eyebrow}>TRACKING</Text>
-            <Text style={styles.title}>Fuel</Text>
+            <Text style={styles.eyebrow}>{t('fuel.eyebrow')}</Text>
+            <Text style={styles.title}>{t('fuel.title')}</Text>
           </View>
           <TouchableOpacity style={styles.addBtn} activeOpacity={0.8} onPress={() => setShowEntry(true)}>
             <Ionicons name="add" size={16} color={Colors.primary} />
-            <Text style={styles.addBtnText}>Log Fill-up</Text>
+            <Text style={styles.addBtnText}>{t('fuel.logFillup')}</Text>
           </TouchableOpacity>
         </View>
 
         {/* CPM Hero */}
         <View style={styles.heroCard}>
-          <Text style={styles.heroEyebrow}>CURRENT FUEL COST PER MILE</Text>
+          <Text style={styles.heroEyebrow}>{t('fuel.currentCPM')}</Text>
           <Text style={[styles.heroNumber, { color: stats.latestCPM > 0 ? Colors.primary : Colors.textSecondary }]}>
             ${stats.latestCPM.toFixed(3)}
           </Text>
           <Text style={styles.heroSub}>
             {stats.rollingCount > 0
-              ? `Avg of your last ${stats.rollingCount} fill-up${stats.rollingCount === 1 ? '' : 's'} · Updated ${formatDate(stats.latestDate)}`
+              ? t('fuel.heroAvg', { count: stats.rollingCount, date: formatDate(stats.latestDate) })
               : entries.length > 0
-                ? 'First fill-up sets your odometer baseline — log your next fill-up to see your cost per mile'
-                : 'Log a fill-up to see your real cost per mile'}
+                ? t('fuel.heroBaseline')
+                : t('fuel.heroEmpty')}
           </Text>
 
           <View style={styles.heroDivider} />
 
           <View style={styles.heroStats}>
             <View style={styles.heroStat}>
-              <Text style={styles.heroStatLabel}>AVG THIS MONTH</Text>
+              <Text style={styles.heroStatLabel}>{t('fuel.avgThisMonth')}</Text>
               <Text style={styles.heroStatValue}>${stats.avgCPMMonthly.toFixed(3)}</Text>
             </View>
             <View style={styles.heroStatDivider} />
             <View style={styles.heroStat}>
-              <Text style={styles.heroStatLabel}>TOTAL SPENT</Text>
+              <Text style={styles.heroStatLabel}>{t('fuel.totalSpent')}</Text>
               <Text style={styles.heroStatValue}>${stats.totalSpentMonth.toFixed(2)}</Text>
             </View>
             <View style={styles.heroStatDivider} />
             <View style={styles.heroStat}>
-              <Text style={styles.heroStatLabel}>TOTAL GALLONS</Text>
+              <Text style={styles.heroStatLabel}>{t('fuel.totalGallons')}</Text>
               <Text style={styles.heroStatValue}>{stats.totalGallonsMonth.toFixed(1)}</Text>
             </View>
           </View>
@@ -96,7 +98,7 @@ export default function FuelScreen() {
 
         {/* CPM Trend */}
         <View style={styles.section}>
-          <Text style={styles.sectionLabel}>CPM TREND — LAST {trendEntries.length} FILL-UPS</Text>
+          <Text style={styles.sectionLabel}>{t('fuel.cpmTrend', { count: trendEntries.length })}</Text>
           <View style={styles.chartCard}>
             {trendEntries.length > 0 ? (
               <View style={styles.chartBars}>
@@ -113,19 +115,19 @@ export default function FuelScreen() {
                 })}
               </View>
             ) : (
-              <Text style={styles.emptyChart}>No fill-ups logged yet</Text>
+              <Text style={styles.emptyChart}>{t('fuel.noChartData')}</Text>
             )}
           </View>
         </View>
 
         {/* Fill-up history */}
         <View style={styles.section}>
-          <Text style={styles.sectionLabel}>FILL-UP HISTORY</Text>
+          <Text style={styles.sectionLabel}>{t('fuel.fillupHistory')}</Text>
           {entries.length === 0 ? (
             <View style={styles.emptyCard}>
               <Ionicons name="flash-outline" size={32} color={Colors.textTertiary} style={{ marginBottom: 10 }} />
-              <Text style={styles.emptyTitle}>No fill-ups yet</Text>
-              <Text style={styles.emptyHint}>Every fill-up updates your real cost per mile.</Text>
+              <Text style={styles.emptyTitle}>{t('fuel.noEntries')}</Text>
+              <Text style={styles.emptyHint}>{t('fuel.noEntriesHint')}</Text>
             </View>
           ) : (
             <View style={styles.entriesCard}>

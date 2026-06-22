@@ -64,11 +64,11 @@ export default function OnboardingResultScreen({ onComplete, onBack }: Props) {
           <Text style={styles.heroTitle}>{t('onboarding.result.title')}</Text>
 
           <View style={styles.rateCard}>
-            <Text style={styles.rateLabel}>BREAK-EVEN RATE</Text>
+            <Text style={styles.rateLabel}>{t('dashboard.breakEven')}</Text>
             <Text style={styles.rateNumber}>
               {rpm > 0 ? `$${rpm.toFixed(3)}` : '$—.———'}
             </Text>
-            <Text style={styles.rateUnit}>per mile</Text>
+            <Text style={styles.rateUnit}>{t('common.perMile')}</Text>
           </View>
 
           <Text style={styles.subtitle}>{t('onboarding.result.subtitle')}</Text>
@@ -80,21 +80,21 @@ export default function OnboardingResultScreen({ onComplete, onBack }: Props) {
 
           <View style={styles.formulaRow}>
             <View style={styles.formulaItem}>
-              <Text style={styles.formulaItemLabel}>FUEL / MO</Text>
+              <Text style={styles.formulaItemLabel}>{t('onboarding.result.fuelMo')}</Text>
               <Text style={styles.formulaItemValue}>
                 {monthlyFuel > 0 ? `$${Math.round(monthlyFuel).toLocaleString()}` : '—'}
               </Text>
             </View>
             <Text style={styles.formulaPlus}>+</Text>
             <View style={styles.formulaItem}>
-              <Text style={styles.formulaItemLabel}>FIXED / MO</Text>
+              <Text style={styles.formulaItemLabel}>{t('onboarding.result.fixedMo')}</Text>
               <Text style={styles.formulaItemValue}>
                 {monthlyFixed > 0 ? `$${Math.round(monthlyFixed).toLocaleString()}` : '—'}
               </Text>
             </View>
             <Text style={styles.formulaPlus}>÷</Text>
             <View style={styles.formulaItem}>
-              <Text style={styles.formulaItemLabel}>MILES / MO</Text>
+              <Text style={styles.formulaItemLabel}>{t('onboarding.result.milesMo')}</Text>
               <Text style={styles.formulaItemValue}>
                 {monthlyMiles > 0 ? Math.round(monthlyMiles).toLocaleString() : '—'}
               </Text>
@@ -105,12 +105,12 @@ export default function OnboardingResultScreen({ onComplete, onBack }: Props) {
           {rpm > 0 && (
             <View style={styles.cpmRow}>
               <View style={styles.cpmCell}>
-                <Text style={styles.cpmLabel}>FUEL CPM</Text>
+                <Text style={styles.cpmLabel}>{t('dashboard.fuelCPM')}</Text>
                 <Text style={styles.cpmValue}>${result.fuelCPM.toFixed(3)}</Text>
               </View>
               <View style={styles.cpmSep} />
               <View style={styles.cpmCell}>
-                <Text style={styles.cpmLabel}>FIXED CPM</Text>
+                <Text style={styles.cpmLabel}>{t('dashboard.fixedCPM')}</Text>
                 <Text style={styles.cpmValue}>${result.fixedCPM.toFixed(3)}</Text>
               </View>
             </View>
@@ -122,7 +122,7 @@ export default function OnboardingResultScreen({ onComplete, onBack }: Props) {
           <View style={styles.nudgeCard}>
             <Ionicons name="information-circle-outline" size={18} color={Colors.secondary} />
             <Text style={styles.nudgeText}>
-              Add your expenses and miles to calculate your break-even rate. You can do this anytime in the app.
+              {t('onboarding.result.nudge')}
             </Text>
           </View>
         )}

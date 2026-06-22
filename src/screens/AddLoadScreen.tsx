@@ -236,7 +236,7 @@ export default function AddLoadScreen({ onClose, onSaved, prefill }: Props) {
 
   async function handleSave() {
     if (!gross || !loadMi) {
-      Alert.alert('Missing info', 'Enter the load pay and miles to continue.');
+      Alert.alert(t('addLoad.missingInfoTitle'), t('addLoad.missingInfo'));
       return;
     }
     setSaving(true);
@@ -289,7 +289,7 @@ export default function AddLoadScreen({ onClose, onSaved, prefill }: Props) {
       onSaved?.();
       onClose();
     } catch {
-      Alert.alert('Error', 'Failed to save load. Please try again.');
+      Alert.alert(t('addLoad.saveErrorTitle'), t('addLoad.saveError'));
     } finally {
       setSaving(false);
     }
@@ -336,7 +336,7 @@ export default function AddLoadScreen({ onClose, onSaved, prefill }: Props) {
 
           {/* ── Miles ── */}
           <View style={styles.milesLabelRow}>
-            <Text style={styles.fieldLabel}>MILES</Text>
+            <Text style={styles.fieldLabel}>{t('addLoad.milesCol')}</Text>
             {routing ? (
               <View style={styles.milesBadge}>
                 <ActivityIndicator size="small" color={Colors.textSecondary} />
@@ -367,7 +367,7 @@ export default function AddLoadScreen({ onClose, onSaved, prefill }: Props) {
           {routeError && (
             <View style={styles.routeErrorRow}>
               <Ionicons name="warning-outline" size={14} color={Colors.secondary} />
-              <Text style={styles.routeErrorText}>Couldn't auto-calculate — enter miles manually above.</Text>
+              <Text style={styles.routeErrorText}>{t('addLoad.routeError')}</Text>
             </View>
           )}
 
@@ -375,7 +375,7 @@ export default function AddLoadScreen({ onClose, onSaved, prefill }: Props) {
           <View style={styles.sectionDivider} />
           <View style={styles.sectionHeaderRow}>
             <Text style={styles.fieldLabel}>{t('addLoad.stateMileage')}</Text>
-            <Text style={styles.sectionHint}>{milesAuto ? 'Auto-calculated · editable' : t('addLoad.editState')}</Text>
+            <Text style={styles.sectionHint}>{milesAuto ? t('addLoad.autoCalculated') : t('addLoad.editState')}</Text>
           </View>
 
           {stateMiles.map((row, idx) => (
@@ -412,7 +412,7 @@ export default function AddLoadScreen({ onClose, onSaved, prefill }: Props) {
           <View style={styles.stateFooter}>
             <TouchableOpacity style={styles.addStateBtn} onPress={addStateRow}>
               <Ionicons name="add-circle-outline" size={16} color={Colors.primary} />
-              <Text style={styles.addStateBtnText}>Add State</Text>
+              <Text style={styles.addStateBtnText}>{t('addLoad.addState')}</Text>
             </TouchableOpacity>
             {loadMi > 0 && stateMilesTotal > 0 && (
               <View style={[styles.stateTotalPill, stateMilesDiff < 2 ? styles.stateTotalOk : styles.stateTotalWarn]}>
@@ -503,7 +503,7 @@ export default function AddLoadScreen({ onClose, onSaved, prefill }: Props) {
               color={Colors.textSecondary}
             />
             <Text style={styles.optionalToggleText}>
-              {showOptional ? 'Hide details' : 'Add details (BOL, broker, notes)'}
+              {showOptional ? t('addLoad.hideDetails') : t('addLoad.addDetails')}
             </Text>
           </TouchableOpacity>
 
@@ -552,7 +552,7 @@ export default function AddLoadScreen({ onClose, onSaved, prefill }: Props) {
                 style={[styles.textField, styles.textArea]}
                 value={notes}
                 onChangeText={setNotes}
-                placeholder="Anything worth noting..."
+                placeholder={t('addLoad.notesPlaceholder')}
                 placeholderTextColor={Colors.textTertiary}
                 multiline
                 numberOfLines={3}
@@ -563,7 +563,7 @@ export default function AddLoadScreen({ onClose, onSaved, prefill }: Props) {
 
           {/* ── Date ── */}
           <View style={styles.sectionDivider} />
-          <Text style={styles.fieldLabel}>DATE</Text>
+          <Text style={styles.fieldLabel}>{t('addLoad.date')}</Text>
           <View style={styles.dateRow}>
             <TouchableOpacity style={styles.dateArrow} onPress={() => shiftLoadDate(-1)} activeOpacity={0.6}>
               <Ionicons name="chevron-back" size={20} color={Colors.textSecondary} />
@@ -572,11 +572,11 @@ export default function AddLoadScreen({ onClose, onSaved, prefill }: Props) {
               <Text style={styles.dateText}>{loadDateDisplay}</Text>
               {isToday ? (
                 <View style={styles.dateTodayBadge}>
-                  <Text style={styles.dateTodayBadgeText}>Today</Text>
+                  <Text style={styles.dateTodayBadgeText}>{t('addLoad.today')}</Text>
                 </View>
               ) : (
                 <TouchableOpacity onPress={() => setLoadDate(new Date().toISOString().split('T')[0])} activeOpacity={0.7}>
-                  <Text style={styles.dateTodayLink}>Back to today</Text>
+                  <Text style={styles.dateTodayLink}>{t('addLoad.backToToday')}</Text>
                 </TouchableOpacity>
               )}
             </View>

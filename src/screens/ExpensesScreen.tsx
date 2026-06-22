@@ -231,23 +231,23 @@ export default function ExpensesScreen() {
           {/* Header */}
           <View style={styles.header}>
             <View>
-              <Text style={styles.headerLabel}>SETTINGS</Text>
-              <Text style={styles.headerTitle}>Expenses</Text>
+              <Text style={styles.headerLabel}>{t('expenses.eyebrow')}</Text>
+              <Text style={styles.headerTitle}>{t('expenses.title')}</Text>
             </View>
           </View>
 
           {/* Fixed CPM hero */}
           <View style={styles.heroCard}>
-            <Text style={styles.heroLabel}>FIXED COST PER MILE</Text>
+            <Text style={styles.heroLabel}>{t('expenses.fixedCPM')}</Text>
             <Text style={[styles.heroNumber, fixedCPM > 0 && styles.heroNumberActive]}>
               ${fixedCPM.toFixed(3)}
             </Text>
             {total > 0 && monthlyMiles > 0 ? (
               <Text style={styles.heroSub}>
-                ${total.toLocaleString(undefined, { maximumFractionDigits: 0 })} / mo ÷ {monthlyMiles.toLocaleString()} mi
+                ${total.toLocaleString(undefined, { maximumFractionDigits: 0 })} {t('expenses.perMo')} ÷ {monthlyMiles.toLocaleString()} mi
               </Text>
             ) : (
-              <Text style={styles.heroSub}>Enter your expenses and miles below to calculate</Text>
+              <Text style={styles.heroSub}>{t('expenses.heroEmpty')}</Text>
             )}
           </View>
 
@@ -367,16 +367,16 @@ export default function ExpensesScreen() {
               placeholder="e.g. 10,000"
               placeholderTextColor={Colors.textTertiary}
             />
-            <Text style={styles.milesSuffix}>mi / mo</Text>
+            <Text style={styles.milesSuffix}>{t('expenses.milesPerMo')}</Text>
           </View>
 
           {/* Total */}
           {total > 0 && (
             <View style={styles.totalCard}>
-              <Text style={styles.totalLabel}>TOTAL MONTHLY EXPENSES</Text>
+              <Text style={styles.totalLabel}>{t('expenses.totalMonthly')}</Text>
               <Text style={styles.totalValue}>
                 ${total.toLocaleString(undefined, { maximumFractionDigits: 0 })}
-                <Text style={styles.totalSub}>/mo</Text>
+                <Text style={styles.totalSub}>{t('expenses.perMo')}</Text>
               </Text>
             </View>
           )}

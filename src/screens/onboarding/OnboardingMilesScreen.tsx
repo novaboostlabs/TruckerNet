@@ -80,7 +80,7 @@ export default function OnboardingMilesScreen({ onNext, onBack }: Props) {
                 onFocus={() => setFocused(true)}
                 onBlur={() => setFocused(false)}
               />
-              <Text style={styles.suffix}>mi / week</Text>
+              <Text style={styles.suffix}>{t('onboarding.miles.perWeek')}</Text>
             </View>
             <Text style={styles.hint}>{t('onboarding.miles.hint')}</Text>
           </View>
@@ -88,10 +88,10 @@ export default function OnboardingMilesScreen({ onNext, onBack }: Props) {
           {/* Live monthly calc */}
           {weekly > 0 && (
             <View style={styles.calcCard}>
-              <Text style={styles.calcLabel}>ESTIMATED MONTHLY MILES</Text>
+              <Text style={styles.calcLabel}>{t('onboarding.miles.estMonthly')}</Text>
               <Text style={styles.calcValue}>
                 {Math.round(monthly).toLocaleString()}
-                <Text style={styles.calcSub}> mi / mo</Text>
+                <Text style={styles.calcSub}>{t('onboarding.miles.perMo')}</Text>
               </Text>
             </View>
           )}

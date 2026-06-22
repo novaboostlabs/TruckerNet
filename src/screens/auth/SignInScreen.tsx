@@ -5,6 +5,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import * as AppleAuthentication from 'expo-apple-authentication';
 import * as WebBrowser from 'expo-web-browser';
 import * as Linking from 'expo-linking';
@@ -20,6 +21,7 @@ interface Props {
 }
 
 export default function SignInScreen({ onGoToSignUp, onGuestMode }: Props) {
+  const { t } = useTranslation();
   const { signIn } = useAuth();
 
   const [email,    setEmail]    = useState('');
@@ -34,7 +36,7 @@ export default function SignInScreen({ onGoToSignUp, onGuestMode }: Props) {
   // ── Email/password sign in ──
   async function handleSignIn() {
     if (!email.trim() || !password) {
-      setError('Please enter your email and password.');
+      setError(t('auth.errorEmailPassword'));
       return;
     }
     setLoading(true);
@@ -68,7 +70,7 @@ export default function SignInScreen({ onGoToSignUp, onGuestMode }: Props) {
         }
       }
     } catch (e: any) {
-      setError('Google sign-in failed. Please try again.');
+      setError(t('auth.googleFailed'));
     } finally {
       setOauthLoading(null);
     }
@@ -94,7 +96,7 @@ export default function SignInScreen({ onGoToSignUp, onGuestMode }: Props) {
       }
     } catch (e: any) {
       if (e.code !== 'ERR_REQUEST_CANCELED') {
-        setError('Apple sign-in failed. Please try again.');
+        setError(t('auth.appleFailed'));
       }
     } finally {
       setOauthLoading(null);
@@ -111,13 +113,13 @@ export default function SignInScreen({ onGoToSignUp, onGuestMode }: Props) {
             <View style={styles.logoMark}><Text style={styles.logoChar}>T</Text></View>
             <View>
               <Text style={styles.appName}>TruckerNet</Text>
-              <Text style={styles.tagline}>Know your real number.</Text>
+              <Text style={styles.tagline}>{t('auth.tagline')}</Text>
             </View>
           </View>
 
           {/* Heading */}
-          <Text style={styles.heading}>Welcome back.</Text>
-          <Text style={styles.subheading}>Sign in to your account to continue.</Text>
+          <Text style={styles.heading}>{t('auth.welcomeBack')}</Text>
+          <Text style={styles.subheading}>{t('auth.signInSubtitle')}</Text>
 
           {/* Error */}
           {error && (
@@ -165,19 +167,19 @@ export default function SignInScreen({ onGoToSignUp, onGuestMode }: Props) {
           {/* Divider */}
           <View style={styles.dividerRow}>
             <View style={styles.dividerLine} />
-            <Text style={styles.dividerText}>or</Text>
+            <Text style={styles.dividerText}>{t('auth.or')}</Text>
             <View style={styles.dividerLine} />
           </View>
 
           {/* Email + password */}
           <View style={styles.fields}>
             <View>
-              <Text style={styles.fieldLabel}>EMAIL</Text>
+              <Text style={styles.fieldLabel}>{t('auth.email')}</Text>
               <TextInput
                 style={[styles.input, emailFocused && styles.inputFocused]}
                 value={email}
                 onChangeText={setEmail}
-                placeholder="you@example.com"
+                placeholder={t('auth.emailPlaceholder')}
                 placeholderTextColor={Colors.textTertiary}
                 keyboardType="email-address"
                 autoCapitalize="none"
@@ -188,7 +190,7 @@ export default function SignInScreen({ onGoToSignUp, onGuestMode }: Props) {
             </View>
 
             <View>
-              <Text style={styles.fieldLabel}>PASSWORD</Text>
+              <Text style={styles.fieldLabel}>{t('auth.password')}</Text>
               <View style={styles.passwordWrap}>
                 <TextInput
                   style={[styles.input, styles.passwordInput, passwordFocused && styles.inputFocused]}
@@ -211,19 +213,19 @@ export default function SignInScreen({ onGoToSignUp, onGuestMode }: Props) {
           <TouchableOpacity style={[styles.button, loading && styles.buttonLoading]} onPress={handleSignIn} activeOpacity={0.85} disabled={loading}>
             {loading
               ? <ActivityIndicator color={Colors.background} size="small" />
-              : <Text style={styles.buttonText}>Sign In</Text>
+              : <Text style={styles.buttonText}>{t('auth.signIn')}</Text>
             }
           </TouchableOpacity>
 
           {/* Switch to sign up */}
           <TouchableOpacity style={styles.switchRow} onPress={onGoToSignUp}>
-            <Text style={styles.switchText}>No account? </Text>
-            <Text style={styles.switchLink}>Create one</Text>
+            <Text style={styles.switchText}>{t('auth.noAccount')} </Text>
+            <Text style={styles.switchLink}>{t('auth.createOne')}</Text>
           </TouchableOpacity>
 
           {/* Skip / Guest mode */}
           <TouchableOpacity style={styles.skipRow} onPress={onGuestMode} activeOpacity={0.7}>
-            <Text style={styles.skipText}>Explore the app without an account →</Text>
+            <Text style={styles.skipText}>{t('auth.guestMode')}</Text>
           </TouchableOpacity>
 
         </ScrollView>

@@ -5,6 +5,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { Colors, FontFamily, FontSize, Spacing, Radius, SectionLabel } from '../theme/theme';
 import { getLoadCount, getIFTAData, hasIFTAData, IFTARow } from '../db/database';
 
@@ -31,6 +32,7 @@ function generateCSV(rows: IFTARow[], year: number, q: Quarter): string {
 }
 
 export default function IFTAScreen() {
+  const { t } = useTranslation();
   const thisYear    = new Date().getFullYear();
   const thisQuarter = currentQuarter();
 
@@ -53,7 +55,7 @@ export default function IFTAScreen() {
 
   async function handleExport() {
     if (!hasData) {
-      Alert.alert('No data', `No IFTA data for Q${quarter} ${year}.`);
+      Alert.alert(t('ifta.exportNoDataTitle'), t('ifta.exportNoDataMsg', { quarter: `Q${quarter}`, year }));
       return;
     }
     const csv = generateCSV(rows, year, quarter);
@@ -63,7 +65,7 @@ export default function IFTAScreen() {
         title:   `IFTA_Q${quarter}_${year}.csv`,
       });
     } catch {
-      Alert.alert('Export failed', 'Could not open the share sheet.');
+      Alert.alert(t('ifta.exportFailedTitle'), t('ifta.exportFailedMsg'));
     }
   }
 
@@ -74,12 +76,12 @@ export default function IFTAScreen() {
         {/* Header */}
         <View style={styles.header}>
           <View>
-            <Text style={styles.eyebrow}>COMPLIANCE</Text>
-            <Text style={styles.title}>IFTA</Text>
+            <Text style={styles.eyebrow}>{t('ifta.eyebrow')}</Text>
+            <Text style={styles.title}>{t('ifta.title')}</Text>
           </View>
           <TouchableOpacity style={styles.exportBtn} onPress={handleExport} activeOpacity={0.8}>
             <Ionicons name="share-outline" size={15} color={Colors.textSecondary} />
-            <Text style={styles.exportText}>Export CSV</Text>
+            <Text style={styles.exportText}>{t('ifta.exportCSV')}</Text>
           </TouchableOpacity>
         </View>
 
@@ -127,11 +129,11 @@ export default function IFTAScreen() {
             {/* Summary stats */}
             <View style={styles.summaryRow}>
               <View style={styles.summaryCard}>
-                <Text style={styles.summaryLabel}>TOTAL MILES</Text>
+                <Text style={styles.summaryLabel}>{t('ifta.totalMiles')}</Text>
                 <Text style={styles.summaryValue}>{Math.round(totalMiles).toLocaleString()}</Text>
               </View>
               <View style={styles.summaryCard}>
-                <Text style={styles.summaryLabel}>TOTAL GALLONS</Text>
+                <Text style={styles.summaryLabel}>{t('ifta.totalGallons')}</Text>
                 <Text style={styles.summaryValue}>{totalGallons.toFixed(1)}</Text>
               </View>
             </View>
@@ -139,9 +141,9 @@ export default function IFTAScreen() {
             {/* Table */}
             <View style={styles.tableCard}>
               <View style={styles.tableHeaderRow}>
-                <Text style={[styles.tableHeader, { flex: 1 }]}>STATE</Text>
-                <Text style={[styles.tableHeader, { flex: 2, textAlign: 'right' }]}>MILES</Text>
-                <Text style={[styles.tableHeader, { flex: 2, textAlign: 'right' }]}>GALLONS</Text>
+                <Text style={[styles.tableHeader, { flex: 1 }]}>{t('ifta.state')}</Text>
+                <Text style={[styles.tableHeader, { flex: 2, textAlign: 'right' }]}>{t('ifta.miles')}</Text>
+                <Text style={[styles.tableHeader, { flex: 2, textAlign: 'right' }]}>{t('ifta.gallons')}</Text>
               </View>
 
               {rows.map((row, i) => (
@@ -160,7 +162,7 @@ export default function IFTAScreen() {
               ))}
 
               <View style={styles.totalsRow}>
-                <Text style={[styles.totalsLabel, { flex: 1 }]}>TOTAL</Text>
+                <Text style={[styles.totalsLabel, { flex: 1 }]}>{t('ifta.total')}</Text>
                 <Text style={[styles.totalsValue, { flex: 2, textAlign: 'right' }]}>
                   {Math.round(totalMiles).toLocaleString()}
                 </Text>
@@ -175,15 +177,15 @@ export default function IFTAScreen() {
             <View style={styles.emptyIcon}>
               <Ionicons name="document-text-outline" size={26} color={Colors.textSecondary} />
             </View>
-            <Text style={styles.emptyTitle}>No data for Q{quarter} {year}</Text>
+            <Text style={styles.emptyTitle}>{t('ifta.noData', { quarter: `Q${quarter}`, year })}</Text>
             <Text style={styles.emptySub}>
-              Log loads with state mileage and fuel entries to auto-build your IFTA report.
+              {t('ifta.noDataHint')}
             </Text>
           </View>
         )}
 
         <Text style={styles.disclaimer}>
-          Figures are estimates based on logged data. Verify all totals before filing your IFTA return.
+          {t('ifta.disclaimer')}
         </Text>
 
       </ScrollView>

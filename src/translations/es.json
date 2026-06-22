@@ -27,7 +27,8 @@
     "perMonth": "por mes",
     "miles": "millas",
     "gallons": "galones",
-    "gross": "bruto"
+    "gross": "bruto",
+    "saving": "Guardando..."
   },
   "auth": {
     "welcomeBack": "Bienvenido de nuevo.",
@@ -50,7 +51,12 @@
     "backToSignIn": "Volver a Iniciar Sesión",
     "errorEmailPassword": "Por favor ingresa tu correo y contraseña.",
     "errorEmailRequired": "Por favor ingresa tu correo electrónico.",
-    "errorPasswordLength": "La contraseña debe tener al menos 8 caracteres."
+    "errorPasswordLength": "La contraseña debe tener al menos 8 caracteres.",
+    "tagline": "Conoce tu número real.",
+    "or": "o",
+    "guestMode": "Explora la app sin una cuenta →",
+    "googleFailed": "Error al iniciar sesión con Google. Inténtalo de nuevo.",
+    "appleFailed": "Error al iniciar sesión con Apple. Inténtalo de nuevo."
   },
   "onboarding": {
     "step": "Paso {{current}} de {{total}}",
@@ -59,7 +65,10 @@
       "subtitle": "Una estimación está bien — puedes actualizarlo en cualquier momento.",
       "label": "GASTO SEMANAL EN GASOLINA",
       "placeholder": "ej. 600",
-      "hint": "Piensa en tus últimas recargas"
+      "hint": "Piensa en tus últimas recargas",
+      "perWeek": "/ semana",
+      "estMonthly": "COMBUSTIBLE MENSUAL ESTIMADO",
+      "perMo": "/ mes"
     },
     "expenses": {
       "title": "¿Cuáles son tus gastos mensuales?",
@@ -109,14 +118,19 @@
         "maintenance": "Fondo de Mantenimiento",
         "parking": "Estacionamiento"
       },
-      "emptyHint": "Toca \"+ Agregar Gasto\" para comenzar"
+      "emptyHint": "Toca \"+ Agregar Gasto\" para comenzar",
+      "totalMonthly": "GASTOS MENSUALES TOTALES",
+      "perMo": "/mes"
     },
     "miles": {
       "title": "¿Cuántas millas por semana?",
       "subtitle": "Calcularemos tus millas mensuales a partir de esto.",
       "label": "MILLAS SEMANALES",
       "placeholder": "ej. 2500",
-      "hint": "Promedio de una semana típica"
+      "hint": "Promedio de una semana típica",
+      "perWeek": "mi / semana",
+      "estMonthly": "MILLAS MENSUALES ESTIMADAS",
+      "perMo": " mi / mes"
     },
     "result": {
       "title": "Tu tasa de equilibrio",
@@ -125,7 +139,11 @@
       "formula": "({{fuel}} gasolina + {{fixed}} gastos fijos) ÷ {{miles}} millas mensuales",
       "startTracking": "Comenzar →",
       "fuelCPM": "CPM Gasolina",
-      "fixedCPM": "CPM Fijo"
+      "fixedCPM": "CPM Fijo",
+      "fuelMo": "COMBUSTIBLE / MES",
+      "fixedMo": "FIJOS / MES",
+      "milesMo": "MILLAS / MES",
+      "nudge": "Agrega tus gastos y millas para calcular tu tasa de equilibrio. Puedes hacerlo en cualquier momento en la app."
     }
   },
   "dashboard": {
@@ -147,7 +165,10 @@
     "markComplete": "Marcar Completada",
     "viewDetails": "Ver Detalles",
     "weeklyPnL": "Llevas {{amount}} de ganancia esta semana",
-    "weeklyLoss": "Llevas {{amount}} de pérdida esta semana"
+    "weeklyLoss": "Llevas {{amount}} de pérdida esta semana",
+    "inProgress": "EN CAMINO",
+    "breakEvenUnit": "por milla — por debajo de esto pierdes dinero",
+    "checkLoadBtn": "Revisar Carga"
   },
   "checkLoad": {
     "title": "Revisar Carga",
@@ -185,7 +206,7 @@
     "eyebrow": "SEGUIMIENTO",
     "currentCPM": "COSTO ACTUAL POR MILLA",
     "logFillup": "Registrar Recarga",
-    "cpmTrend": "TENDENCIA CPM — ÚLTIMAS 5 RECARGAS",
+    "cpmTrend": "TENDENCIA CPM — ÚLTIMAS {{count}} RECARGAS",
     "fillupHistory": "HISTORIAL DE RECARGAS",
     "noEntries": "Sin registros de gasolina aún",
     "noEntriesHint": "Cada recarga actualiza tu costo real por milla.",
@@ -208,8 +229,36 @@
         "costPerMile": "Costo por milla",
         "mpg": "Millas por galón",
         "milesDriven": "Millas conducidas"
-      }
-    }
+      },
+      "detailsSection": "DETALLES DE LA RECARGA",
+      "galUnit": "gal",
+      "miUnit": "mi",
+      "odometerSection": "LECTURA DEL ODÓMETRO",
+      "currentMiles": "MILLAS ACTUALES DEL CAMIÓN",
+      "lastRecorded": "Último registro: {{miles}} mi",
+      "milesDrivenNote": " — {{driven}} millas recorridas",
+      "statePickerTitle": "Estado de Compra",
+      "calculationsSection": "CÁLCULOS",
+      "perGallonLive": "= ${{price}} por galón",
+      "saveErrorTitle": "Error",
+      "saveError": "No se pudo guardar la recarga. Inténtalo de nuevo.",
+      "missingInfoTitle": "Falta información",
+      "missingInfo": "Por favor ingresa el monto gastado, los galones y la lectura actual del odómetro.",
+      "checkAmountTitle": "Verifica el monto",
+      "checkAmount": "Una sola recarga de más de $2,000 parece poco probable. Verifica el monto.",
+      "checkGallonsTitle": "Verifica los galones",
+      "checkGallons": "Más de 500 galones parece poco probable. Verifica de nuevo.",
+      "checkOdometerTitle": "Verifica el odómetro",
+      "checkOdometerHigh": "Una lectura de más de 2,000,000 de millas parece poco probable. Verifica de nuevo.",
+      "checkOdometerLow": "Tu última lectura registrada fue {{miles}} mi. La nueva lectura debe ser mayor."
+    },
+    "heroAvg": "Promedio de tus últimas {{count}} recargas · Actualizado {{date}}",
+    "heroBaseline": "La primera recarga establece tu odómetro base — registra tu próxima recarga para ver tu costo por milla",
+    "heroEmpty": "Registra una recarga para ver tu costo real por milla",
+    "avgThisMonth": "PROM. ESTE MES",
+    "totalSpent": "TOTAL GASTADO",
+    "totalGallons": "GALONES TOTALES",
+    "noChartData": "Aún no hay recargas registradas"
   },
   "addLoad": {
     "title": "Agregar Carga",
@@ -257,7 +306,21 @@
       "rgn": "RGN / Lowboy",
       "power_only": "Solo Cabeza",
       "auto_transport": "Transporte de Autos"
-    }
+    },
+    "milesCol": "MILLAS",
+    "addState": "Agregar Estado",
+    "hideDetails": "Ocultar detalles",
+    "addDetails": "Agregar detalles (BOL, broker, notas)",
+    "notesPlaceholder": "Algo que quieras anotar...",
+    "date": "FECHA",
+    "today": "Hoy",
+    "backToToday": "Volver a hoy",
+    "routeError": "No se pudo calcular automáticamente — ingresa las millas manualmente arriba.",
+    "autoCalculated": "Calculado automáticamente · editable",
+    "missingInfoTitle": "Falta información",
+    "missingInfo": "Ingresa el pago de la carga y las millas para continuar.",
+    "saveErrorTitle": "Error",
+    "saveError": "No se pudo guardar la carga. Inténtalo de nuevo."
   },
   "ifta": {
     "title": "IFTA",
@@ -274,7 +337,11 @@
     "disclaimer": "Las cifras son estimaciones basadas en tus registros. Verifica todos los totales antes de presentar tu declaración IFTA.",
     "export": "Exportar",
     "totalMiles": "MILLAS TOTALES",
-    "totalGallons": "GALONES TOTALES"
+    "totalGallons": "GALONES TOTALES",
+    "exportNoDataTitle": "Sin datos",
+    "exportNoDataMsg": "Sin datos IFTA para {{quarter}} {{year}}.",
+    "exportFailedTitle": "Error al exportar",
+    "exportFailedMsg": "No se pudo abrir el menú de compartir."
   },
   "history": {
     "title": "Historial",
@@ -288,7 +355,15 @@
     "avgRPM": "RPM PROM",
     "loads": "{{count}} CARGAS",
     "noLoads": "Sin cargas registradas",
-    "noLoadsHint": "Cada carga que registres aparecerá aquí con el desglose completo de ganancias."
+    "noLoadsHint": "Cada carga que registres aparecerá aquí con el desglose completo de ganancias.",
+    "week": "Semana",
+    "month": "Mes",
+    "showAll": "Ver todo",
+    "noLoadsOnDay": "Sin cargas el {{day}}",
+    "noLoadsPeriod": "Sin cargas en este período",
+    "hintSelectedDay": "Toca otro día en el calendario, o toca la X de arriba para ver todas las cargas.",
+    "hintAllTime": "Las cargas que registres aparecerán aquí.",
+    "hintBrowse": "Usa las flechas de arriba para ver otros períodos."
   },
   "expenses": {
     "title": "Gastos",
@@ -298,7 +373,11 @@
     "monthlyMiles": "MILLAS MENSUALES",
     "breakdown": "DESGLOSE",
     "save": "Guardar Gastos",
-    "saved": "Guardado"
+    "saved": "Guardado",
+    "heroEmpty": "Ingresa tus gastos y millas abajo para calcular",
+    "milesPerMo": "mi / mes",
+    "totalMonthly": "GASTOS MENSUALES TOTALES",
+    "perMo": "/mes"
   },
   "settings": {
     "title": "Configuración",

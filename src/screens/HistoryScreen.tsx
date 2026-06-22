@@ -4,6 +4,7 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Modal } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { Colors, FontFamily, FontSize, Spacing, Radius, SectionLabel } from '../theme/theme';
 import { getDateLocale } from '../lib/i18n';
 import {
@@ -93,6 +94,7 @@ function loadDataForPeriod(filter: HistoryFilter, date: Date) {
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export default function HistoryScreen() {
+  const { t } = useTranslation();
   const navigation = useNavigation<any>();
   const route      = useRoute<any>();
 
@@ -198,8 +200,8 @@ export default function HistoryScreen() {
     : null;
 
   const loadsLabel = selectedDay
-    ? `${visibleTotals.count} ${visibleTotals.count === 1 ? 'LOAD' : 'LOADS'} · ${selectedDayLabel}`
-    : `${totals.count} ${totals.count === 1 ? 'LOAD' : 'LOADS'} · ${bounds?.label ?? 'All Time'}`;
+    ? `${t('history.loads', { count: visibleTotals.count })} · ${selectedDayLabel}`
+    : `${t('history.loads', { count: totals.count })} · ${bounds?.label ?? t('history.allTime')}`;
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -219,8 +221,8 @@ export default function HistoryScreen() {
         {/* Header */}
         <View style={styles.header}>
           <View>
-            <Text style={styles.eyebrow}>RECORDS</Text>
-            <Text style={styles.title}>History</Text>
+            <Text style={styles.eyebrow}>{t('history.eyebrow')}</Text>
+            <Text style={styles.title}>{t('history.title')}</Text>
           </View>
         </View>
 
@@ -234,7 +236,7 @@ export default function HistoryScreen() {
               activeOpacity={0.8}
             >
               <Text style={[styles.filterChipText, filter === key && styles.filterChipTextActive]}>
-                {key === 'week' ? 'Week' : key === 'month' ? 'Month' : 'All Time'}
+                {key === 'week' ? t('history.week') : key === 'month' ? t('history.month') : t('history.allTime')}
               </Text>
             </TouchableOpacity>
           ))}
@@ -267,7 +269,7 @@ export default function HistoryScreen() {
             {selectedDay && (
               <TouchableOpacity style={styles.clearDayBtn} onPress={() => setSelectedDay(null)} activeOpacity={0.7}>
                 <Ionicons name="close-circle" size={14} color={Colors.textTertiary} />
-                <Text style={styles.clearDayText}>Show all · {bounds?.label}</Text>
+                <Text style={styles.clearDayText}>{t('history.showAll')} · {bounds?.label}</Text>
               </TouchableOpacity>
             )}
           </View>
@@ -286,7 +288,7 @@ export default function HistoryScreen() {
             {selectedDay && (
               <TouchableOpacity style={styles.clearDayBtn} onPress={() => setSelectedDay(null)} activeOpacity={0.7}>
                 <Ionicons name="close-circle" size={14} color={Colors.textTertiary} />
-                <Text style={styles.clearDayText}>Show all · {bounds?.label}</Text>
+                <Text style={styles.clearDayText}>{t('history.showAll')} · {bounds?.label}</Text>
               </TouchableOpacity>
             )}
           </View>
@@ -295,10 +297,10 @@ export default function HistoryScreen() {
         {/* Summary totals */}
         <View style={styles.totalsCard}>
           {[
-            { label: 'GROSS',   value: fmtMoney(visibleTotals.gross) },
-            { label: 'NET',     value: fmtMoney(visibleTotals.net), isNet: true },
-            { label: 'MILES',   value: Math.round(visibleTotals.miles).toLocaleString() },
-            { label: 'AVG RPM', value: `$${(visibleTotals.miles > 0 ? visibleTotals.net / visibleTotals.miles : 0).toFixed(2)}` },
+            { label: t('history.gross'),  value: fmtMoney(visibleTotals.gross) },
+            { label: t('history.net'),    value: fmtMoney(visibleTotals.net), isNet: true },
+            { label: t('history.miles'),  value: Math.round(visibleTotals.miles).toLocaleString() },
+            { label: t('history.avgRPM'), value: `$${(visibleTotals.miles > 0 ? visibleTotals.net / visibleTotals.miles : 0).toFixed(2)}` },
           ].map(({ label, value, isNet }, i, arr) => (
             <React.Fragment key={label}>
               <View style={styles.totalCell}>
@@ -318,14 +320,14 @@ export default function HistoryScreen() {
             <View style={styles.emptyCard}>
               <Ionicons name="time-outline" size={32} color={Colors.textTertiary} style={{ marginBottom: 10 }} />
               <Text style={styles.emptyTitle}>
-                {selectedDay ? `No loads on ${selectedDayLabel}` : 'No loads this period'}
+                {selectedDay ? t('history.noLoadsOnDay', { day: selectedDayLabel }) : t('history.noLoadsPeriod')}
               </Text>
               <Text style={styles.emptyHint}>
                 {selectedDay
-                  ? 'Tap another day on the calendar, or tap the X above to see all loads.'
+                  ? t('history.hintSelectedDay')
                   : filter === 'all'
-                    ? 'Loads you log will appear here.'
-                    : 'Use the arrows above to browse other periods.'}
+                    ? t('history.hintAllTime')
+                    : t('history.hintBrowse')}
               </Text>
             </View>
           ) : (
@@ -349,7 +351,7 @@ export default function HistoryScreen() {
                       <Text style={[styles.loadNet, { color: load.positive ? Colors.primary : Colors.danger }]}>
                         {load.positive ? '+' : '-'}${Math.abs(load.net).toLocaleString()}
                       </Text>
-                      <Text style={styles.loadGross}>${load.gross.toLocaleString()} gross</Text>
+                      <Text style={styles.loadGross}>${load.gross.toLocaleString()} {t('common.gross')}</Text>
                     </View>
                     <Ionicons name="chevron-forward" size={14} color={Colors.textTertiary} style={{ marginLeft: 8 }} />
                   </TouchableOpacity>
