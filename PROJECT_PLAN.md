@@ -101,8 +101,13 @@ deferred** — do not start these until the user calls for them. Newest batch fi
    (≤15K), weight (≤80K lbs), gallons (≤500), odometer (≤2M). Fuel entry caps
    validated on save with descriptive alerts. Onboarding miles screen now requires
    a value — no more skip.
-5. **Image processing not set up.** BOL photo upload + fuel receipt photo upload
-   (with OCR auto-fill) were discussed but not built.
+5. ✅ **Image processing** — done 2026-06-22. Fuel receipt OCR (Claude vision via
+   Supabase Edge Function `ocr-fuel-receipt` — key stays server-side; auto-fills
+   $/gallons/state, image discarded) + BOL photo attach (Supabase Storage bucket
+   `bol-photos`, public URL on `loads.bol_photo_url`, shown in Load Detail with
+   full-screen viewer). All Expo Go compatible. **USER must deploy:** the edge
+   function + `ANTHROPIC_API_KEY` secret, and run the BOL migration — see
+   `PHOTO_SETUP.md`.
 6. ✅ **Onboarding back buttons + Settings screen** — done 2026-06-20.
    - Back buttons on screens 2/3/4 wired through RootNavigator.
    - Full Settings screen built (`src/screens/SettingsScreen.tsx`): profile card
@@ -423,6 +428,46 @@ calibration = future.
 ---
 
 ## 6. Work Log (newest first)
+
+### 2026-06-22 — Photo processing: fuel receipt OCR + BOL photos (backlog #5)
+
+Built both image features. User decisions: **Claude vision (cloud) OCR** for fuel
+receipts; **fuel image discarded after scan, BOL photos in cloud storage**. All
+Expo Go compatible (no native OCR dep); TypeScript clean; 4-language parity held.
+
+**Fuel receipt OCR:**
+- `src/lib/ocr.ts` — `scanFuelReceipt(source)`: pick/capture (expo-image-picker) →
+  downscale (expo-image-manipulator, added) → base64 → Supabase Edge Function →
+  parsed `{dollars, gallons, pricePerGallon, state, date}`. Discriminated result
+  (cancelled/permission/not_configured/failed). Image is never stored.
+- `supabase/functions/ocr-fuel-receipt/index.ts` — Deno edge fn calling Anthropic
+  Messages API (model `claude-haiku-4-5`) with a strict JSON-only system prompt
+  (prompt-cached). Key from `ANTHROPIC_API_KEY` secret — never in the app.
+- `FuelEntryScreen` — "Scan receipt" button + action sheet + scanning state +
+  "review the values" hint. Auto-fills $/gallons/state (derives gallons from
+  $÷price if needed). Graceful alerts on permission/not-configured/failure.
+
+**BOL photos (cloud storage):**
+- `src/lib/storage.ts` — `uploadBolPhoto(userId, uri)`: downscale → binary upload
+  via `expo-file-system/legacy` `uploadAsync` (reliable in Expo Go) to bucket
+  `bol-photos` at `{userId}/{uuid}.jpg`; returns public URL.
+- `AddLoadScreen` — Attach BOL photo (camera/library) in optional details, thumb +
+  remove; uploads on save (guests/failed upload → local URI fallback).
+- `LoadDetailScreen` — BOL photo card + full-screen tap viewer.
+- DB: added `loads.bol_photo_url` (schema + local migration + threaded through
+  `LoadInsert`/`saveLoad`/`LoadRow`/`getAllLoads`/`replaceLoads`/`LoadDetail`/
+  `getLoadById` and `loadsSync` push+pull).
+- `supabase/migrations/2026-06-22_loads_bol_photo.sql` — adds column + public
+  `bol-photos` bucket + per-user-folder RLS (idempotent).
+- i18n: `fuel.form.scan.*`, `addLoad.photo.*`, `loadDetail.bolPhoto`, all 4 langs.
+- `tsconfig.json` now excludes `supabase/functions` (Deno code, not RN).
+
+**USER must deploy (see `PHOTO_SETUP.md`):** `supabase functions deploy
+ocr-fuel-receipt`, `supabase secrets set ANTHROPIC_API_KEY=…`, and run the BOL
+migration SQL. Until then: OCR shows "not set up", BOL falls back to local-only.
+
+**Deferred:** OCR receipt date isn't applied (fuel form has no date field — always
+today); BOL bucket is public-by-unguessable-URL (can harden to signed URLs later).
 
 ### 2026-06-22 — RevenueCat paywall BUILT (mock-first, all gating live)
 

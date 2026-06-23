@@ -250,7 +250,22 @@
       "checkGallons": "Over 500 gallons seems unlikely. Please double-check.",
       "checkOdometerTitle": "Check odometer",
       "checkOdometerHigh": "Odometer reading over 2,000,000 miles seems unlikely. Please double-check.",
-      "checkOdometerLow": "Your last recorded reading was {{miles}} mi. New reading must be higher."
+      "checkOdometerLow": "Your last recorded reading was {{miles}} mi. New reading must be higher.",
+      "scan": {
+        "scanButton": "Scan receipt",
+        "scanning": "Reading receipt…",
+        "chooseTitle": "Scan fuel receipt",
+        "chooseMessage": "Take a photo or choose one from your library",
+        "takePhoto": "Take Photo",
+        "chooseLibrary": "Choose from Library",
+        "scannedHint": "Scanned — double-check the values below before saving.",
+        "permissionTitle": "Permission needed",
+        "permissionMsg": "Allow camera and photo access to scan receipts.",
+        "notAvailableTitle": "Scanning not set up",
+        "notAvailableMsg": "Receipt scanning isn't available yet. Enter the values manually.",
+        "failedTitle": "Couldn't read receipt",
+        "failedMsg": "We couldn't read that receipt. Try a clearer photo or enter the values manually."
+      }
     },
     "heroAvg": "Avg of your last {{count}} fill-ups · Updated {{date}}",
     "heroBaseline": "First fill-up sets your odometer baseline — log your next fill-up to see your cost per mile",
@@ -320,7 +335,19 @@
     "missingInfoTitle": "Missing info",
     "missingInfo": "Enter the load pay and miles to continue.",
     "saveErrorTitle": "Error",
-    "saveError": "Failed to save load. Please try again."
+    "saveError": "Failed to save load. Please try again.",
+    "photo": {
+      "attach": "Attach BOL photo",
+      "attached": "BOL photo attached",
+      "chooseTitle": "Add BOL photo",
+      "chooseMessage": "Take a photo or choose one from your library",
+      "takePhoto": "Take Photo",
+      "chooseLibrary": "Choose from Library",
+      "remove": "Remove",
+      "uploading": "Uploading photo…",
+      "permissionTitle": "Permission needed",
+      "permissionMsg": "Allow camera and photo access to attach a BOL photo."
+    }
   },
   "ifta": {
     "title": "IFTA",
@@ -447,7 +474,8 @@
       "green": "Strong Load",
       "amber": "Fair Load",
       "red": "Below Break-Even"
-    }
+    },
+    "bolPhoto": "BOL Photo"
   },
   "paywall": {
     "badge": "DRIVER PRO",

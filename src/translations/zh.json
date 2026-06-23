@@ -250,7 +250,22 @@
       "checkGallons": "超过 500 加仑似乎不太可能。请再次核对。",
       "checkOdometerTitle": "核对里程表",
       "checkOdometerHigh": "里程表读数超过 2,000,000 英里似乎不太可能。请再次核对。",
-      "checkOdometerLow": "您上次记录的读数为 {{miles}} 英里。新读数必须更高。"
+      "checkOdometerLow": "您上次记录的读数为 {{miles}} 英里。新读数必须更高。",
+      "scan": {
+        "scanButton": "扫描收据",
+        "scanning": "正在读取收据…",
+        "chooseTitle": "扫描加油收据",
+        "chooseMessage": "拍照或从相册中选择",
+        "takePhoto": "拍照",
+        "chooseLibrary": "从相册选择",
+        "scannedHint": "已扫描——保存前请核对下方数值。",
+        "permissionTitle": "需要权限",
+        "permissionMsg": "请允许相机和照片访问以扫描收据。",
+        "notAvailableTitle": "扫描未设置",
+        "notAvailableMsg": "收据扫描尚不可用。请手动输入数值。",
+        "failedTitle": "无法读取收据",
+        "failedMsg": "我们无法读取该收据。请换一张更清晰的照片或手动输入数值。"
+      }
     },
     "heroAvg": "最近 {{count}} 次加油的平均值 · 更新于 {{date}}",
     "heroBaseline": "首次加油设定里程表基准 — 记录下次加油即可查看每英里成本",
@@ -320,7 +335,19 @@
     "missingInfoTitle": "信息缺失",
     "missingInfo": "请输入订单报酬和英里数以继续。",
     "saveErrorTitle": "错误",
-    "saveError": "保存订单失败。请重试。"
+    "saveError": "保存订单失败。请重试。",
+    "photo": {
+      "attach": "附加 BOL 照片",
+      "attached": "已附加 BOL 照片",
+      "chooseTitle": "添加 BOL 照片",
+      "chooseMessage": "拍照或从相册中选择",
+      "takePhoto": "拍照",
+      "chooseLibrary": "从相册选择",
+      "remove": "移除",
+      "uploading": "正在上传照片…",
+      "permissionTitle": "需要权限",
+      "permissionMsg": "请允许相机和照片访问以附加 BOL 照片。"
+    }
   },
   "history": {
     "title": "历史记录",
@@ -447,7 +474,8 @@
       "green": "优质订单",
       "amber": "一般订单",
       "red": "低于盈亏平衡"
-    }
+    },
+    "bolPhoto": "BOL 照片"
   },
   "paywall": {
     "badge": "DRIVER PRO",

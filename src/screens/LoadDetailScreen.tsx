@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -68,6 +68,7 @@ interface Props {
 export default function LoadDetailScreen({ loadId, onClose }: Props) {
   const { t } = useTranslation();
   const [load, setLoad] = useState<LoadDetail | null>(null);
+  const [photoOpen, setPhotoOpen] = useState(false);
 
   useEffect(() => {
     setLoad(getLoadById(loadId));
@@ -211,6 +212,16 @@ export default function LoadDetailScreen({ loadId, onClose }: Props) {
           )}
         </View>
 
+        {/* BOL photo */}
+        {!!load.bol_photo_url && (
+          <>
+            <Text style={styles.sectionHeader}>{t('loadDetail.bolPhoto')}</Text>
+            <TouchableOpacity activeOpacity={0.9} onPress={() => setPhotoOpen(true)}>
+              <Image source={{ uri: load.bol_photo_url }} style={styles.bolPhoto} resizeMode="cover" />
+            </TouchableOpacity>
+          </>
+        )}
+
         {/* State mileage */}
         {hasStateMi && (
           <>
@@ -228,6 +239,18 @@ export default function LoadDetailScreen({ loadId, onClose }: Props) {
 
         <View style={{ height: 40 }} />
       </ScrollView>
+
+      {/* Full-screen BOL photo viewer */}
+      <Modal visible={photoOpen} transparent animationType="fade" onRequestClose={() => setPhotoOpen(false)}>
+        <TouchableOpacity style={styles.viewerOverlay} activeOpacity={1} onPress={() => setPhotoOpen(false)}>
+          {!!load.bol_photo_url && (
+            <Image source={{ uri: load.bol_photo_url }} style={styles.viewerImage} resizeMode="contain" />
+          )}
+          <View style={styles.viewerClose}>
+            <Ionicons name="close" size={22} color="#fff" />
+          </View>
+        </TouchableOpacity>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -249,6 +272,22 @@ const styles = StyleSheet.create({
   closeBtn: {
     width: 36, height: 36, borderRadius: Radius.pill,
     backgroundColor: Colors.surfaceHigh, borderWidth: 1, borderColor: Colors.border,
+    alignItems: 'center', justifyContent: 'center',
+  },
+
+  bolPhoto: {
+    width: '100%', height: 200,
+    borderRadius: Radius.lg,
+    borderWidth: 1, borderColor: Colors.border,
+    marginBottom: 24,
+    backgroundColor: Colors.surface,
+  },
+  viewerOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.94)', alignItems: 'center', justifyContent: 'center' },
+  viewerImage:   { width: '100%', height: '85%' },
+  viewerClose: {
+    position: 'absolute', top: 56, right: 20,
+    width: 40, height: 40, borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.15)',
     alignItems: 'center', justifyContent: 'center',
   },
 

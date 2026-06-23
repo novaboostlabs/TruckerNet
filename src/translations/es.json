@@ -250,7 +250,22 @@
       "checkGallons": "Más de 500 galones parece poco probable. Verifica de nuevo.",
       "checkOdometerTitle": "Verifica el odómetro",
       "checkOdometerHigh": "Una lectura de más de 2,000,000 de millas parece poco probable. Verifica de nuevo.",
-      "checkOdometerLow": "Tu última lectura registrada fue {{miles}} mi. La nueva lectura debe ser mayor."
+      "checkOdometerLow": "Tu última lectura registrada fue {{miles}} mi. La nueva lectura debe ser mayor.",
+      "scan": {
+        "scanButton": "Escanear recibo",
+        "scanning": "Leyendo recibo…",
+        "chooseTitle": "Escanear recibo de combustible",
+        "chooseMessage": "Toma una foto o elige una de tu galería",
+        "takePhoto": "Tomar foto",
+        "chooseLibrary": "Elegir de la galería",
+        "scannedHint": "Escaneado: verifica los valores abajo antes de guardar.",
+        "permissionTitle": "Permiso necesario",
+        "permissionMsg": "Permite el acceso a la cámara y fotos para escanear recibos.",
+        "notAvailableTitle": "Escaneo no configurado",
+        "notAvailableMsg": "El escaneo de recibos aún no está disponible. Ingresa los valores manualmente.",
+        "failedTitle": "No se pudo leer el recibo",
+        "failedMsg": "No pudimos leer ese recibo. Prueba con una foto más clara o ingresa los valores manualmente."
+      }
     },
     "heroAvg": "Promedio de tus últimas {{count}} recargas · Actualizado {{date}}",
     "heroBaseline": "La primera recarga establece tu odómetro base — registra tu próxima recarga para ver tu costo por milla",
@@ -320,7 +335,19 @@
     "missingInfoTitle": "Falta información",
     "missingInfo": "Ingresa el pago de la carga y las millas para continuar.",
     "saveErrorTitle": "Error",
-    "saveError": "No se pudo guardar la carga. Inténtalo de nuevo."
+    "saveError": "No se pudo guardar la carga. Inténtalo de nuevo.",
+    "photo": {
+      "attach": "Adjuntar foto del BOL",
+      "attached": "Foto del BOL adjuntada",
+      "chooseTitle": "Agregar foto del BOL",
+      "chooseMessage": "Toma una foto o elige una de tu galería",
+      "takePhoto": "Tomar foto",
+      "chooseLibrary": "Elegir de la galería",
+      "remove": "Quitar",
+      "uploading": "Subiendo foto…",
+      "permissionTitle": "Permiso necesario",
+      "permissionMsg": "Permite el acceso a la cámara y fotos para adjuntar una foto del BOL."
+    }
   },
   "ifta": {
     "title": "IFTA",
@@ -447,7 +474,8 @@
       "green": "Carga Fuerte",
       "amber": "Carga Justa",
       "red": "Por Debajo del Equilibrio"
-    }
+    },
+    "bolPhoto": "Foto del BOL"
   },
   "paywall": {
     "badge": "DRIVER PRO",

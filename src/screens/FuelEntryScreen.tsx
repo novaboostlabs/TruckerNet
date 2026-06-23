@@ -10,6 +10,7 @@ import { Colors, FontFamily, FontSize, Spacing, Radius, SectionLabel } from '../
 import db, { getLatestOdometer } from '../db/database';
 import { useAuth } from '../contexts/AuthContext';
 import { pushFuel } from '../lib/sync/fuelSync';
+import { scanFuelReceipt } from '../lib/ocr';
 import 'react-native-get-random-values';
 import { v4 as uuid } from 'uuid';
 
@@ -41,6 +42,8 @@ export default function FuelEntryScreen({ onSaved, onCancel }: Props) {
   const [statePurchased,  setStatePurchased]  = useState('TX');
   const [showStatePicker, setShowStatePicker] = useState(false);
   const [saving,          setSaving]          = useState(false);
+  const [scanning,        setScanning]        = useState(false);
+  const [scanned,         setScanned]         = useState(false);
 
   const [lastOdometer, setLastOdometer] = useState(0);
 
@@ -113,6 +116,48 @@ export default function FuelEntryScreen({ onSaved, onCancel }: Props) {
     }
   }
 
+  async function runScan(source: 'camera' | 'library') {
+    setScanning(true);
+    try {
+      const res = await scanFuelReceipt(source);
+      if (!res.ok) {
+        if (res.error === 'cancelled') return;
+        const map = {
+          permission:      ['permissionTitle', 'permissionMsg'],
+          not_configured:  ['notAvailableTitle', 'notAvailableMsg'],
+          failed:          ['failedTitle', 'failedMsg'],
+        } as const;
+        const [titleKey, msgKey] = map[res.error];
+        Alert.alert(t(`fuel.form.scan.${titleKey}`), t(`fuel.form.scan.${msgKey}`));
+        return;
+      }
+      // Auto-fill what we got; the user reviews before saving.
+      const { dollars, gallons, pricePerGallon, state } = res.data;
+      if (dollars != null) setDollarsSpent(String(dollars));
+      // Derive gallons from $ ÷ price if the receipt only showed price/gal.
+      if (gallons != null) setGallons(String(gallons));
+      else if (dollars != null && pricePerGallon) setGallons((dollars / pricePerGallon).toFixed(2));
+      if (state && US_STATE_NAMES.some(([a]) => a === state)) setStatePurchased(state);
+      setScanned(true);
+    } catch {
+      Alert.alert(t('fuel.form.scan.failedTitle'), t('fuel.form.scan.failedMsg'));
+    } finally {
+      setScanning(false);
+    }
+  }
+
+  function handleScan() {
+    Alert.alert(
+      t('fuel.form.scan.chooseTitle'),
+      t('fuel.form.scan.chooseMessage'),
+      [
+        { text: t('fuel.form.scan.takePhoto'),     onPress: () => runScan('camera') },
+        { text: t('fuel.form.scan.chooseLibrary'), onPress: () => runScan('library') },
+        { text: t('common.cancel'),                style: 'cancel' },
+      ],
+    );
+  }
+
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
@@ -126,6 +171,30 @@ export default function FuelEntryScreen({ onSaved, onCancel }: Props) {
             <Text style={styles.headerTitle}>{t('fuel.logFillup')}</Text>
             <View style={{ width: 36 }} />
           </View>
+
+          {/* Scan receipt */}
+          <TouchableOpacity
+            style={[styles.scanBtn, scanning && styles.scanBtnDisabled]}
+            onPress={handleScan}
+            disabled={scanning}
+            activeOpacity={0.85}
+          >
+            <Ionicons
+              name={scanning ? 'hourglass-outline' : 'scan-outline'}
+              size={18}
+              color={Colors.primary}
+            />
+            <Text style={styles.scanBtnText}>
+              {scanning ? t('fuel.form.scan.scanning') : t('fuel.form.scan.scanButton')}
+            </Text>
+          </TouchableOpacity>
+
+          {scanned && !scanning && (
+            <View style={styles.scanHint}>
+              <Ionicons name="checkmark-circle" size={15} color={Colors.primary} />
+              <Text style={styles.scanHintText}>{t('fuel.form.scan.scannedHint')}</Text>
+            </View>
+          )}
 
           {/* Fields */}
           <View style={styles.section}>
@@ -338,6 +407,21 @@ const styles = StyleSheet.create({
   },
   backBtn:     { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
   headerTitle: { fontFamily: FontFamily.bold, fontSize: FontSize.subtitle, color: Colors.textPrimary },
+
+  scanBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9,
+    backgroundColor: Colors.primaryDim,
+    borderWidth: 1, borderColor: Colors.primaryMid,
+    borderRadius: Radius.md, paddingVertical: 15,
+    marginBottom: 16,
+  },
+  scanBtnDisabled: { opacity: 0.6 },
+  scanBtnText: { fontFamily: FontFamily.semiBold, fontSize: FontSize.body, color: Colors.primary },
+  scanHint: {
+    flexDirection: 'row', alignItems: 'center', gap: 7,
+    marginTop: -6, marginBottom: 18, paddingHorizontal: 2,
+  },
+  scanHintText: { flex: 1, fontFamily: FontFamily.regular, fontSize: FontSize.caption, color: Colors.textSecondary, lineHeight: 17 },
 
   section:      { marginBottom: 20 },
   sectionLabel: { ...SectionLabel, marginBottom: 10 },

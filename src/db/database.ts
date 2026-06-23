@@ -72,6 +72,7 @@ export function initDatabase(): void {
       additional_costs    REAL NOT NULL DEFAULT 0,
       weight_lbs          REAL NOT NULL DEFAULT 0,
       bol_number          TEXT NOT NULL DEFAULT '',
+      bol_photo_url       TEXT NOT NULL DEFAULT '',
       broker_name         TEXT NOT NULL DEFAULT '',
       broker_mc           TEXT NOT NULL DEFAULT '',
       is_deadhead         INTEGER NOT NULL DEFAULT 0,
@@ -124,6 +125,7 @@ export function initDatabase(): void {
     `ALTER TABLE loads ADD COLUMN net_rate_per_mile REAL NOT NULL DEFAULT 0`,
     `ALTER TABLE loads ADD COLUMN verdict TEXT`,
     `ALTER TABLE loads ADD COLUMN benchmark_fair_pay REAL`,
+    `ALTER TABLE loads ADD COLUMN bol_photo_url TEXT NOT NULL DEFAULT ''`,
   ];
 
   for (const sql of migrations) {
@@ -566,6 +568,7 @@ export interface LoadInsert {
   verdict?:            string;
   weight_lbs?:         number;
   bol_number?:         string;
+  bol_photo_url?:      string;
   broker_name?:        string;
   broker_mc?:          string;
   notes?:              string;
@@ -592,9 +595,9 @@ export function saveLoad(load: LoadInsert, stateMileage: StateMileageInsert[]): 
       benchmark_fair_pay_min, benchmark_fair_pay_max,
       fuel_cost_for_load, fixed_cost_for_load, net_pay,
       gross_rate_per_mile, net_rate_per_mile, verdict,
-      weight_lbs, bol_number, broker_name, broker_mc, notes,
+      weight_lbs, bol_number, bol_photo_url, broker_name, broker_mc, notes,
       is_deadhead, created_at
-    ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+    ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
     [
       id, date,
       load.pickup_address,  load.pickup_city,  load.pickup_state,
@@ -604,7 +607,7 @@ export function saveLoad(load: LoadInsert, stateMileage: StateMileageInsert[]): 
       load.benchmark_fair_pay_min ?? null, load.benchmark_fair_pay_max ?? null,
       load.fuel_cost_for_load, load.fixed_cost_for_load, load.net_pay,
       load.gross_rate_per_mile, load.net_rate_per_mile, load.verdict ?? null,
-      load.weight_lbs ?? 0, load.bol_number ?? '', load.broker_name ?? '',
+      load.weight_lbs ?? 0, load.bol_number ?? '', load.bol_photo_url ?? '', load.broker_name ?? '',
       load.broker_mc ?? '', load.notes ?? '',
       0, now,
     ]
@@ -637,6 +640,7 @@ export interface LoadRow {
   additional_costs: number;
   weight_lbs: number;
   bol_number: string;
+  bol_photo_url: string;
   broker_name: string;
   broker_mc: string;
   is_deadhead: number;
@@ -666,7 +670,7 @@ export function getAllLoads(): LoadRow[] {
     `SELECT id, date, pickup_address, pickup_city, pickup_state,
             delivery_address, delivery_city, delivery_state,
             equipment_type, total_miles, gross_pay, additional_costs,
-            weight_lbs, bol_number, broker_name, broker_mc,
+            weight_lbs, bol_number, bol_photo_url, broker_name, broker_mc,
             is_deadhead, is_backhaul, status, notes,
             benchmark_fair_pay_min, benchmark_fair_pay_max,
             fuel_cost_for_load, fixed_cost_for_load, net_pay,
@@ -695,17 +699,17 @@ export function replaceLoads(
         id, date, pickup_address, pickup_city, pickup_state,
         delivery_address, delivery_city, delivery_state,
         equipment_type, total_miles, gross_pay, additional_costs,
-        weight_lbs, bol_number, broker_name, broker_mc,
+        weight_lbs, bol_number, bol_photo_url, broker_name, broker_mc,
         is_deadhead, is_backhaul, status, notes,
         benchmark_fair_pay_min, benchmark_fair_pay_max,
         fuel_cost_for_load, fixed_cost_for_load, net_pay,
         gross_rate_per_mile, net_rate_per_mile, verdict, created_at
-      ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       [
         l.id, l.date, l.pickup_address, l.pickup_city, l.pickup_state,
         l.delivery_address, l.delivery_city, l.delivery_state,
         l.equipment_type, l.total_miles, l.gross_pay, l.additional_costs,
-        l.weight_lbs, l.bol_number, l.broker_name, l.broker_mc,
+        l.weight_lbs, l.bol_number, l.bol_photo_url, l.broker_name, l.broker_mc,
         l.is_deadhead, l.is_backhaul, l.status, l.notes,
         l.benchmark_fair_pay_min ?? null, l.benchmark_fair_pay_max ?? null,
         l.fuel_cost_for_load, l.fixed_cost_for_load, l.net_pay,
@@ -741,6 +745,7 @@ export interface LoadDetail {
   status:                 string;
   weight_lbs:             number;
   bol_number:             string;
+  bol_photo_url:          string;
   broker_name:            string;
   broker_mc:              string;
   notes:                  string;
@@ -760,7 +765,7 @@ export function getLoadById(id: string): LoadDetail | null {
     `SELECT id, date, pickup_address, pickup_city, pickup_state,
             delivery_address, delivery_city, delivery_state,
             equipment_type, total_miles, gross_pay, additional_costs,
-            is_backhaul, status, weight_lbs, bol_number, broker_name, broker_mc,
+            is_backhaul, status, weight_lbs, bol_number, bol_photo_url, broker_name, broker_mc,
             notes, benchmark_fair_pay_min, benchmark_fair_pay_max,
             fuel_cost_for_load, fixed_cost_for_load, net_pay,
             gross_rate_per_mile, net_rate_per_mile, verdict

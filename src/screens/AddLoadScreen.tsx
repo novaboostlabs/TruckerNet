@@ -2,8 +2,9 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
   ScrollView, KeyboardAvoidingView, Platform, Modal, Pressable,
-  ActivityIndicator, Switch, Alert,
+  ActivityIndicator, Switch, Alert, Image,
 } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
@@ -16,6 +17,7 @@ import { useSubscription } from '../contexts/SubscriptionContext';
 import { usePaywall } from '../contexts/PaywallContext';
 import { canLogLoadFree } from '../lib/gating';
 import { pushLoads } from '../lib/sync/loadsSync';
+import { uploadBolPhoto } from '../lib/storage';
 import { getFairMarketRate, LoadType } from '../utils/marketRates';
 import AddressAutocomplete from '../components/AddressAutocomplete';
 import FairMarketLock from '../components/FairMarketLock';
@@ -126,6 +128,7 @@ export default function AddLoadScreen({ onClose, onSaved, prefill }: Props) {
   // ── Optional fields ──
   const [weight,      setWeight]      = useState('');
   const [bolNumber,   setBolNumber]   = useState('');
+  const [bolPhotoUri, setBolPhotoUri] = useState<string | null>(null);
   const [brokerName,  setBrokerName]  = useState('');
   const [brokerMC,    setBrokerMC]    = useState('');
   const [notes,       setNotes]       = useState('');
@@ -240,6 +243,32 @@ export default function AddLoadScreen({ onClose, onSaved, prefill }: Props) {
     stateInitialized.current = false;
   }
 
+  async function pickBolPhoto(source: 'camera' | 'library') {
+    const perm = source === 'camera'
+      ? await ImagePicker.requestCameraPermissionsAsync()
+      : await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!perm.granted) {
+      Alert.alert(t('addLoad.photo.permissionTitle'), t('addLoad.photo.permissionMsg'));
+      return;
+    }
+    const res = source === 'camera'
+      ? await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 1 })
+      : await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 1 });
+    if (!res.canceled && res.assets[0]?.uri) setBolPhotoUri(res.assets[0].uri);
+  }
+
+  function handleAttachPhoto() {
+    Alert.alert(
+      t('addLoad.photo.chooseTitle'),
+      t('addLoad.photo.chooseMessage'),
+      [
+        { text: t('addLoad.photo.takePhoto'),     onPress: () => pickBolPhoto('camera') },
+        { text: t('addLoad.photo.chooseLibrary'), onPress: () => pickBolPhoto('library') },
+        { text: t('common.cancel'),               style: 'cancel' },
+      ],
+    );
+  }
+
   async function handleSave() {
     if (!gross || !loadMi) {
       Alert.alert(t('addLoad.missingInfoTitle'), t('addLoad.missingInfo'));
@@ -263,6 +292,15 @@ export default function AddLoadScreen({ onClose, onSaved, prefill }: Props) {
       const validStateMiles = stateMiles.filter(
         r => r.state.length === 2 && parseFloat(r.miles) > 0
       );
+
+      // Upload the BOL photo to cloud storage (proof of delivery). For a signed-in
+      // user we store the public URL; for guests / failed upload we fall back to
+      // the local URI so it at least shows this session.
+      let bolPhotoUrl = '';
+      if (bolPhotoUri) {
+        const uploaded = user ? await uploadBolPhoto(user.id, bolPhotoUri) : null;
+        bolPhotoUrl = uploaded ?? bolPhotoUri;
+      }
 
       saveLoad(
         {
@@ -288,6 +326,7 @@ export default function AddLoadScreen({ onClose, onSaved, prefill }: Props) {
           verdict,
           weight_lbs:   parseFloat(weight) || 0,
           bol_number:   bolNumber,
+          bol_photo_url: bolPhotoUrl,
           broker_name:  brokerName,
           broker_mc:    brokerMC,
           notes,
@@ -548,6 +587,25 @@ export default function AddLoadScreen({ onClose, onSaved, prefill }: Props) {
                 placeholderTextColor={Colors.textTertiary}
               />
 
+              {/* BOL photo attach */}
+              {bolPhotoUri ? (
+                <View style={styles.bolPhotoRow}>
+                  <Image source={{ uri: bolPhotoUri }} style={styles.bolThumb} />
+                  <View style={styles.bolPhotoInfo}>
+                    <Ionicons name="checkmark-circle" size={16} color={Colors.primary} />
+                    <Text style={styles.bolPhotoText}>{t('addLoad.photo.attached')}</Text>
+                  </View>
+                  <TouchableOpacity onPress={() => setBolPhotoUri(null)} activeOpacity={0.7} style={styles.bolRemoveBtn}>
+                    <Text style={styles.bolRemoveText}>{t('addLoad.photo.remove')}</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <TouchableOpacity style={styles.bolAttachBtn} onPress={handleAttachPhoto} activeOpacity={0.8}>
+                  <Ionicons name="camera-outline" size={18} color={Colors.textSecondary} />
+                  <Text style={styles.bolAttachText}>{t('addLoad.photo.attach')}</Text>
+                </TouchableOpacity>
+              )}
+
               <Text style={[styles.fieldLabel, { marginTop: 18 }]}>{t('addLoad.broker')}</Text>
               <TextInput
                 style={[styles.textField, { marginBottom: 10 }]}
@@ -754,6 +812,26 @@ const styles = StyleSheet.create({
   stateTotalText: { fontFamily: FontFamily.semiBold, fontSize: FontSize.caption },
 
   fairLockWrap: { marginTop: 10 },
+
+  bolAttachBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    marginTop: 10,
+    backgroundColor: Colors.surfaceHigh,
+    borderWidth: 1, borderColor: Colors.border, borderStyle: 'dashed',
+    borderRadius: Radius.md, paddingVertical: 13,
+  },
+  bolAttachText: { fontFamily: FontFamily.medium, fontSize: FontSize.label, color: Colors.textSecondary },
+  bolPhotoRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 10,
+    backgroundColor: Colors.surfaceHigh,
+    borderWidth: 1, borderColor: Colors.border, borderRadius: Radius.md,
+    padding: 10,
+  },
+  bolThumb: { width: 44, height: 44, borderRadius: Radius.sm, backgroundColor: Colors.surface },
+  bolPhotoInfo: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6 },
+  bolPhotoText: { fontFamily: FontFamily.medium, fontSize: FontSize.label, color: Colors.textPrimary },
+  bolRemoveBtn: { paddingHorizontal: 8, paddingVertical: 4 },
+  bolRemoveText: { fontFamily: FontFamily.medium, fontSize: FontSize.label, color: Colors.danger },
   fairRow: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     marginTop: 10, padding: 14, backgroundColor: Colors.surface, borderRadius: Radius.md,
