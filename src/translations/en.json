@@ -341,7 +341,10 @@
     "exportNoDataTitle": "No data",
     "exportNoDataMsg": "No IFTA data for {{quarter}} {{year}}.",
     "exportFailedTitle": "Export failed",
-    "exportFailedMsg": "Could not open the share sheet."
+    "exportFailedMsg": "Could not open the share sheet.",
+    "lockedTitle": "Unlock full IFTA report",
+    "lockedSub": "See all {{count}} states + CSV export, ready for your accountant",
+    "lockedCta": "Upgrade to Pro"
   },
   "expenses": {
     "title": "Expenses",
@@ -411,7 +414,14 @@
     "deleteAccountAction": "Clear Data & Sign Out",
     "replayTitle": "Replay Setup",
     "replayConfirm": "This will walk you through the setup flow again to update your break-even calculation.",
-    "replayAction": "Start Setup"
+    "replayAction": "Start Setup",
+    "upgradeTitle": "Upgrade to Driver Pro",
+    "upgradeSub": "Fair-market rates, IFTA, full history & more",
+    "proActive": "Driver Pro",
+    "proActiveSub": "Active subscription",
+    "manageSub": "Manage Subscription",
+    "devProToggle": "Mock Pro (dev only)",
+    "devProToggleSub": "Toggle Pro entitlement for testing"
   },
   "loadDetail": {
     "eyebrow": "LOAD DETAILS",
@@ -438,5 +448,47 @@
       "amber": "Fair Load",
       "red": "Below Break-Even"
     }
+  },
+  "paywall": {
+    "badge": "DRIVER PRO",
+    "title": "Unlock Driver Pro",
+    "subtitleGeneric": "Everything you need to run your business like a pro.",
+    "reason": {
+      "fairMarket": "See what every load should really pay.",
+      "loadLimit": "You've logged 15 loads this month — go unlimited.",
+      "history": "Browse your full load history — any week or month.",
+      "ifta": "Unlock your complete IFTA report and exports.",
+      "export": "Export your loads, fuel, and IFTA data."
+    },
+    "features": {
+      "fairMarket": "Fair-market rate on every load",
+      "fairMarketSub": "Know instantly if you're being lowballed",
+      "unlimitedLoads": "Unlimited loads",
+      "unlimitedLoadsSub": "No monthly cap — log every haul",
+      "history": "Full history & calendars",
+      "historySub": "Every past week, month & load detail",
+      "ifta": "Complete IFTA + exports",
+      "iftaSub": "CSV & PDF, ready for your accountant",
+      "sync": "Cross-device sync",
+      "syncSub": "Your data on every device",
+      "analytics": "Profit analytics",
+      "analyticsSub": "Full dashboard profit & loss"
+    },
+    "planMonthly": "Monthly",
+    "planAnnual": "Annual",
+    "perMonth": "/mo",
+    "perYear": "/yr",
+    "saveBadge": "SAVE $122",
+    "annualMonthly": "$24.83/mo, billed annually",
+    "trialBadge": "7-day free trial included",
+    "ctaTrial": "Start 7-Day Free Trial",
+    "ctaThen": "then {{price}} · cancel anytime",
+    "restore": "Restore Purchases",
+    "legal": "Payment is charged after your 7-day free trial. Cancel anytime in your app store settings.",
+    "comingSoonTitle": "Almost there",
+    "restoredTitle": "Restored",
+    "restoredBody": "Your Driver Pro subscription is active.",
+    "alreadyPro": "You're on Driver Pro — thank you!",
+    "fairMarketLock": "Upgrade to Pro to see what you should be getting paid"
   }
 }

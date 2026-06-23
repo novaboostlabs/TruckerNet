@@ -363,7 +363,10 @@
     "exportNoDataTitle": "ਕੋਈ ਡਾਟਾ ਨਹੀਂ",
     "exportNoDataMsg": "{{quarter}} {{year}} ਲਈ ਕੋਈ IFTA ਡਾਟਾ ਨਹੀਂ।",
     "exportFailedTitle": "ਨਿਰਯਾਤ ਅਸਫਲ",
-    "exportFailedMsg": "ਸਾਂਝਾ ਕਰਨ ਵਾਲੀ ਸ਼ੀਟ ਨਹੀਂ ਖੁੱਲ੍ਹ ਸਕੀ।"
+    "exportFailedMsg": "ਸਾਂਝਾ ਕਰਨ ਵਾਲੀ ਸ਼ੀਟ ਨਹੀਂ ਖੁੱਲ੍ਹ ਸਕੀ।",
+    "lockedTitle": "ਪੂਰੀ IFTA ਰਿਪੋਰਟ ਅਨਲਾਕ ਕਰੋ",
+    "lockedSub": "ਸਾਰੇ {{count}} ਰਾਜ + CSV ਐਕਸਪੋਰਟ ਦੇਖੋ, ਅਕਾਊਂਟੈਂਟ ਲਈ ਤਿਆਰ",
+    "lockedCta": "Pro 'ਤੇ ਅੱਪਗ੍ਰੇਡ ਕਰੋ"
   },
   "expenses": {
     "title": "ਖਰਚੇ",
@@ -386,7 +389,7 @@
     "free": "ਮੁਫ਼ਤ ਪਲਾਨ",
     "pro": "ਪ੍ਰੋ ਪਲਾਨ",
     "upgradePro": "ਪ੍ਰੋ ਵਿੱਚ ਅੱਪਗ੍ਰੇਡ ਕਰੋ",
-    "restorePurchases": "ਖਰੀਦਾਂ ਮੁੜ-ਬਹਾਲ ਕਰੋ",
+    "restorePurchases": "ਖਰੀਦਾਂ ਬਹਾਲ ਕਰੋ",
     "privacy": "ਪਰਾਈਵੇਸੀ ਨੀਤੀ",
     "version": "ਵਰਜਨ",
     "profileGuest": "ਮਹਿਮਾਨ ਮੋਡ",
@@ -411,7 +414,14 @@
     "deleteAccountAction": "ਡਾਟਾ ਮਿਟਾਓ ਅਤੇ ਸਾਈਨ ਆਊਟ ਕਰੋ",
     "replayTitle": "ਸੈੱਟਅੱਪ ਦੁਬਾਰਾ ਕਰੋ",
     "replayConfirm": "ਇਹ ਤੁਹਾਡੀ ਬਰੇਕ-ਈਵਨ ਗਣਨਾ ਅੱਪਡੇਟ ਕਰਨ ਲਈ ਤੁਹਾਨੂੰ ਸੈੱਟਅੱਪ ਪ੍ਰਕਿਰਿਆ ਵਿੱਚੋਂ ਦੁਬਾਰਾ ਲੰਘਾਏਗਾ।",
-    "replayAction": "ਸੈੱਟਅੱਪ ਸ਼ੁਰੂ ਕਰੋ"
+    "replayAction": "ਸੈੱਟਅੱਪ ਸ਼ੁਰੂ ਕਰੋ",
+    "upgradeTitle": "Driver Pro 'ਤੇ ਅੱਪਗ੍ਰੇਡ ਕਰੋ",
+    "upgradeSub": "ਫੇਅਰ-ਮਾਰਕੀਟ ਰੇਟ, IFTA, ਪੂਰਾ ਇਤਿਹਾਸ ਅਤੇ ਹੋਰ",
+    "proActive": "Driver Pro",
+    "proActiveSub": "ਸਰਗਰਮ ਸਬਸਕ੍ਰਿਪਸ਼ਨ",
+    "manageSub": "ਸਬਸਕ੍ਰਿਪਸ਼ਨ ਪ੍ਰਬੰਧਿਤ ਕਰੋ",
+    "devProToggle": "Mock Pro (ਸਿਰਫ਼ dev)",
+    "devProToggleSub": "ਟੈਸਟਿੰਗ ਲਈ Pro ਚਾਲੂ ਕਰੋ"
   },
   "loadDetail": {
     "eyebrow": "ਲੋਡ ਵੇਰਵੇ",
@@ -438,5 +448,47 @@
       "amber": "ਠੀਕ ਲੋਡ",
       "red": "ਬਰੇਕ-ਈਵਨ ਤੋਂ ਹੇਠਾਂ"
     }
+  },
+  "paywall": {
+    "badge": "DRIVER PRO",
+    "title": "Driver Pro ਅਨਲਾਕ ਕਰੋ",
+    "subtitleGeneric": "ਆਪਣਾ ਕਾਰੋਬਾਰ ਪ੍ਰੋ ਵਾਂਗ ਚਲਾਉਣ ਲਈ ਸਭ ਕੁਝ।",
+    "reason": {
+      "fairMarket": "ਦੇਖੋ ਹਰ ਲੋਡ ਨੂੰ ਅਸਲ ਵਿੱਚ ਕਿੰਨਾ ਭੁਗਤਾਨ ਮਿਲਣਾ ਚਾਹੀਦਾ ਹੈ।",
+      "loadLimit": "ਤੁਸੀਂ ਇਸ ਮਹੀਨੇ 15 ਲੋਡ ਦਰਜ ਕੀਤੇ — ਅਸੀਮਤ ਕਰੋ।",
+      "history": "ਆਪਣਾ ਪੂਰਾ ਲੋਡ ਇਤਿਹਾਸ ਦੇਖੋ — ਕੋਈ ਵੀ ਹਫ਼ਤਾ ਜਾਂ ਮਹੀਨਾ।",
+      "ifta": "ਆਪਣੀ ਪੂਰੀ IFTA ਰਿਪੋਰਟ ਅਤੇ ਐਕਸਪੋਰਟ ਅਨਲਾਕ ਕਰੋ।",
+      "export": "ਆਪਣੇ ਲੋਡ, ਫਿਊਲ ਅਤੇ IFTA ਡਾਟਾ ਐਕਸਪੋਰਟ ਕਰੋ।"
+    },
+    "features": {
+      "fairMarket": "ਹਰ ਲੋਡ 'ਤੇ ਫੇਅਰ-ਮਾਰਕੀਟ ਰੇਟ",
+      "fairMarketSub": "ਤੁਰੰਤ ਜਾਣੋ ਕਿ ਤੁਹਾਨੂੰ ਘੱਟ ਤਾਂ ਨਹੀਂ ਦਿੱਤਾ ਜਾ ਰਿਹਾ",
+      "unlimitedLoads": "ਅਸੀਮਤ ਲੋਡ",
+      "unlimitedLoadsSub": "ਕੋਈ ਮਹੀਨਾਵਾਰ ਸੀਮਾ ਨਹੀਂ — ਹਰ ਹੌਲ ਦਰਜ ਕਰੋ",
+      "history": "ਪੂਰਾ ਇਤਿਹਾਸ ਅਤੇ ਕੈਲੰਡਰ",
+      "historySub": "ਹਰ ਪਿਛਲਾ ਹਫ਼ਤਾ, ਮਹੀਨਾ ਅਤੇ ਲੋਡ ਵੇਰਵਾ",
+      "ifta": "ਪੂਰਾ IFTA + ਐਕਸਪੋਰਟ",
+      "iftaSub": "CSV ਅਤੇ PDF, ਤੁਹਾਡੇ ਅਕਾਊਂਟੈਂਟ ਲਈ ਤਿਆਰ",
+      "sync": "ਡਿਵਾਈਸਾਂ ਵਿਚਕਾਰ ਸਿੰਕ",
+      "syncSub": "ਤੁਹਾਡਾ ਡਾਟਾ ਹਰ ਡਿਵਾਈਸ 'ਤੇ",
+      "analytics": "ਮੁਨਾਫ਼ਾ ਵਿਸ਼ਲੇਸ਼ਣ",
+      "analyticsSub": "ਪੂਰਾ ਡੈਸ਼ਬੋਰਡ ਲਾਭ ਤੇ ਨੁਕਸਾਨ"
+    },
+    "planMonthly": "ਮਹੀਨਾਵਾਰ",
+    "planAnnual": "ਸਾਲਾਨਾ",
+    "perMonth": "/ਮਹੀਨਾ",
+    "perYear": "/ਸਾਲ",
+    "saveBadge": "$122 ਬਚਾਓ",
+    "annualMonthly": "$24.83/ਮਹੀਨਾ, ਸਾਲਾਨਾ ਬਿੱਲ",
+    "trialBadge": "7-ਦਿਨ ਮੁਫ਼ਤ ਟ੍ਰਾਇਲ ਸ਼ਾਮਲ",
+    "ctaTrial": "7-ਦਿਨ ਮੁਫ਼ਤ ਟ੍ਰਾਇਲ ਸ਼ੁਰੂ ਕਰੋ",
+    "ctaThen": "ਫਿਰ {{price}} · ਕਦੇ ਵੀ ਰੱਦ ਕਰੋ",
+    "restore": "ਖਰੀਦਾਂ ਬਹਾਲ ਕਰੋ",
+    "legal": "ਤੁਹਾਡੇ 7-ਦਿਨ ਮੁਫ਼ਤ ਟ੍ਰਾਇਲ ਤੋਂ ਬਾਅਦ ਭੁਗਤਾਨ ਲਿਆ ਜਾਂਦਾ ਹੈ। ਆਪਣੀ ਐਪ ਸਟੋਰ ਸੈਟਿੰਗਾਂ ਵਿੱਚ ਕਦੇ ਵੀ ਰੱਦ ਕਰੋ।",
+    "comingSoonTitle": "ਲਗਭਗ ਤਿਆਰ",
+    "restoredTitle": "ਬਹਾਲ ਕੀਤਾ",
+    "restoredBody": "ਤੁਹਾਡੀ Driver Pro ਸਬਸਕ੍ਰਿਪਸ਼ਨ ਸਰਗਰਮ ਹੈ।",
+    "alreadyPro": "ਤੁਸੀਂ Driver Pro 'ਤੇ ਹੋ — ਧੰਨਵਾਦ!",
+    "fairMarketLock": "ਤੁਹਾਨੂੰ ਕਿੰਨਾ ਭੁਗਤਾਨ ਮਿਲਣਾ ਚਾਹੀਦਾ ਹੈ, ਦੇਖਣ ਲਈ Pro 'ਤੇ ਅੱਪਗ੍ਰੇਡ ਕਰੋ"
   }
 }

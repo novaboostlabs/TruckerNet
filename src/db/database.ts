@@ -336,6 +336,16 @@ export function getLoadCount(): number {
   return row?.n ?? 0;
 }
 
+// Loads logged in the current calendar month — drives the free-tier 15-loads/mo
+// gate. Cancelled loads still count (the user did the work of logging them).
+export function getLoadCountThisMonth(): number {
+  const row = db.getFirstSync<{ n: number }>(
+    'SELECT COUNT(*) as n FROM loads WHERE date >= ?',
+    [monthStart()]
+  );
+  return row?.n ?? 0;
+}
+
 export function getWeekPnL(): { net: number; gross: number } {
   const row = db.getFirstSync<{ net: number; gross: number }>(
     `SELECT COALESCE(SUM(net_pay),0) as net, COALESCE(SUM(gross_pay),0) as gross

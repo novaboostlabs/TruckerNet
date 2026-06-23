@@ -8,6 +8,12 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { Colors, FontFamily, FontSize, Spacing, Radius, SectionLabel } from '../theme/theme';
 import { getLoadCount, getIFTAData, hasIFTAData, IFTARow } from '../db/database';
+import { useSubscription } from '../contexts/SubscriptionContext';
+import { usePaywall } from '../contexts/PaywallContext';
+
+// Free users see the first couple of states as a real-data teaser; the rest of
+// the per-state breakdown (what they actually file) is blurred behind the gate.
+const FREE_VISIBLE_ROWS = 2;
 
 type Quarter = 1 | 2 | 3 | 4;
 const QUARTER_LABELS = ['Q1', 'Q2', 'Q3', 'Q4'] as const;
@@ -33,6 +39,8 @@ function generateCSV(rows: IFTARow[], year: number, q: Quarter): string {
 
 export default function IFTAScreen() {
   const { t } = useTranslation();
+  const { isPro } = useSubscription();
+  const { present: presentPaywall } = usePaywall();
   const thisYear    = new Date().getFullYear();
   const thisQuarter = currentQuarter();
 
@@ -53,7 +61,14 @@ export default function IFTAScreen() {
   const totalGallons = rows.reduce((s, r) => s + r.gallons, 0);
   const hasData      = rows.length > 0;
 
+  // Free tier: the IFTA breakdown is a teaser. First rows show; the rest +
+  // totals + export are Pro.
+  const gated        = !isPro && hasData;
+  const visibleRows  = gated ? rows.slice(0, FREE_VISIBLE_ROWS) : rows;
+  const hiddenRows   = gated ? rows.slice(FREE_VISIBLE_ROWS)    : [];
+
   async function handleExport() {
+    if (gated) { presentPaywall('export'); return; }
     if (!hasData) {
       Alert.alert(t('ifta.exportNoDataTitle'), t('ifta.exportNoDataMsg', { quarter: `Q${quarter}`, year }));
       return;
@@ -146,7 +161,7 @@ export default function IFTAScreen() {
                 <Text style={[styles.tableHeader, { flex: 2, textAlign: 'right' }]}>{t('ifta.gallons')}</Text>
               </View>
 
-              {rows.map((row, i) => (
+              {visibleRows.map((row, i) => (
                 <React.Fragment key={row.state}>
                   <View style={styles.tableRow}>
                     <Text style={[styles.stateCode, { flex: 1 }]}>{row.state}</Text>
@@ -157,19 +172,67 @@ export default function IFTAScreen() {
                       {row.gallons.toFixed(1)}
                     </Text>
                   </View>
-                  {i < rows.length - 1 && <View style={styles.rowDivider} />}
+                  {i < visibleRows.length - 1 && <View style={styles.rowDivider} />}
                 </React.Fragment>
               ))}
 
-              <View style={styles.totalsRow}>
-                <Text style={[styles.totalsLabel, { flex: 1 }]}>{t('ifta.total')}</Text>
-                <Text style={[styles.totalsValue, { flex: 2, textAlign: 'right' }]}>
-                  {Math.round(totalMiles).toLocaleString()}
-                </Text>
-                <Text style={[styles.totalsValue, { flex: 2, textAlign: 'right' }]}>
-                  {totalGallons.toFixed(1)}
-                </Text>
-              </View>
+              {gated ? (
+                /* Blurred teaser: remaining states + the filing totals sit
+                   behind an upgrade overlay so free users feel the value. */
+                <View>
+                  <View style={styles.rowDivider} />
+                  <View style={styles.gatedContent} pointerEvents="none">
+                    {hiddenRows.map((row, i) => (
+                      <React.Fragment key={row.state}>
+                        <View style={styles.tableRow}>
+                          <Text style={[styles.stateCode, { flex: 1 }]}>{row.state}</Text>
+                          <Text style={[styles.tableCellText, { flex: 2, textAlign: 'right' }]}>
+                            {Math.round(row.miles).toLocaleString()}
+                          </Text>
+                          <Text style={[styles.tableCellText, { flex: 2, textAlign: 'right' }]}>
+                            {row.gallons.toFixed(1)}
+                          </Text>
+                        </View>
+                        {i < hiddenRows.length - 1 && <View style={styles.rowDivider} />}
+                      </React.Fragment>
+                    ))}
+                    <View style={styles.totalsRow}>
+                      <Text style={[styles.totalsLabel, { flex: 1 }]}>{t('ifta.total')}</Text>
+                      <Text style={[styles.totalsValue, { flex: 2, textAlign: 'right' }]}>
+                        {Math.round(totalMiles).toLocaleString()}
+                      </Text>
+                      <Text style={[styles.totalsValue, { flex: 2, textAlign: 'right' }]}>
+                        {totalGallons.toFixed(1)}
+                      </Text>
+                    </View>
+                  </View>
+
+                  <TouchableOpacity
+                    style={styles.gateOverlay}
+                    activeOpacity={0.85}
+                    onPress={() => presentPaywall('ifta')}
+                  >
+                    <View style={styles.gateLockCircle}>
+                      <Ionicons name="lock-closed" size={18} color={Colors.secondary} />
+                    </View>
+                    <Text style={styles.gateTitle}>{t('ifta.lockedTitle')}</Text>
+                    <Text style={styles.gateSub}>{t('ifta.lockedSub', { count: rows.length })}</Text>
+                    <View style={styles.gateCta}>
+                      <Text style={styles.gateCtaText}>{t('ifta.lockedCta')}</Text>
+                    </View>
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <View style={styles.totalsRow}>
+                  <Text style={[styles.totalsLabel, { flex: 1 }]}>{t('ifta.total')}</Text>
+                  <Text style={[styles.totalsValue, { flex: 2, textAlign: 'right' }]}>
+                    {Math.round(totalMiles).toLocaleString()}
+                  </Text>
+                  <Text style={[styles.totalsValue, { flex: 2, textAlign: 'right' }]}>
+                    {totalGallons.toFixed(1)}
+                  </Text>
+                </View>
+              )}
             </View>
           </>
         ) : (
@@ -233,6 +296,26 @@ const styles = StyleSheet.create({
   totalsRow:      { flexDirection: 'row', paddingHorizontal: Spacing.cardPad, paddingVertical: 14, borderTopWidth: 1, borderTopColor: Colors.border, backgroundColor: Colors.surfaceHigh },
   totalsLabel:    { fontFamily: FontFamily.bold, fontSize: FontSize.label, color: Colors.textSecondary },
   totalsValue:    { fontFamily: FontFamily.bold, fontSize: FontSize.label, color: Colors.textPrimary },
+
+  // Pro gate (IFTA teaser)
+  gatedContent: { opacity: 0.12 },
+  gateOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center', justifyContent: 'center',
+    paddingHorizontal: Spacing.cardPad,
+    backgroundColor: Colors.surface + 'D0',
+  },
+  gateLockCircle: {
+    width: 40, height: 40, borderRadius: 20,
+    backgroundColor: Colors.secondaryDim,
+    borderWidth: 1, borderColor: Colors.secondary + '40',
+    alignItems: 'center', justifyContent: 'center',
+    marginBottom: 12,
+  },
+  gateTitle: { fontFamily: FontFamily.bold, fontSize: FontSize.body, color: Colors.textPrimary, marginBottom: 4, textAlign: 'center' },
+  gateSub: { fontFamily: FontFamily.regular, fontSize: FontSize.caption, color: Colors.textSecondary, textAlign: 'center', lineHeight: 17, marginBottom: 14, maxWidth: 260 },
+  gateCta: { backgroundColor: Colors.secondary, borderRadius: Radius.pill, paddingHorizontal: 18, paddingVertical: 9 },
+  gateCtaText: { fontFamily: FontFamily.bold, fontSize: FontSize.label, color: Colors.background },
 
   emptyCard: { backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border, borderRadius: Radius.lg, paddingVertical: 44, paddingHorizontal: Spacing.cardPad, alignItems: 'center', marginBottom: 20 },
   emptyIcon: { width: 52, height: 52, borderRadius: Radius.pill, backgroundColor: Colors.surfaceHigh, borderWidth: 1, borderColor: Colors.border, alignItems: 'center', justifyContent: 'center', marginBottom: 16 },

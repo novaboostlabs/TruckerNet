@@ -7,6 +7,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { Colors, FontFamily, FontSize, Spacing, Radius, SectionLabel } from '../theme/theme';
 import { getDateLocale } from '../lib/i18n';
+import { useSubscription } from '../contexts/SubscriptionContext';
+import { usePaywall } from '../contexts/PaywallContext';
 import {
   getHistoryLoads, getHistoryTotals, getHistoryLoadsDateRange, getHistoryTotalsDateRange,
   HistoryFilter, HistoryLoad, HistoryTotals,
@@ -95,6 +97,8 @@ function loadDataForPeriod(filter: HistoryFilter, date: Date) {
 
 export default function HistoryScreen() {
   const { t } = useTranslation();
+  const { isPro } = useSubscription();
+  const { present: presentPaywall } = usePaywall();
   const navigation = useNavigation<any>();
   const route      = useRoute<any>();
 
@@ -245,8 +249,18 @@ export default function HistoryScreen() {
         {/* Period navigator */}
         {filter !== 'all' && (
           <View style={styles.periodNav}>
-            <TouchableOpacity style={styles.periodArrow} onPress={() => { setPeriodDate(d => shiftDate(d, filter, -1)); setSelectedDay(null); }} activeOpacity={0.6}>
-              <Ionicons name="chevron-back" size={20} color={Colors.textSecondary} />
+            <TouchableOpacity
+              style={styles.periodArrow}
+              onPress={() => {
+                // Free tier sees the current period only — browsing past
+                // weeks/months is Pro.
+                if (!isPro) { presentPaywall('history'); return; }
+                setPeriodDate(d => shiftDate(d, filter, -1));
+                setSelectedDay(null);
+              }}
+              activeOpacity={0.6}
+            >
+              <Ionicons name="chevron-back" size={20} color={isPro ? Colors.textSecondary : Colors.secondary} />
             </TouchableOpacity>
             <Text style={styles.periodLabel}>{bounds?.label}</Text>
             <TouchableOpacity style={styles.periodArrow} onPress={() => { if (!atCurrentPeriod) { setPeriodDate(d => shiftDate(d, filter, 1)); setSelectedDay(null); } }} disabled={atCurrentPeriod} activeOpacity={0.6}>

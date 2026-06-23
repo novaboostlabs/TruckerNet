@@ -21,6 +21,8 @@ import { StatusBar } from 'expo-status-bar';
 
 import { initDatabase } from './src/db/database';
 import { AuthProvider } from './src/contexts/AuthContext';
+import { SubscriptionProvider } from './src/contexts/SubscriptionContext';
+import { PaywallProvider } from './src/contexts/PaywallContext';
 import RootNavigator from './src/navigation/RootNavigator';
 import { Colors } from './src/theme/theme';
 import { initI18n, getSavedLanguage, SupportedLanguage } from './src/lib/i18n';
@@ -74,10 +76,14 @@ export default function App() {
 
   return (
     <AuthProvider>
-      <NavigationContainer>
-        <StatusBar style="light" />
-        <RootNavigator />
-      </NavigationContainer>
+      <SubscriptionProvider>
+        <PaywallProvider>
+          <NavigationContainer>
+            <StatusBar style="light" />
+            <RootNavigator />
+          </NavigationContainer>
+        </PaywallProvider>
+      </SubscriptionProvider>
     </AuthProvider>
   );
 }

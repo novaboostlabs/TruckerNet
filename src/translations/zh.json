@@ -363,7 +363,10 @@
     "exportNoDataTitle": "无数据",
     "exportNoDataMsg": "{{year}} 年 {{quarter}} 无 IFTA 数据。",
     "exportFailedTitle": "导出失败",
-    "exportFailedMsg": "无法打开分享菜单。"
+    "exportFailedMsg": "无法打开分享菜单。",
+    "lockedTitle": "解锁完整 IFTA 报告",
+    "lockedSub": "查看全部 {{count}} 个州 + CSV 导出，随时交给会计",
+    "lockedCta": "升级到 Pro"
   },
   "expenses": {
     "title": "费用",
@@ -411,7 +414,14 @@
     "deleteAccountAction": "清除数据并退出",
     "replayTitle": "重新设置",
     "replayConfirm": "这将再次引导您完成设置流程，以更新您的盈亏平衡计算。",
-    "replayAction": "开始设置"
+    "replayAction": "开始设置",
+    "upgradeTitle": "升级到 Driver Pro",
+    "upgradeSub": "公平市场价、IFTA、完整历史及更多",
+    "proActive": "Driver Pro",
+    "proActiveSub": "订阅已激活",
+    "manageSub": "管理订阅",
+    "devProToggle": "Mock Pro（仅开发）",
+    "devProToggleSub": "切换 Pro 权限用于测试"
   },
   "loadDetail": {
     "eyebrow": "订单详情",
@@ -438,5 +448,47 @@
       "amber": "一般订单",
       "red": "低于盈亏平衡"
     }
+  },
+  "paywall": {
+    "badge": "DRIVER PRO",
+    "title": "解锁 Driver Pro",
+    "subtitleGeneric": "像专业人士一样经营业务所需的一切。",
+    "reason": {
+      "fairMarket": "看看每一单实际应该付多少。",
+      "loadLimit": "本月你已记录 15 单——升级为无限量。",
+      "history": "浏览完整的装载历史——任意周或月。",
+      "ifta": "解锁完整的 IFTA 报告和导出。",
+      "export": "导出你的装载、油耗和 IFTA 数据。"
+    },
+    "features": {
+      "fairMarket": "每一单的公平市场价",
+      "fairMarketSub": "立即知道你是否被压价",
+      "unlimitedLoads": "无限装载",
+      "unlimitedLoadsSub": "没有月度上限——记录每一趟",
+      "history": "完整历史与日历",
+      "historySub": "过往每周、每月及每单详情",
+      "ifta": "完整 IFTA + 导出",
+      "iftaSub": "CSV 和 PDF，随时交给会计",
+      "sync": "跨设备同步",
+      "syncSub": "你的数据在每台设备上",
+      "analytics": "利润分析",
+      "analyticsSub": "完整的仪表盘损益"
+    },
+    "planMonthly": "按月",
+    "planAnnual": "按年",
+    "perMonth": "/月",
+    "perYear": "/年",
+    "saveBadge": "省 $122",
+    "annualMonthly": "$24.83/月，按年计费",
+    "trialBadge": "包含 7 天免费试用",
+    "ctaTrial": "开始 7 天免费试用",
+    "ctaThen": "之后 {{price}} · 随时取消",
+    "restore": "恢复购买",
+    "legal": "付款将在 7 天免费试用后收取。可随时在应用商店设置中取消。",
+    "comingSoonTitle": "马上就好",
+    "restoredTitle": "已恢复",
+    "restoredBody": "你的 Driver Pro 订阅已激活。",
+    "alreadyPro": "你已是 Driver Pro——谢谢！",
+    "fairMarketLock": "升级到 Pro，看看你应该拿多少钱"
   }
 }

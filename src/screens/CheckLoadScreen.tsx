@@ -12,6 +12,9 @@ import {
   getFairMarketRate, calcDeadheadCost, LoadType,
 } from '../utils/marketRates';
 import AddressAutocomplete from '../components/AddressAutocomplete';
+import FairMarketLock from '../components/FairMarketLock';
+import { useSubscription } from '../contexts/SubscriptionContext';
+import { usePaywall } from '../contexts/PaywallContext';
 import { getRouteMiles, AddressSuggestion } from '../lib/mapbox';
 import { AddLoadPrefill } from './AddLoadScreen';
 
@@ -33,6 +36,8 @@ function money(n: number, decimals = 0): string {
 
 export default function CheckLoadScreen({ onClose, onLogLoad }: Props) {
   const { t } = useTranslation();
+  const { isPro } = useSubscription();
+  const { present: presentPaywall } = usePaywall();
 
   const [pay, setPay]           = useState('');
   const [miles, setMiles]       = useState('');
@@ -276,16 +281,23 @@ export default function CheckLoadScreen({ onClose, onLogLoad }: Props) {
                 </View>
               )}
 
-              {/* Fair market */}
+              {/* Fair market — Pro-gated. Free users see the upgrade lock;
+                  the break-even verdict above stays free + unlimited. */}
               {fair && (
-                <View style={styles.fairRow}>
-                  <Text style={styles.fairLabel}>
-                    {t('checkLoad.result.fairMarket', { type: t(`addLoad.loadTypes.${loadType}`) })}
-                  </Text>
-                  <Text style={styles.fairValue}>
-                    ${money(fair.minTotal)}–${money(fair.maxTotal)}
-                  </Text>
-                </View>
+                isPro ? (
+                  <View style={styles.fairRow}>
+                    <Text style={styles.fairLabel}>
+                      {t('checkLoad.result.fairMarket', { type: t(`addLoad.loadTypes.${loadType}`) })}
+                    </Text>
+                    <Text style={styles.fairValue}>
+                      ${money(fair.minTotal)}–${money(fair.maxTotal)}
+                    </Text>
+                  </View>
+                ) : (
+                  <View style={styles.fairLockWrap}>
+                    <FairMarketLock onUpgrade={() => presentPaywall('fairMarket')} />
+                  </View>
+                )
               )}
 
               {!hasBreakEven && (
@@ -470,6 +482,9 @@ const styles = StyleSheet.create({
   },
   backhaulText: { flex: 1, fontFamily: FontFamily.medium, fontSize: FontSize.label, color: Colors.textPrimary, lineHeight: 20 },
 
+  fairLockWrap: {
+    marginTop: 16, paddingTop: 14, borderTopWidth: 1, borderTopColor: Colors.borderSubtle,
+  },
   fairRow: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     marginTop: 16, paddingTop: 14, borderTopWidth: 1, borderTopColor: Colors.borderSubtle,

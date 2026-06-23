@@ -16,7 +16,7 @@
 > branch and push `main`** so the user's build always reflects the latest.
 > (Decided 2026-06-19 after changes weren't appearing because `main` was stale.)
 
-_Last updated: 2026-06-21 — Backlog #9 done (translation audit): all 4 languages at 100% key parity; LoadDetail + Settings screens (previously hardcoded English) fully localized. Phase 1 backlog remaining: #5 (image/OCR), #7 (fair-market accuracy)._
+_Last updated: 2026-06-22 — **Paywall BUILT (mock-first)**: SubscriptionContext (mock isPro), PaywallScreen + PaywallProvider, all 5 gating triggers, IFTA blur-teaser, Settings upgrade/restore/manage + dev toggle, i18n in 4 langs. NEXT: USER sets up RevenueCat account+products (see `REVENUECAT_SETUP.md`), then we flip the mock path to real RevenueCat calls._
 
 > **Backend sync state:** Sync is **local-first** — SQLite is source of truth;
 > push on save, pull on sign-in. All 3 slices wired: expenses + fuel + loads.
@@ -111,10 +111,28 @@ deferred** — do not start these until the user calls for them. Newest batch fi
      inline), About (version), Sign Out (amber button), Delete Account (danger link).
    - Dashboard gear icon now opens Settings Modal (replaced the old Alert).
    - "Replay setup" removed from ExpensesScreen header (lives in Settings now).
-7. **Fair-market price accuracy.** Currently driven only off CPM (~$2.50/mi flat for
-   everything). Real rates vary a lot — short hauls (e.g. 20 mi) can pay $5/mi+, plus
-   other complexities. Needs a more accurate model. (Ties to PRD: seeded → opt-in
-   crowdsourced → paid API.)
+7. ✅ **Fair-market price accuracy** — rebuilt 2026-06-22.
+   Deep research done (Scale Funding, Nuvocargo, O Trucking, FreightWaves, driver
+   forums, BTS/FRED public data). New formula-based model in `utils/marketRates.ts`:
+   - **Minimum floors per equipment type** — core fix. Formula is now
+     `max(floor, miles × per_mile_rate)`. 10-mile dry van floor = $500-$550
+     regardless of per-mile math. Floor is binding under ~200 miles. Matches
+     industry practice of flat "job pricing" for short hauls.
+   - **Baseline updated** to $2.50/mi dry van (2026 national spot avg; was
+     modeled too conservatively).
+   - **7 distance bands** (was 6): added 'micro' (≤50mi, 1.85x mult) and 'local'
+     (51-100mi, 1.58x); renamed bands to reflect research breakpoints. Under-100mi
+     rates now 1.55-1.85x the standard rate per mile — not the flat ~$2.50 it was.
+   - **Equipment multipliers** vs dry van baseline: reefer +20%, flatbed +18%,
+     step deck +40%, hazmat +38%, RGN +80%, power only −15%, intermodal −12%.
+   - **Seasonal index** applied automatically from current month: Oct peak (+20%),
+     Jan trough (−18%). Quarterly updates to BASELINE_DRY_VAN from Scale Funding
+     free rate page keep model current without any paid subscription.
+   - **Verdict logic** fixed — compares total $ to range (not $/mi to $/mi) so
+     floor-bound short haul loads are scored correctly.
+   - **`floorApplied` field** added to result for optional UI annotation.
+   - **Not yet implemented** (future enhancements): lane balance by origin market
+     (headhaul/backhaul premium ±10-30%), user-submitted rate crowdsourcing.
 8. **Demo data flashes on first view of each tab.** Sample data shows on the first
    render of each tab until a button is pressed, which then activates real data. The
    real/empty state should be correct on first paint.
@@ -366,8 +384,33 @@ calibration = future.
 
 **Phase 2 (after all Phase 1 bugs cleared):**
 - Aesthetic redesign (Partiful/Wise/Calm-tier polish)
-- **RevenueCat paywall** — wire Driver Pro / Fleet / Enterprise tiers. Gate premium
-  features. RevenueCat SDK (`react-native-purchases`) already in package.json.
+- **RevenueCat paywall** — IN PROGRESS (strategy finalized 2026-06-22). Build Free↔Pro
+  only now (Fleet/Enterprise deferred until multi-truck features exist).
+  - **Pricing:** Driver Pro = $34.99/mo OR $297.99/yr (~29% off, "Save $122").
+    7-day free trial on both. RevenueCat entitlement id = `pro`.
+  - **Free tier:** Check Load unlimited (the hook — NEVER gate) showing break-even
+    VERDICT only, break-even, onboarding, fuel tracking + CPM, **15 loads/month**,
+    dashboard current-week only.
+  - **Pro tier:** **fair-market price/comparison** (see below), unlimited loads,
+    full History (calendars/past periods/load detail), full IFTA + export,
+    cross-device sync, analytics, full dashboard P&L.
+  - **Fair-market = Pro:** in BOTH Check Load and Add Load, where the fair-market
+    $ range would render, free users see "Upgrade to Pro to see what you should be
+    getting paid" instead. NUANCE: Check Load stays free + unlimited; the break-even
+    verdict (worth-it vs my costs) stays free; only the fair-market benchmark (what
+    the load SHOULD pay) is gated. This is a strong "am I being lowballed?" hook.
+  - **IFTA gating = teaser:** free users see top row/two of REAL data, rest BLURRED
+    with upgrade overlay (feel the value, can't use it).
+  - **Paywall triggers:** 16th load/month, History past-periods, IFTA tab open,
+    any export tap, fair-market range area in Check Load + Add Load.
+  - **Build approach:** mock `isPro` toggle first (full UI + gating + blur work for
+    testing), swap real RevenueCat calls once store products live.
+  - **Build order:** (1) RevenueCat account+products [USER action — needs guide doc],
+    (2) SubscriptionContext (isPro + purchase/restore), (3) Paywall screen,
+    (4) gating helpers + 4 triggers, (5) IFTA blur-teaser, (6) Restore + manage sub
+    in Settings.
+  - **USER still needs:** create RevenueCat account + products in App Store Connect /
+    Google Play. Full plan in memory `monetization-paywall-plan.md`.
 - **Push notifications** — load reminders, IFTA quarter-end alerts, weekly P&L
   summary. Expo Notifications + Supabase Edge Function triggers.
 - Splash screen + app icons
@@ -380,6 +423,83 @@ calibration = future.
 ---
 
 ## 6. Work Log (newest first)
+
+### 2026-06-22 — RevenueCat paywall BUILT (mock-first, all gating live)
+
+Built the full Free↔Driver Pro paywall per the finalized strategy. Mock-first:
+everything works in Expo Go with a local `isPro` toggle; real RevenueCat calls
+get swapped in once the user creates store products. TypeScript clean; all 4
+languages at 100% key parity.
+
+**New files:**
+- `src/contexts/SubscriptionContext.tsx` — exposes `isPro` (from persisted mock
+  toggle `mock_is_pro`), `loading`, `isMock`, `setMockPro`, and stubbed
+  `purchase`/`restore`. `react-native-purchases` is deliberately NOT imported (it
+  crashes Expo Go) — the real path is a clearly-marked block to wire later.
+  Entitlement id = `pro`.
+- `src/contexts/PaywallContext.tsx` — `PaywallProvider` renders the paywall Modal
+  once at root; any screen calls `usePaywall().present(reason)`. Reasons tailor
+  the headline: generic/fairMarket/loadLimit/history/ifta/export.
+- `src/screens/PaywallScreen.tsx` — crown badge, feature list (6 Pro features),
+  annual/monthly plan picker (annual default, "SAVE $122"), 7-day trial note,
+  CTA, restore, legal links. Prices: $34.99/mo · $297.99/yr.
+- `src/components/FairMarketLock.tsx` — amber lock row shown to free users where
+  the fair-market $ range would be; tap → paywall('fairMarket').
+- `src/lib/gating.ts` — `FREE_LOAD_LIMIT = 15`, `canLogLoadFree()`,
+  `freeLoadsRemaining()`.
+- `REVENUECAT_SETUP.md` — step-by-step guide for the USER (App Store Connect +
+  Play Console + RevenueCat dashboard + what to send back).
+
+**Wiring:**
+- `App.tsx` — `SubscriptionProvider` > `PaywallProvider` wrap the navigator.
+- `database.ts` — added `getLoadCountThisMonth()` (drives the 15-loads/mo gate).
+- **Gating triggers (all 5):** (1) AddLoad save blocks the 16th load/mo for free
+  → paywall('loadLimit'); (2)+(3) fair-market lock in CheckLoad + AddLoad; (4)
+  History back-arrow (past periods) → paywall('history'); (5) IFTA export tap →
+  paywall('export').
+- **IFTA blur-teaser** — free users see the first 2 states of REAL data, the rest
+  + filing totals rendered at 0.12 opacity behind an upgrade overlay (no
+  `expo-blur` dep needed). Export gated too.
+- **Settings → Subscription section** — upgrade row (free) / Driver Pro active +
+  Manage Subscription (deep-links to store sub settings) / Restore Purchases /
+  dev-only Mock Pro toggle (auto-hides when `isMock=false`).
+- i18n: new `paywall.*` namespace (21 keys) + `ifta.locked*` + `settings`
+  subscription keys, all 4 languages, 0 missing / 0 extra.
+
+**Deferred / open:** real RevenueCat swap (waiting on USER store products);
+"dashboard current-week only" free limit from the strategy prose was NOT gated —
+left the current month/week P&L cards visible as a teaser (flag for user
+decision; not one of the 5 explicit triggers). Fleet/Enterprise tiers still
+deferred.
+
+### 2026-06-22 — Fair-market rate engine v2 + paywall strategy finalized
+
+**Backlog #7 — Fair-market rate engine rebuilt** (`utils/marketRates.ts`):
+- Deep research via subagent (Scale Funding, Nuvocargo, O Trucking, FreightWaves,
+  driver forums, BTS/FRED public data).
+- Replaced flat lookup table with formula:
+  `max(floor, baseline × equipment × distance × seasonal × miles)`.
+- **Minimum floors per equipment** — the core fix. 10-mi dry van = $500-$550 floor
+  (not $25). Binding under ~200 mi, matching real flat "job pricing" for short hauls.
+- Baseline $2.50/mi dry van (2026 spot avg). 7 distance bands (added micro ≤50mi
+  @1.85x, local 51-100mi @1.58x). Equipment mults: reefer +20%, flatbed +18%,
+  step deck +40%, hazmat +38%, RGN +80%, power only −15%, intermodal −12%.
+  Seasonal index auto-applied by month (Oct +20%, Jan −18%).
+- Verdict now compares total $ to range (not $/mi) so floor loads score right.
+- Update `BASELINE_DRY_VAN` quarterly from Scale Funding free page. TS clean.
+
+**Paywall strategy finalized (NOT yet built — code is next session):**
+- Decided full Free↔Pro split, pricing, trial, IFTA teaser, fair-market gating.
+- See the **RevenueCat paywall** bullet in §5 Phase 2 for the complete spec, and
+  memory file `monetization-paywall-plan.md`.
+- Key user decisions: 15 loads/mo free · 7-day trial · $34.99/mo or $297.99/yr ·
+  IFTA blurred-teaser · **fair-market price is Pro-gated** (free users see "Upgrade
+  to Pro to see what you should be getting paid" in Check Load + Add Load).
+- Build approach: mock `isPro` toggle first, real RevenueCat once store products live.
+- NEXT STEPS: (1) build SubscriptionContext w/ mock toggle, (2) Paywall screen,
+  (3) gating + 5 triggers, (4) IFTA blur-teaser, (5) Restore/manage in Settings.
+  Separately: write USER a RevenueCat account+products setup guide doc.
+
 
 ### 2026-06-21 — Session: full app-wide i18n sweep (backlog #9, round 2)
 - **Why:** user reported lots of English still showing with Spanish selected

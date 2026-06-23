@@ -12,9 +12,13 @@ import { Colors, FontFamily, FontSize, Spacing, Radius, SectionLabel } from '../
 import { getDateLocale } from '../lib/i18n';
 import { calcBreakEven, saveLoad } from '../db/database';
 import { useAuth } from '../contexts/AuthContext';
+import { useSubscription } from '../contexts/SubscriptionContext';
+import { usePaywall } from '../contexts/PaywallContext';
+import { canLogLoadFree } from '../lib/gating';
 import { pushLoads } from '../lib/sync/loadsSync';
 import { getFairMarketRate, LoadType } from '../utils/marketRates';
 import AddressAutocomplete from '../components/AddressAutocomplete';
+import FairMarketLock from '../components/FairMarketLock';
 import { getRouteData, AddressSuggestion } from '../lib/mapbox';
 import { splitRouteByState } from '../lib/stateSplit';
 
@@ -81,6 +85,8 @@ function cap(raw: string, max: number): string {
 export default function AddLoadScreen({ onClose, onSaved, prefill }: Props) {
   const { t } = useTranslation();
   const { user } = useAuth();
+  const { isPro } = useSubscription();
+  const { present: presentPaywall } = usePaywall();
 
   // ── Route inputs ──
   const [pickup,      setPickup]      = useState(prefill?.pickupText   ?? '');
@@ -237,6 +243,11 @@ export default function AddLoadScreen({ onClose, onSaved, prefill }: Props) {
   async function handleSave() {
     if (!gross || !loadMi) {
       Alert.alert(t('addLoad.missingInfoTitle'), t('addLoad.missingInfo'));
+      return;
+    }
+    // Free tier caps at 15 loads/month — the 16th opens the paywall instead.
+    if (!isPro && !canLogLoadFree()) {
+      presentPaywall('loadLimit');
       return;
     }
     setSaving(true);
@@ -441,12 +452,18 @@ export default function AddLoadScreen({ onClose, onSaved, prefill }: Props) {
           </View>
 
           {fair && (
-            <View style={styles.fairRow}>
-              <Text style={styles.fairLabel}>{t('addLoad.fairMarket')}</Text>
-              <Text style={styles.fairValue}>
-                {t('addLoad.fairMarketRange', { min: money(fair.minTotal), max: money(fair.maxTotal) })}
-              </Text>
-            </View>
+            isPro ? (
+              <View style={styles.fairRow}>
+                <Text style={styles.fairLabel}>{t('addLoad.fairMarket')}</Text>
+                <Text style={styles.fairValue}>
+                  {t('addLoad.fairMarketRange', { min: money(fair.minTotal), max: money(fair.maxTotal) })}
+                </Text>
+              </View>
+            ) : (
+              <View style={styles.fairLockWrap}>
+                <FairMarketLock onUpgrade={() => presentPaywall('fairMarket')} />
+              </View>
+            )
           )}
 
           {/* Net pay preview */}
@@ -736,6 +753,7 @@ const styles = StyleSheet.create({
   stateTotalWarn: { backgroundColor: Colors.secondaryDim },
   stateTotalText: { fontFamily: FontFamily.semiBold, fontSize: FontSize.caption },
 
+  fairLockWrap: { marginTop: 10 },
   fairRow: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     marginTop: 10, padding: 14, backgroundColor: Colors.surface, borderRadius: Radius.md,

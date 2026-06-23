@@ -1,7 +1,7 @@
 import React, { useCallback, useContext, useRef, useState } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView,
-  Alert, TextInput, KeyboardAvoidingView, Platform, Linking,
+  Alert, TextInput, KeyboardAvoidingView, Platform, Linking, Switch,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -11,6 +11,8 @@ import {
 } from '../theme/theme';
 import { AppFlowContext } from '../contexts/AppFlowContext';
 import { useAuth } from '../contexts/AuthContext';
+import { useSubscription } from '../contexts/SubscriptionContext';
+import { usePaywall } from '../contexts/PaywallContext';
 import { getWeeklyMiles, setSetting } from '../db/database';
 
 // ── Constants ──────────────────────────────────────────────────────────────
@@ -96,7 +98,25 @@ interface Props {
 export default function SettingsScreen({ onClose, onNavigateToExpenses }: Props) {
   const { t, i18n } = useTranslation();
   const { user, signOut } = useAuth();
+  const { isPro, isMock, setMockPro, restore } = useSubscription();
+  const { present: presentPaywall } = usePaywall();
   const { replayOnboarding } = useContext(AppFlowContext);
+
+  // Manage subscription → deep-link to the store's subscription settings.
+  function handleManageSub() {
+    const url = Platform.OS === 'ios'
+      ? 'https://apps.apple.com/account/subscriptions'
+      : 'https://play.google.com/store/account/subscriptions';
+    Linking.openURL(url);
+  }
+
+  async function handleRestore() {
+    const { error } = await restore();
+    Alert.alert(
+      error ? t('paywall.comingSoonTitle') : t('paywall.restoredTitle'),
+      error ?? t('paywall.restoredBody'),
+    );
+  }
 
   // Weekly miles inline edit
   const [weeklyMiles,  setWeeklyMilesLocal] = useState(() => getWeeklyMiles());
@@ -221,6 +241,72 @@ export default function SettingsScreen({ onClose, onNavigateToExpenses }: Props)
                 </>
               )}
             </View>
+          </View>
+
+          {/* ── Subscription ── */}
+          <SectionHeader label={t('settings.subscription')} />
+          <View style={styles.card}>
+            {isPro ? (
+              <>
+                <Row
+                  icon="diamond"
+                  iconBg={Colors.secondaryDim}
+                  iconColor={Colors.secondary}
+                  label={t('settings.proActive')}
+                  sublabel={t('settings.proActiveSub')}
+                  chevron={false}
+                  rightElement={
+                    <View style={styles.proPill}>
+                      <View style={styles.proPillDot} />
+                      <Text style={styles.proPillText}>{t('settings.proActiveSub')}</Text>
+                    </View>
+                  }
+                />
+                <RowDivider />
+                <Row
+                  icon="card-outline"
+                  label={t('settings.manageSub')}
+                  onPress={handleManageSub}
+                />
+              </>
+            ) : (
+              <Row
+                icon="diamond"
+                iconBg={Colors.secondaryDim}
+                iconColor={Colors.secondary}
+                label={t('settings.upgradeTitle')}
+                sublabel={t('settings.upgradeSub')}
+                onPress={() => presentPaywall('generic')}
+              />
+            )}
+            <RowDivider />
+            <Row
+              icon="refresh-circle-outline"
+              label={t('settings.restorePurchases')}
+              chevron={false}
+              onPress={handleRestore}
+            />
+            {/* Dev-only mock toggle — lets us test Pro gating before store
+                products exist. Hidden once real RevenueCat is wired (isMock=false). */}
+            {isMock && (
+              <>
+                <RowDivider />
+                <Row
+                  icon="construct-outline"
+                  label={t('settings.devProToggle')}
+                  sublabel={t('settings.devProToggleSub')}
+                  chevron={false}
+                  rightElement={
+                    <Switch
+                      value={isPro}
+                      onValueChange={setMockPro}
+                      trackColor={{ false: Colors.surfaceHigh, true: Colors.primaryMid }}
+                      thumbColor={isPro ? Colors.primary : Colors.textTertiary}
+                    />
+                  }
+                />
+              </>
+            )}
           </View>
 
           {/* ── Break-Even Setup ── */}
@@ -468,6 +554,16 @@ const styles = StyleSheet.create({
     fontSize:   FontSize.caption,
     color:      Colors.primary,
   },
+
+  // Pro active pill
+  proPill: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    backgroundColor: Colors.secondaryDim,
+    borderRadius: Radius.pill,
+    paddingHorizontal: 10, paddingVertical: 4,
+  },
+  proPillDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: Colors.secondary },
+  proPillText: { fontFamily: FontFamily.medium, fontSize: FontSize.caption, color: Colors.secondary },
 
   // Section header
   sectionHeader: {
