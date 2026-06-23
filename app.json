@@ -41,10 +41,7 @@
         {
           "ios": {
             "deploymentTarget": "16.0",
-            "buildProperties": {
-              "CLANG_CXX_LANGUAGE_STANDARD": "c++20",
-              "GCC_C_LANGUAGE_STANDARD": "c17"
-            }
+            "extraPodfileConfig": "post_install do |installer|\n  installer.pods_project.targets.each do |target|\n    target.build_configurations.each do |config|\n      config.build_settings['CLANG_CXX_LANGUAGE_STANDARD'] = 'c++20'\n      config.build_settings['GCC_C_LANGUAGE_STANDARD'] = 'c17'\n    end\n  end\nend"
           }
         }
       ]
