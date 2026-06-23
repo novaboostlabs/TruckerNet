@@ -16,7 +16,7 @@
 > branch and push `main`** so the user's build always reflects the latest.
 > (Decided 2026-06-19 after changes weren't appearing because `main` was stale.)
 
-_Last updated: 2026-06-22 — **Paywall BUILT (mock-first)**: SubscriptionContext (mock isPro), PaywallScreen + PaywallProvider, all 5 gating triggers, IFTA blur-teaser, Settings upgrade/restore/manage + dev toggle, i18n in 4 langs. NEXT: USER sets up RevenueCat account+products (see `REVENUECAT_SETUP.md`), then we flip the mock path to real RevenueCat calls._
+_Last updated: 2026-06-23 — App renamed "TruckerNet: Driver Finance". EAS configured + first successful iOS preview build installed on device via internal distribution. Deps fixed (reanimated 3→4, async-storage, get-random-values). NEXT: RevenueCat products in App Store Connect (ASC was down last session) → ping to wire real SDK; DNS/Terms/Privacy/email alias; production EAS build when ready._
 
 > **Backend sync state:** Sync is **local-first** — SQLite is source of truth;
 > push on save, pull on sign-in. All 3 slices wired: expenses + fuel + loads.
@@ -420,7 +420,7 @@ calibration = future.
   summary. Expo Notifications + Supabase Edge Function triggers.
 - Splash screen + app icons
 - ✅ Full settings screen — built 2026-06-20
-- Receipt OCR (BOL + fuel receipt photo → auto-fill)
+- ✅ Receipt OCR (BOL + fuel receipt photo → auto-fill) — built 2026-06-22
 - Supabase Realtime for multi-device live sync
 - **Geocoding result cache** — at ~500+ users, add in-memory LRU cache for recent
   geocoding queries (same pattern as `routeCache` in `mapbox.ts`). Low priority.
@@ -428,6 +428,56 @@ calibration = future.
 ---
 
 ## 6. Work Log (newest first)
+
+### 2026-06-23 — App Store name + EAS setup + first successful TestFlight build
+
+**App renamed:** `app.json` `name` changed from "TruckerNet" to **"TruckerNet: Driver Finance"**
+(original name taken in App Store Connect; "Driver Finance" chosen after exploring options —
+broad enough to cover loads, fuel, IFTA, break-even, expenses without boxing into one feature).
+
+**App Store Connect:** User created the app listing manually with name "TruckerNet: Driver Finance",
+bundle ID `com.novaboostlabs.truckernet`. RevenueCat product setup was BLOCKED — ASC was
+having outages/login issues. Still pending next session.
+
+**Photo processing deployed (USER action complete):**
+- `supabase functions deploy ocr-fuel-receipt` + `ocr-bol` deployed
+- `ANTHROPIC_API_KEY` secret set
+- `supabase/migrations/2026-06-22_loads_bol_photo.sql` run (BOL storage bucket + RLS)
+
+**EAS Build configured:**
+- `eas-cli` installed globally, logged in as `novaboostlabs`
+- `eas init` → project linked: `@novaboostlabs/TruckerNet`
+  (projectId: `8a2525c8-a2ae-4b6f-a0f9-1c9e21f76627`, written to `app.json`)
+- `eas build:configure` → generated `eas.json` (All platforms)
+- Device registered (user's iPhone 17 Pro) via Website flow
+
+**Build failures & root causes fixed (3 attempts):**
+1. `folly/coro/Coroutine.h` not found — root cause: `react-native-reanimated` was
+   v3.16.7 but Expo SDK 54 requires v4.x; also `@react-native-async-storage/async-storage`
+   (3.1.1 → 2.2.0) and `react-native-get-random-values` (2.0.0 → ~1.11.0) were wrong.
+   Fixed with `npx expo install --check`.
+2. EAS `"latest"` image was resolving to Xcode 26 beta (iOS 26.4 SDK) — not yet
+   compatible with RN 0.81 dependencies. Fixed by pinning:
+   `eas.json` → `"image": "macos-sequoia-15.6-xcode-16.4"`.
+3. `expo-build-properties` added with `deploymentTarget: "16.0"` (required for
+   RN 0.81 / Expo SDK 54).
+
+**First successful build:** preview profile, internal distribution. User enabled
+Developer Mode on iPhone (Settings → Privacy & Security → Developer Mode) and app
+installed successfully. 🎉
+
+**Pending USER actions (from this session):**
+- [ ] RevenueCat: App Store Connect products + Play Console + RC dashboard
+  (see `REVENUECAT_SETUP.md`) — was blocked by ASC outage
+- [ ] DNS CNAME `truckernet` → hosting
+- [ ] Terms & Conditions page at `truckernet.novaboostlabs.co/terms`
+- [ ] Privacy Policy page at `truckernet.novaboostlabs.co/privacy`
+- [ ] Email alias `truckernet@novaboostlabs.co` in Google Workspace
+
+**Key EAS commands for next session:**
+- Preview build (TestFlight/internal): `eas build --platform ios --profile preview`
+- Submit to TestFlight: `eas submit --platform ios`
+- Production build (App Store): `eas build --platform ios --profile production`
 
 ### 2026-06-22 — BOL OCR autofill (extends backlog #5)
 
