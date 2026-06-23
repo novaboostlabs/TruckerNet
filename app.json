@@ -10,10 +10,19 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.novaboostlabs.truckernet",
-      "usesAppleSignIn": true
+      "usesAppleSignIn": true,
+      "infoPlist": {
+        "NSSpeechRecognitionUsageDescription": "Allow $(PRODUCT_NAME) to use speech recognition.",
+        "NSMicrophoneUsageDescription": "Allow $(PRODUCT_NAME) to use the microphone.",
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
-      "package": "com.novaboostlabs.truckernet"
+      "package": "com.novaboostlabs.truckernet",
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -26,7 +35,25 @@
       "expo-secure-store",
       "expo-font",
       "expo-asset",
-      "expo-web-browser"
-    ]
+      "expo-web-browser",
+      [
+        "expo-build-properties",
+        {
+          "ios": {
+            "deploymentTarget": "16.0",
+            "buildProperties": {
+              "CLANG_CXX_LANGUAGE_STANDARD": "c++20",
+              "GCC_C_LANGUAGE_STANDARD": "c17"
+            }
+          }
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "8a2525c8-a2ae-4b6f-a0f9-1c9e21f76627"
+      }
+    },
+    "owner": "novaboostlabs"
   }
 }
