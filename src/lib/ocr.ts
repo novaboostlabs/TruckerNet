@@ -25,7 +25,7 @@ export type OcrResult =
 // ── Image acquisition ────────────────────────────────────────────────────────
 
 /** Take a photo or pick one from the library; returns a local URI or null. */
-async function acquireImage(source: 'camera' | 'library'): Promise<string | null | 'permission'> {
+export async function pickImage(source: 'camera' | 'library'): Promise<string | null | 'permission'> {
   if (source === 'camera') {
     const perm = await ImagePicker.requestCameraPermissionsAsync();
     if (!perm.granted) return 'permission';
@@ -65,7 +65,7 @@ async function toBase64(uri: string): Promise<string | null> {
 export async function scanFuelReceipt(source: 'camera' | 'library'): Promise<OcrResult> {
   if (!isSupabaseConfigured()) return { ok: false, error: 'not_configured' };
 
-  const uri = await acquireImage(source);
+  const uri = await pickImage(source);
   if (uri === 'permission') return { ok: false, error: 'permission' };
   if (!uri) return { ok: false, error: 'cancelled' };
 
@@ -83,6 +83,56 @@ export async function scanFuelReceipt(source: 'camera' | 'library'): Promise<Ocr
   } catch {
     return { ok: false, error: 'failed' };
   }
+}
+
+// ── BOL OCR ──────────────────────────────────────────────────────────────────
+
+export interface BolData {
+  pickupAddress:   string | null;  // shipper / origin full address
+  deliveryAddress: string | null;  // consignee / destination full address
+  weightLbs:       number | null;  // total weight in pounds
+  bolNumber:       string | null;
+  brokerName:      string | null;  // broker / carrier, if printed
+}
+
+export type BolResult =
+  | { ok: true;  data: BolData }
+  | { ok: false; error: 'not_configured' | 'failed' };
+
+/**
+ * OCR a bill of lading the user already picked (the same image is kept as the
+ * load's BOL photo, so we take a URI instead of acquiring one here). Extracts
+ * the fields needed to pre-fill Add Load; the screen then geocodes the
+ * addresses and the existing route/state-split flow takes over.
+ */
+export async function ocrBOL(uri: string): Promise<BolResult> {
+  if (!isSupabaseConfigured()) return { ok: false, error: 'not_configured' };
+  try {
+    const base64 = await toBase64(uri);
+    if (!base64) return { ok: false, error: 'failed' };
+
+    const { data, error } = await supabase.functions.invoke('ocr-bol', {
+      body: { image: base64 },
+    });
+    if (error || !data) return { ok: false, error: 'failed' };
+
+    return {
+      ok: true,
+      data: {
+        pickupAddress:   str(data.pickupAddress),
+        deliveryAddress: str(data.deliveryAddress),
+        weightLbs:       num(data.weightLbs),
+        bolNumber:       str(data.bolNumber),
+        brokerName:      str(data.brokerName),
+      },
+    };
+  } catch {
+    return { ok: false, error: 'failed' };
+  }
+}
+
+function str(v: unknown): string | null {
+  return typeof v === 'string' && v.trim().length > 0 ? v.trim() : null;
 }
 
 function num(v: unknown): number | null {

@@ -16,20 +16,22 @@ the Anthropic API server-side, so your Anthropic key never ships in the app.
 ```bash
 # from the repo root, with the Supabase CLI installed + logged in
 supabase functions deploy ocr-fuel-receipt
+supabase functions deploy ocr-bol            # BOL autofill (section 3)
 ```
 
-The function source is at
-[`supabase/functions/ocr-fuel-receipt/index.ts`](supabase/functions/ocr-fuel-receipt/index.ts).
+Sources: [`ocr-fuel-receipt`](supabase/functions/ocr-fuel-receipt/index.ts) and
+[`ocr-bol`](supabase/functions/ocr-bol/index.ts).
 
-### Set the Anthropic key as a secret
+### Set the Anthropic key as a secret (shared by both functions)
 
 ```bash
 supabase secrets set ANTHROPIC_API_KEY=sk-ant-...
 ```
 
-Get the key from **console.anthropic.com → API Keys**. Model used:
-`claude-haiku-4-5` (fast + cheap; ~fractions of a cent per receipt). The static
-system prompt is prompt-cached, so repeat scans are even cheaper.
+Get the key from **console.anthropic.com → API Keys**. Models: fuel receipts use
+`claude-haiku-4-5` (fast + cheap), BOLs use `claude-sonnet-4-6` (denser docs,
+addresses/handwriting). Both prompt-cache the static system prompt, so repeat
+scans are cheaper.
 
 ### Test
 In the app: **Fuel → Log Fill-up → Scan receipt** → take/choose a photo. The
@@ -61,6 +63,24 @@ It is idempotent and does three things:
 ### Test
 **Add Load → Add details → Attach BOL photo** → take/choose a photo → save. Open
 the load from History → the BOL photo shows; tap it for a full-screen view.
+
+---
+
+## 3. BOL OCR — autofill the whole load (Claude vision)
+
+Like the fuel receipt scan, **Add Load → "Scan BOL to autofill"** reads a bill of
+lading photo and fills in **pickup, delivery, weight, BOL number, and broker**.
+The addresses are then geocoded and the existing flow takes over automatically —
+route distance + per-state mileage are calculated for you. The scanned photo is
+also kept as the load's BOL proof photo (section 2), so one photo does both.
+
+Backend: the `ocr-bol` edge function (deployed above) + the same
+`ANTHROPIC_API_KEY` secret. No extra storage setup beyond section 2.
+
+### Test
+**Add Load → "Scan BOL to autofill"** → take/choose a BOL photo → pickup, delivery,
+weight, etc. fill in, and the route + state mileage compute automatically. Review,
+adjust if needed, add the rate, and save.
 
 ---
 

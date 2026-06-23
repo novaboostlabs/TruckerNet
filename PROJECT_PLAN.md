@@ -429,6 +429,29 @@ calibration = future.
 
 ## 6. Work Log (newest first)
 
+### 2026-06-22 — BOL OCR autofill (extends backlog #5)
+
+User request: same as fuel-receipt OCR but for BOLs — scan the BOL photo, autofill
+pickup/delivery/weight/etc., then let the existing geocode→distance→state-split
+flow take over. Built. TS clean; 4-language parity held.
+
+- `supabase/functions/ocr-bol/index.ts` — Claude vision (model `claude-sonnet-4-6`,
+  denser docs than receipts) extracting `{pickupAddress, deliveryAddress,
+  weightLbs, bolNumber, brokerName}` as strict JSON (prompt cached). Same
+  `ANTHROPIC_API_KEY` secret as the fuel function.
+- `src/lib/ocr.ts` — `ocrBOL(uri)` + `BolData`; exported `pickImage` (shared with
+  fuel scan, refactored). Takes a URI (not its own pick) so the same image
+  doubles as the attached BOL proof photo.
+- `src/lib/mapbox.ts` — `geocodeAddress(query)` (single best match, non-autocomplete)
+  to turn OCR'd addresses into routable points.
+- `AddLoadScreen` — "Scan BOL to autofill" button at the top. Flow: pick image →
+  set as `bolPhotoUri` → OCR → fill weight/BOL#/broker → geocode pickup+delivery →
+  set `pickupSel`/`deliverySel`, which triggers the EXISTING auto-route effect
+  (route miles + per-state split via Mapbox geometry + Turf). Falls back to plain
+  text if a geocode misses (user picks from autocomplete). Scanning state + hint.
+- i18n `addLoad.scanBol.*`, all 4 langs.
+- Same deploy as below + `supabase functions deploy ocr-bol` (see `PHOTO_SETUP.md`).
+
 ### 2026-06-22 — Photo processing: fuel receipt OCR + BOL photos (backlog #5)
 
 Built both image features. User decisions: **Claude vision (cloud) OCR** for fuel

@@ -18,10 +18,11 @@ import { usePaywall } from '../contexts/PaywallContext';
 import { canLogLoadFree } from '../lib/gating';
 import { pushLoads } from '../lib/sync/loadsSync';
 import { uploadBolPhoto } from '../lib/storage';
+import { ocrBOL, pickImage } from '../lib/ocr';
 import { getFairMarketRate, LoadType } from '../utils/marketRates';
 import AddressAutocomplete from '../components/AddressAutocomplete';
 import FairMarketLock from '../components/FairMarketLock';
-import { getRouteData, AddressSuggestion } from '../lib/mapbox';
+import { getRouteData, geocodeAddress, AddressSuggestion } from '../lib/mapbox';
 import { splitRouteByState } from '../lib/stateSplit';
 
 export interface AddLoadPrefill {
@@ -140,6 +141,10 @@ export default function AddLoadScreen({ onClose, onSaved, prefill }: Props) {
 
   const [saving, setSaving] = useState(false);
 
+  // ── BOL scan (Claude vision → autofill) ──
+  const [bolScanning, setBolScanning] = useState(false);
+  const [bolScanned,  setBolScanned]  = useState(false);
+
   // Auto-route when both endpoints are geocoded — also auto-splits by state
   useEffect(() => {
     if (!pickupSel || !deliverySel) return;
@@ -241,6 +246,61 @@ export default function AddLoadScreen({ onClose, onSaved, prefill }: Props) {
     setDeliverySel(null);
     setMilesAuto(false);
     stateInitialized.current = false;
+  }
+
+  async function runBolScan(source: 'camera' | 'library') {
+    const uri = await pickImage(source);
+    if (uri === 'permission') {
+      Alert.alert(t('addLoad.photo.permissionTitle'), t('addLoad.photo.permissionMsg'));
+      return;
+    }
+    if (!uri) return; // cancelled
+
+    // The scanned image doubles as the attached BOL proof photo.
+    setBolPhotoUri(uri);
+    setShowOptional(true);
+    setBolScanning(true);
+    try {
+      const res = await ocrBOL(uri);
+      if (!res.ok) {
+        const k = res.error === 'not_configured' ? 'notAvailable' : 'failed';
+        Alert.alert(t(`addLoad.scanBol.${k}Title`), t(`addLoad.scanBol.${k}Msg`));
+        return;
+      }
+      const { pickupAddress, deliveryAddress, weightLbs, bolNumber, brokerName } = res.data;
+
+      if (weightLbs != null) setWeight(String(Math.round(weightLbs)));
+      if (bolNumber)  setBolNumber(bolNumber);
+      if (brokerName) setBrokerName(brokerName);
+
+      // Geocode the addresses so the existing auto-route + state-split effect
+      // fires. Falls back to plain text (user picks from autocomplete) if a
+      // geocode misses.
+      const [pSug, dSug] = await Promise.all([
+        pickupAddress   ? geocodeAddress(pickupAddress)   : Promise.resolve(null),
+        deliveryAddress ? geocodeAddress(deliveryAddress) : Promise.resolve(null),
+      ]);
+      if (pickupAddress)   { setPickup(pSug?.label ?? pickupAddress);     if (pSug) setPickupSel(pSug); }
+      if (deliveryAddress) { setDelivery(dSug?.label ?? deliveryAddress); if (dSug) setDeliverySel(dSug); }
+
+      setBolScanned(true);
+    } catch {
+      Alert.alert(t('addLoad.scanBol.failedTitle'), t('addLoad.scanBol.failedMsg'));
+    } finally {
+      setBolScanning(false);
+    }
+  }
+
+  function handleScanBol() {
+    Alert.alert(
+      t('addLoad.scanBol.chooseTitle'),
+      t('addLoad.photo.chooseMessage'),
+      [
+        { text: t('addLoad.photo.takePhoto'),     onPress: () => runBolScan('camera') },
+        { text: t('addLoad.photo.chooseLibrary'), onPress: () => runBolScan('library') },
+        { text: t('common.cancel'),               style: 'cancel' },
+      ],
+    );
   }
 
   async function pickBolPhoto(source: 'camera' | 'library') {
@@ -361,6 +421,25 @@ export default function AddLoadScreen({ onClose, onSaved, prefill }: Props) {
         </View>
 
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="always" showsVerticalScrollIndicator={false}>
+
+          {/* ── Scan BOL to autofill ── */}
+          <TouchableOpacity
+            style={[styles.scanBolBtn, bolScanning && styles.scanBolBtnDisabled]}
+            onPress={handleScanBol}
+            disabled={bolScanning}
+            activeOpacity={0.85}
+          >
+            <Ionicons name={bolScanning ? 'hourglass-outline' : 'scan-outline'} size={18} color={Colors.primary} />
+            <Text style={styles.scanBolText}>
+              {bolScanning ? t('addLoad.scanBol.scanning') : t('addLoad.scanBol.button')}
+            </Text>
+          </TouchableOpacity>
+          {bolScanned && !bolScanning && (
+            <View style={styles.scanBolHint}>
+              <Ionicons name="checkmark-circle" size={15} color={Colors.primary} />
+              <Text style={styles.scanBolHintText}>{t('addLoad.scanBol.hint')}</Text>
+            </View>
+          )}
 
           {/* ── Pickup ── */}
           <Text style={styles.fieldLabel}>{t('addLoad.pickup')}</Text>
@@ -812,6 +891,21 @@ const styles = StyleSheet.create({
   stateTotalText: { fontFamily: FontFamily.semiBold, fontSize: FontSize.caption },
 
   fairLockWrap: { marginTop: 10 },
+
+  scanBolBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9,
+    backgroundColor: Colors.primaryDim,
+    borderWidth: 1, borderColor: Colors.primaryMid,
+    borderRadius: Radius.md, paddingVertical: 15,
+    marginBottom: 16,
+  },
+  scanBolBtnDisabled: { opacity: 0.6 },
+  scanBolText: { fontFamily: FontFamily.semiBold, fontSize: FontSize.body, color: Colors.primary },
+  scanBolHint: {
+    flexDirection: 'row', alignItems: 'center', gap: 7,
+    marginTop: -8, marginBottom: 18, paddingHorizontal: 2,
+  },
+  scanBolHintText: { flex: 1, fontFamily: FontFamily.regular, fontSize: FontSize.caption, color: Colors.textSecondary, lineHeight: 17 },
 
   bolAttachBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,

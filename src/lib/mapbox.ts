@@ -62,6 +62,45 @@ export async function searchAddress(
     .filter((s: AddressSuggestion) => !!s.label && s.lng != null && s.lat != null);
 }
 
+/**
+ * Forward-geocode a single full address to its best match (with coordinates).
+ * Used to turn OCR'd BOL addresses into routable points. Non-autocomplete,
+ * top result only. Returns null if unconfigured or nothing matched.
+ */
+export async function geocodeAddress(
+  query: string,
+  signal?: AbortSignal
+): Promise<AddressSuggestion | null> {
+  const q = query.trim();
+  if (!isMapboxConfigured() || q.length < 3) return null;
+
+  const params = new URLSearchParams({
+    q,
+    autocomplete: 'false',
+    country: 'us',
+    limit: '1',
+    types: 'address,street,place,postcode,locality,neighborhood',
+    access_token: TOKEN,
+  });
+
+  try {
+    const res = await fetch(`${GEOCODE_URL}?${params.toString()}`, { signal });
+    if (!res.ok) return null;
+    const data = await res.json();
+    const f = data.features?.[0];
+    const coords = f?.geometry?.coordinates ?? [];
+    if (!f || coords[0] == null || coords[1] == null) return null;
+    return {
+      id:    f.id ?? f.properties?.mapbox_id ?? String(f.properties?.full_address),
+      label: f.properties?.full_address ?? f.properties?.name ?? q,
+      lng:   coords[0],
+      lat:   coords[1],
+    };
+  } catch {
+    return null;
+  }
+}
+
 export interface RouteData {
   miles:    number;
   /** GeoJSON coordinate pairs [lng, lat] along the driving route. */

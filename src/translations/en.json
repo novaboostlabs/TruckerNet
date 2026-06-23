@@ -347,6 +347,16 @@
       "uploading": "Uploading photo…",
       "permissionTitle": "Permission needed",
       "permissionMsg": "Allow camera and photo access to attach a BOL photo."
+    },
+    "scanBol": {
+      "button": "Scan BOL to autofill",
+      "scanning": "Reading BOL…",
+      "chooseTitle": "Scan BOL",
+      "hint": "Scanned — review the details. We'll calculate the route automatically.",
+      "failedTitle": "Couldn't read BOL",
+      "failedMsg": "We couldn't read that BOL. Try a clearer photo or enter the details manually.",
+      "notAvailableTitle": "Scanning not set up",
+      "notAvailableMsg": "BOL scanning isn't available yet. Enter the details manually."
     }
   },
   "ifta": {

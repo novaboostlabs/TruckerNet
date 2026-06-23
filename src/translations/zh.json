@@ -347,6 +347,16 @@
       "uploading": "正在上传照片…",
       "permissionTitle": "需要权限",
       "permissionMsg": "请允许相机和照片访问以附加 BOL 照片。"
+    },
+    "scanBol": {
+      "button": "扫描 BOL 自动填写",
+      "scanning": "正在读取 BOL…",
+      "chooseTitle": "扫描 BOL",
+      "hint": "已扫描——请核对详情。我们会自动计算路线。",
+      "failedTitle": "无法读取 BOL",
+      "failedMsg": "我们无法读取该 BOL。请换一张更清晰的照片或手动输入详情。",
+      "notAvailableTitle": "扫描未设置",
+      "notAvailableMsg": "BOL 扫描尚不可用。请手动输入详情。"
     }
   },
   "history": {

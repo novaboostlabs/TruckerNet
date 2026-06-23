@@ -347,6 +347,16 @@
       "uploading": "Subiendo foto…",
       "permissionTitle": "Permiso necesario",
       "permissionMsg": "Permite el acceso a la cámara y fotos para adjuntar una foto del BOL."
+    },
+    "scanBol": {
+      "button": "Escanear BOL para autocompletar",
+      "scanning": "Leyendo BOL…",
+      "chooseTitle": "Escanear BOL",
+      "hint": "Escaneado: revisa los detalles. Calcularemos la ruta automáticamente.",
+      "failedTitle": "No se pudo leer el BOL",
+      "failedMsg": "No pudimos leer ese BOL. Prueba con una foto más clara o ingresa los detalles manualmente.",
+      "notAvailableTitle": "Escaneo no configurado",
+      "notAvailableMsg": "El escaneo de BOL aún no está disponible. Ingresa los detalles manualmente."
     }
   },
   "ifta": {
