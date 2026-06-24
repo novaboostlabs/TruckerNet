@@ -1,6 +1,6 @@
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
-import { getSetting } from '../db/database';
+import { getSetting, hasFuelEntryToday } from '../db/database';
 
 const CHANNEL_ID = 'truckernet_default';
 
@@ -114,6 +114,50 @@ export async function cancelLoadReminder(loadId: string): Promise<void> {
   await Notifications.cancelScheduledNotificationAsync(`load_reminder_${loadId}`).catch(() => {});
 }
 
+// ── Fuel fill-up reminder ────────────────────────────────────────────────────
+// Fires at 8 pm if the driver hasn't logged a fill-up yet today.
+// One-time DATE trigger (not repeating) so we can cancel it conditionally.
+// setupNotifications() re-evaluates and re-schedules on every app launch.
+
+const FUEL_REMINDER_ID = 'fuel_reminder';
+
+export async function scheduleFuelReminderIfNeeded(): Promise<void> {
+  if (!notificationsEnabled()) return;
+  const { status } = await Notifications.getPermissionsAsync();
+  if (status !== 'granted') return;
+
+  // Already logged a fill-up today — cancel any pending reminder and bail.
+  if (hasFuelEntryToday()) {
+    await cancelFuelReminder();
+    return;
+  }
+
+  // Target: 8 pm local time. If it's already past 8 pm, aim for tomorrow.
+  const target = new Date();
+  target.setHours(20, 0, 0, 0);
+  if (target <= new Date()) target.setDate(target.getDate() + 1);
+
+  // Cancel any stale reminder before re-scheduling (idempotent).
+  await cancelFuelReminder();
+
+  await Notifications.scheduleNotificationAsync({
+    identifier: FUEL_REMINDER_ID,
+    content: {
+      title: "Log your fill-up ⛽",
+      body:  "Don't forget to add today's fuel — keeps your CPM and IFTA accurate.",
+      ...(Platform.OS === 'android' && { channelId: CHANNEL_ID }),
+    },
+    trigger: {
+      type: Notifications.SchedulableTriggerInputTypes.DATE,
+      date: target,
+    },
+  });
+}
+
+export async function cancelFuelReminder(): Promise<void> {
+  await Notifications.cancelScheduledNotificationAsync(FUEL_REMINDER_ID).catch(() => {});
+}
+
 // ── Master setup ─────────────────────────────────────────────────────────────
 
 export async function setupNotifications(): Promise<void> {
@@ -126,6 +170,7 @@ export async function setupNotifications(): Promise<void> {
   await Promise.all([
     scheduleWeeklyPnL(),
     scheduleIFTAReminders(),
+    scheduleFuelReminderIfNeeded(),
   ]);
 }
 

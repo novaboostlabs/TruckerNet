@@ -11,6 +11,7 @@ import db, { getLatestOdometer } from '../db/database';
 import { useAuth } from '../contexts/AuthContext';
 import { pushFuel } from '../lib/sync/fuelSync';
 import { scanFuelReceipt } from '../lib/ocr';
+import { cancelFuelReminder } from '../lib/notifications';
 import 'react-native-get-random-values';
 import { v4 as uuid } from 'uuid';
 
@@ -107,6 +108,8 @@ export default function FuelEntryScreen({ onSaved, onCancel }: Props) {
       );
       // Back up to the cloud (local-first: never blocks the UI; no-op for guests).
       if (user) pushFuel(user.id);
+      // Fill-up logged — cancel tonight's reminder so the driver isn't nagged.
+      cancelFuelReminder().catch(() => {});
       onSaved();
     } catch (e) {
       console.error('Error saving fuel entry:', e);

@@ -196,6 +196,15 @@ export function getLatestFuelCPM(): number {
   return 0;
 }
 
+export function hasFuelEntryToday(): boolean {
+  const today = new Date().toISOString().split('T')[0];
+  const row   = db.getFirstSync<{ count: number }>(
+    'SELECT COUNT(*) as count FROM fuel_entries WHERE date = ?',
+    [today]
+  );
+  return (row?.count ?? 0) > 0;
+}
+
 export function getLatestOdometer(): number {
   const row = db.getFirstSync<{ odometer_reading: number }>(
     'SELECT odometer_reading FROM fuel_entries WHERE odometer_reading > 0 ORDER BY date DESC LIMIT 1'
