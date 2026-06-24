@@ -17,6 +17,7 @@ import { AppFlowContext } from '../contexts/AppFlowContext';
 import { syncExpensesOnSignIn, pushExpenses } from '../lib/sync/expensesSync';
 import { syncFuelOnSignIn } from '../lib/sync/fuelSync';
 import { syncLoadsOnSignIn } from '../lib/sync/loadsSync';
+import { setupNotifications } from '../lib/notifications';
 
 const Stack = createNativeStackNavigator();
 const GUEST_SETTING = 'guest_mode';
@@ -106,6 +107,12 @@ export default function RootNavigator() {
     // clearAllUserData() which runs on explicit sign-out.
     setStep('signin');
   }, [session, authLoading]); // eslint-disable-line
+
+  // ── Set up push notifications once per app entry ──
+  useEffect(() => {
+    if (step !== 'app') return;
+    setupNotifications().catch(() => {});
+  }, [step]);
 
   // ── Replay onboarding from inside the app ──
   const replayOnboarding = useCallback(() => {

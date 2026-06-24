@@ -14,6 +14,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useSubscription } from '../contexts/SubscriptionContext';
 import { usePaywall } from '../contexts/PaywallContext';
 import { getWeeklyMiles, getSetting, setSetting } from '../db/database';
+import { setupNotifications, cancelAllNotifications } from '../lib/notifications';
 
 // ── Constants ──────────────────────────────────────────────────────────────
 
@@ -123,6 +124,7 @@ export default function SettingsScreen({ onClose, onNavigateToExpenses }: Props)
   const [editingMiles, setEditingMiles]     = useState(false);
   const [milesInput,   setMilesInput]       = useState('');
   const [shareData, setShareData] = useState(() => getSetting('share_rate_data') !== 'false');
+  const [notifsEnabled, setNotifsEnabled] = useState(() => getSetting('notifications_enabled') !== 'false');
   const milesRef = useRef<TextInput>(null);
 
   const startEditMiles = useCallback(() => {
@@ -417,6 +419,32 @@ export default function SettingsScreen({ onClose, onNavigateToExpenses }: Props)
                 </React.Fragment>
               );
             })}
+          </View>
+
+          {/* ── Notifications ── */}
+          <SectionHeader label={t('settings.notifications')} />
+          <View style={styles.card}>
+            <Row
+              icon="notifications-outline"
+              iconBg={Colors.primaryDim}
+              iconColor={Colors.primary}
+              label={t('settings.notificationsLabel')}
+              sublabel={t('settings.notificationsSub')}
+              chevron={false}
+              rightElement={
+                <Switch
+                  value={notifsEnabled}
+                  onValueChange={(v) => {
+                    setSetting('notifications_enabled', v ? 'true' : 'false');
+                    setNotifsEnabled(v);
+                    if (v) setupNotifications().catch(() => {});
+                    else cancelAllNotifications().catch(() => {});
+                  }}
+                  trackColor={{ false: Colors.surfaceHigh, true: Colors.primaryMid }}
+                  thumbColor={notifsEnabled ? Colors.primary : Colors.textTertiary}
+                />
+              }
+            />
           </View>
 
           {/* ── Data & Privacy ── */}

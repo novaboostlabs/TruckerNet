@@ -459,6 +459,9 @@
     "manageSub": "Manage Subscription",
     "devProToggle": "Mock Pro (dev only)",
     "devProToggleSub": "Toggle Pro entitlement for testing",
+    "notifications": "Notifications",
+    "notificationsLabel": "Push Notifications",
+    "notificationsSub": "Weekly P&L summary, IFTA reminders, load alerts",
     "dataPrivacy": "Data & Privacy",
     "shareRateData": "Share load data anonymously",
     "shareRateDataSub": "Helps all drivers see accurate fair-market rates"

@@ -25,6 +25,7 @@ import FairMarketLock from '../components/FairMarketLock';
 import { getRouteData, geocodeAddress, AddressSuggestion } from '../lib/mapbox';
 import { splitRouteByState } from '../lib/stateSplit';
 import { contributeRateReport, getCommunityRate, CommunityRate } from '../lib/rateReports';
+import { scheduleLoadReminder, cancelLoadReminder } from '../lib/notifications';
 
 export interface AddLoadPrefill {
   grossPay?:    string;
@@ -390,7 +391,7 @@ export default function AddLoadScreen({ onClose, onSaved, prefill }: Props) {
         bolPhotoUrl = uploaded ?? bolPhotoUri;
       }
 
-      saveLoad(
+      const savedLoadId = saveLoad(
         {
           date:            loadDate,
           pickup_address:  pLabel,
@@ -421,6 +422,13 @@ export default function AddLoadScreen({ onClose, onSaved, prefill }: Props) {
         },
         validStateMiles.map(r => ({ state: r.state, miles: parseFloat(r.miles) }))
       );
+
+      // Schedule/cancel load reminder notification based on status.
+      if (status === 'in_progress') {
+        scheduleLoadReminder(savedLoadId).catch(() => {});
+      } else {
+        cancelLoadReminder(savedLoadId).catch(() => {});
+      }
 
       // Anonymously contribute rate data to the community pool (completed loads only).
       if (status === 'completed') {

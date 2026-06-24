@@ -459,6 +459,9 @@
     "manageSub": "Administrar suscripción",
     "devProToggle": "Mock Pro (solo dev)",
     "devProToggleSub": "Activa el acceso Pro para pruebas",
+    "notifications": "Notificaciones",
+    "notificationsLabel": "Notificaciones push",
+    "notificationsSub": "Resumen semanal, recordatorios IFTA, alertas de carga",
     "dataPrivacy": "Datos y Privacidad",
     "shareRateData": "Compartir datos de carga anónimamente",
     "shareRateDataSub": "Ayuda a todos los conductores a ver tarifas precisas"

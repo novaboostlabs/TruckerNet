@@ -37,6 +37,13 @@
       "expo-asset",
       "expo-web-browser",
       [
+        "expo-notifications",
+        {
+          "color": "#E8A020",
+          "iosDisplayInForeground": true
+        }
+      ],
+      [
         "expo-build-properties",
         {
           "ios": {

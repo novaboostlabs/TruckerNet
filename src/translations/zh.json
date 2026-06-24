@@ -459,6 +459,9 @@
     "manageSub": "管理订阅",
     "devProToggle": "Mock Pro（仅开发）",
     "devProToggleSub": "切换 Pro 权限用于测试",
+    "notifications": "通知",
+    "notificationsLabel": "推送通知",
+    "notificationsSub": "每周收支摘要、IFTA提醒、运单提醒",
     "dataPrivacy": "数据与隐私",
     "shareRateData": "匿名共享运单数据",
     "shareRateDataSub": "帮助所有司机查看准确的市场运价"

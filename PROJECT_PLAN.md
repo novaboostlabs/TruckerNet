@@ -16,7 +16,7 @@
 > branch and push `main`** so the user's build always reflects the latest.
 > (Decided 2026-06-19 after changes weren't appearing because `main` was stale.)
 
-_Last updated: 2026-06-23 — Crowdsourced rate engine built (Waze model). Community rates from `rate_reports` Supabase table (opt-out, anonymous, 90-day rolling, min 3 reports). Personal lane history from local DB. Both surfaces in CheckLoad + AddLoad. Settings toggle. All 4 languages at parity. USER must run migration: `supabase/migrations/2026-06-23_rate_reports.sql`. NEXT: RevenueCat products in App Store Connect → ping to wire real SDK; DNS/Terms/Privacy/email alias._
+_Last updated: 2026-06-23 — Crowdsourced rate engine built. Onboarding pre-population fixed (data congruency). Push notifications wired (weekly P&L, IFTA reminders, load reminders). Splash screen + icons still pending. NEXT: splash screen + icons, then RevenueCat products when ASC is back up._ Community rates from `rate_reports` Supabase table (opt-out, anonymous, 90-day rolling, min 3 reports). Personal lane history from local DB. Both surfaces in CheckLoad + AddLoad. Settings toggle. All 4 languages at parity. USER must run migration: `supabase/migrations/2026-06-23_rate_reports.sql`. NEXT: RevenueCat products in App Store Connect → ping to wire real SDK; DNS/Terms/Privacy/email alias._
 
 > **Backend sync state:** Sync is **local-first** — SQLite is source of truth;
 > push on save, pull on sign-in. All 3 slices wired: expenses + fuel + loads.
