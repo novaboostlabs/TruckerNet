@@ -116,6 +116,18 @@ do not start these until the user calls for them. Newest batch first.
 
 ### Added 2026-06-23
 
+17. **Pre-onboarding: app walkthrough + driver profile setup.** Before the language
+    picker (or immediately after it), new users should see: (a) a 3–4 screen
+    illustrated walkthrough showing what TruckerNet does — "Know your true net pay,"
+    "Auto-build your IFTA report," "See if a load is worth it before you accept it"
+    — with a Skip option; then (b) a profile setup screen where the driver enters
+    their name, equipment type (dry van, reefer, flatbed, etc.), truck number, home
+    base city/state, and optionally their MC/DOT number. This data personalizes the
+    app (e.g. "Welcome back, Carlos" on the Dashboard, pre-fills equipment type on
+    Add Load) and makes the experience feel like a real professional tool, not a
+    generic calculator. Profile data stored in SQLite + synced to Supabase `profiles`
+    table. Walkthrough shown once on fresh install; profile editable in Settings.
+
 11. **Load-attached expenses + net profit per load.** Drivers should be able to log
     an expense (e.g. a scale ticket, toll, lumper fee) and attach it directly to the
     load they're currently running. That expense reduces the net pay on that specific
