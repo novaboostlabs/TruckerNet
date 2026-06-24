@@ -556,15 +556,11 @@ export default function AddLoadScreen({ onClose, onSaved, prefill }: Props) {
             )}
           </View>
 
-          {/* State rows — gated for free users (data still saves silently for
-              future use; driver sees a blur teaser + upgrade prompt). */}
-          <View style={styles.stateMileageWrap}>
-            {/* Always render rows — blurred at 0.12 for free users so they can
-                sense the value, just can't read or edit it. */}
-            <View
-              style={isPro ? undefined : styles.stateMileageBlurred}
-              pointerEvents={isPro ? 'auto' : 'none'}
-            >
+          {/* State rows — Pro only. Free users see a gate card.
+              State mileage still auto-calculates in state and saves to DB
+              regardless of plan, so upgrading reveals already-populated IFTA data. */}
+          {isPro ? (
+            <>
               {stateMiles.map((row, idx) => (
                 <View key={idx} style={styles.stateRow}>
                   <TextInput
@@ -595,7 +591,6 @@ export default function AddLoadScreen({ onClose, onSaved, prefill }: Props) {
                   )}
                 </View>
               ))}
-
               <View style={styles.stateFooter}>
                 <TouchableOpacity style={styles.addStateBtn} onPress={addStateRow}>
                   <Ionicons name="add-circle-outline" size={16} color={Colors.primary} />
@@ -611,26 +606,23 @@ export default function AddLoadScreen({ onClose, onSaved, prefill }: Props) {
                   </View>
                 )}
               </View>
-            </View>
-
-            {/* Upgrade overlay — free users only */}
-            {!isPro && (
-              <TouchableOpacity
-                style={styles.stateMileageGate}
-                activeOpacity={0.85}
-                onPress={() => presentPaywall('ifta')}
-              >
-                <View style={styles.stateMileageGateLock}>
-                  <Ionicons name="map-outline" size={18} color={Colors.secondary} />
-                </View>
-                <Text style={styles.stateMileageGateTitle}>{t('addLoad.stateMileageLockTitle')}</Text>
-                <Text style={styles.stateMileageGateSub}>{t('addLoad.stateMileageLockBody')}</Text>
-                <View style={styles.stateMileageGateCta}>
-                  <Text style={styles.stateMileageGateCtaText}>{t('addLoad.stateMileageLockCta')}</Text>
-                </View>
-              </TouchableOpacity>
-            )}
-          </View>
+            </>
+          ) : (
+            <TouchableOpacity
+              style={styles.stateMileageGate}
+              activeOpacity={0.85}
+              onPress={() => presentPaywall('ifta')}
+            >
+              <View style={styles.stateMileageGateLock}>
+                <Ionicons name="map-outline" size={18} color={Colors.secondary} />
+              </View>
+              <Text style={styles.stateMileageGateTitle}>{t('addLoad.stateMileageLockTitle')}</Text>
+              <Text style={styles.stateMileageGateSub}>{t('addLoad.stateMileageLockBody')}</Text>
+              <View style={styles.stateMileageGateCta}>
+                <Text style={styles.stateMileageGateCtaText}>{t('addLoad.stateMileageLockCta')}</Text>
+              </View>
+            </TouchableOpacity>
+          )}
 
           {/* ── Gross pay ── */}
           <View style={styles.sectionDivider} />
@@ -1004,16 +996,16 @@ const styles = StyleSheet.create({
   stateTotalWarn: { backgroundColor: Colors.secondaryDim },
   stateTotalText: { fontFamily: FontFamily.semiBold, fontSize: FontSize.caption },
 
-  // State mileage gate (free users)
-  stateMileageWrap:     { position: 'relative', minHeight: 80 },
-  stateMileageBlurred:  { opacity: 0.1 },
+  // State mileage gate card (free users) — standard card, no absolute positioning
   stateMileageGate: {
-    ...StyleSheet.absoluteFillObject,
-    alignItems: 'center', justifyContent: 'center',
-    backgroundColor: Colors.surface + 'D0',
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.border,
     borderRadius: Radius.md,
+    paddingVertical: 22,
     paddingHorizontal: Spacing.cardPad,
-    paddingVertical: 20,
+    alignItems: 'center',
+    marginTop: 4,
   },
   stateMileageGateLock: {
     width: 40, height: 40, borderRadius: 20,
