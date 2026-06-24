@@ -680,7 +680,8 @@ function recalculateLoadFinancials(loadId: string): void {
   );
   const additionalCosts = expRow?.total ?? 0;
   const netPay    = load.gross_pay - load.fuel_cost_for_load - load.fixed_cost_for_load - additionalCosts;
-  const netRPM    = load.total_miles > 0 ? netPay / load.total_miles : 0;
+  const netRPM    = load.total_miles > 0 ? netPay         / load.total_miles : 0;
+  const grossRPM  = load.total_miles > 0 ? load.gross_pay / load.total_miles : 0;
 
   const { breakEvenRPM } = calcBreakEven();
   let verdict: string | null = null;
@@ -692,10 +693,55 @@ function recalculateLoadFinancials(loadId: string): void {
 
   db.runSync(
     `UPDATE loads
-     SET additional_costs = ?, net_pay = ?, net_rate_per_mile = ?, verdict = ?
+     SET additional_costs = ?, net_pay = ?, gross_rate_per_mile = ?, net_rate_per_mile = ?, verdict = ?
      WHERE id = ?`,
-    [additionalCosts, netPay, netRPM, verdict, loadId]
+    [additionalCosts, netPay, grossRPM, netRPM, verdict, loadId]
   );
+}
+
+export interface LoadUpdate {
+  gross_pay?:      number;
+  status?:         string;
+  equipment_type?: string;
+  is_backhaul?:    number;
+  weight_lbs?:     number;
+  bol_number?:     string;
+  broker_name?:    string;
+  broker_mc?:      string;
+  notes?:          string;
+}
+
+/**
+ * Update editable fields on an existing load, then recalculate all derived
+ * financials (net_pay, RPM, verdict) so the dashboard stays accurate.
+ */
+export function updateLoad(id: string, updates: LoadUpdate): void {
+  db.runSync(
+    `UPDATE loads
+     SET gross_pay      = ?,
+         status         = ?,
+         equipment_type = ?,
+         is_backhaul    = ?,
+         weight_lbs     = ?,
+         bol_number     = ?,
+         broker_name    = ?,
+         broker_mc      = ?,
+         notes          = ?
+     WHERE id = ?`,
+    [
+      updates.gross_pay      ?? 0,
+      updates.status         ?? 'completed',
+      updates.equipment_type ?? 'dry_van',
+      updates.is_backhaul    ?? 0,
+      updates.weight_lbs     ?? 0,
+      updates.bol_number     ?? '',
+      updates.broker_name    ?? '',
+      updates.broker_mc      ?? '',
+      updates.notes          ?? '',
+      id,
+    ]
+  );
+  recalculateLoadFinancials(id);
 }
 
 /** Add one expense to an existing load and update its financials immediately. */

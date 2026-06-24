@@ -1,6 +1,6 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Modal, TextInput,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Modal, TextInput, Switch, Pressable,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -8,12 +8,22 @@ import { useTranslation } from 'react-i18next';
 import { getDateLocale } from '../lib/i18n';
 import { Colors, FontFamily, FontSize, Spacing, Radius, SectionLabel } from '../theme/theme';
 import {
-  getLoadById, LoadDetail, addSingleLoadExpense, deleteSingleLoadExpense,
+  getLoadById, LoadDetail, addSingleLoadExpense, deleteSingleLoadExpense, updateLoad,
 } from '../db/database';
 import { useAuth } from '../contexts/AuthContext';
 import { pushLoads } from '../lib/sync/loadsSync';
 
-// ── Helpers ──────────────────────────────────────────────────────────────────
+// ── Constants ─────────────────────────────────────────────────────────────────
+
+const STATUSES = ['completed', 'upcoming', 'in_progress', 'cancelled'] as const;
+type LoadStatus = typeof STATUSES[number];
+
+const LOAD_TYPES = [
+  'dry_van', 'reefer', 'flatbed', 'step_deck', 'intermodal',
+  'tanker', 'hazmat', 'rgn', 'power_only', 'auto_transport',
+] as const;
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
 // Maps DB status values to the camelCase keys under addLoad.statuses in i18n.
 const STATUS_I18N: Record<string, string> = {
@@ -118,6 +128,62 @@ export default function LoadDetailScreen({ loadId, onClose }: Props) {
     if (user) pushLoads(user.id);
   }
 
+  // ── Full load edit mode ───────────────────────────────────────────────────
+  const [editingLoad,  setEditingLoad]  = useState(false);
+  const [editGross,    setEditGross]    = useState('');
+  const [editStatus,   setEditStatus]   = useState<LoadStatus>('completed');
+  const [editEquip,    setEditEquip]    = useState('dry_van');
+  const [editBackhaul, setEditBackhaul] = useState(false);
+  const [editWeight,   setEditWeight]   = useState('');
+  const [editBol,      setEditBol]      = useState('');
+  const [editBroker,   setEditBroker]   = useState('');
+  const [editBrokerMC, setEditBrokerMC] = useState('');
+  const [editNotes,    setEditNotes]    = useState('');
+  const [statusOpen,   setStatusOpen]   = useState(false);
+  const [equipOpen,    setEquipOpen]    = useState(false);
+  const [saving,       setSaving]       = useState(false);
+
+  // Live net pay preview while editing gross
+  const editNetPay = useMemo(() => {
+    if (!load) return 0;
+    const g = parseFloat(editGross) || 0;
+    return g - load.fuel_cost_for_load - load.fixed_cost_for_load - load.additional_costs;
+  }, [editGross, load]);
+
+  function startEditLoad() {
+    if (!load) return;
+    setEditGross(String(load.gross_pay));
+    setEditStatus((load.status as LoadStatus) || 'completed');
+    setEditEquip(load.equipment_type);
+    setEditBackhaul(load.is_backhaul === 1);
+    setEditWeight(load.weight_lbs > 0 ? String(load.weight_lbs) : '');
+    setEditBol(load.bol_number);
+    setEditBroker(load.broker_name);
+    setEditBrokerMC(load.broker_mc);
+    setEditNotes(load.notes);
+    setEditingLoad(true);
+  }
+
+  function saveEditLoad() {
+    if (!load) return;
+    setSaving(true);
+    updateLoad(loadId, {
+      gross_pay:      parseFloat(editGross) || 0,
+      status:         editStatus,
+      equipment_type: editEquip,
+      is_backhaul:    editBackhaul ? 1 : 0,
+      weight_lbs:     parseFloat(editWeight) || 0,
+      bol_number:     editBol.trim(),
+      broker_name:    editBroker.trim(),
+      broker_mc:      editBrokerMC.trim(),
+      notes:          editNotes.trim(),
+    });
+    refreshLoad();
+    setSaving(false);
+    setEditingLoad(false);
+    if (user) pushLoads(user.id);
+  }
+
   if (!load) {
     return (
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
@@ -128,44 +194,73 @@ export default function LoadDetailScreen({ loadId, onClose }: Props) {
     );
   }
 
-  const netPositive  = load.net_pay >= 0;
+  const netPositive  = (editingLoad ? editNetPay : load.net_pay) >= 0;
   const hasOptional  = load.weight_lbs > 0 || load.bol_number || load.broker_name || load.notes;
   const hasStateMi   = load.stateMileage.length > 0;
   const hasFair      = load.benchmark_fair_pay_min != null && load.benchmark_fair_pay_max != null;
-  const statusColor  = STATUS_COLORS[load.status] ?? Colors.textSecondary;
+  const displayStatus = editingLoad ? editStatus : load.status;
+  const statusColor  = STATUS_COLORS[displayStatus] ?? Colors.textSecondary;
   const verdictColor = load.verdict ? VERDICT_COLORS[load.verdict] : null;
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
 
-      {/* Header */}
+      {/* Header — edit mode swaps close+edit for cancel+save */}
       <View style={styles.header}>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.headerEyebrow}>{t('loadDetail.eyebrow')}</Text>
-          <Text style={styles.headerTitle} numberOfLines={1}>
-            {load.pickup_city} → {load.delivery_city}
-          </Text>
-        </View>
-        <TouchableOpacity style={styles.closeBtn} onPress={onClose} activeOpacity={0.7}>
-          <Ionicons name="close" size={20} color={Colors.textSecondary} />
-        </TouchableOpacity>
+        {editingLoad ? (
+          <>
+            <TouchableOpacity onPress={() => setEditingLoad(false)} activeOpacity={0.7} style={styles.editCancelBtn}>
+              <Text style={styles.editCancelText}>{t('common.cancel')}</Text>
+            </TouchableOpacity>
+            <Text style={styles.headerTitle} numberOfLines={1}>{t('loadDetail.editTitle')}</Text>
+            <TouchableOpacity
+              onPress={saveEditLoad}
+              disabled={saving}
+              activeOpacity={0.7}
+              style={styles.editSaveBtn}
+            >
+              <Text style={[styles.editSaveText, saving && { opacity: 0.5 }]}>{t('common.save')}</Text>
+            </TouchableOpacity>
+          </>
+        ) : (
+          <>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.headerEyebrow}>{t('loadDetail.eyebrow')}</Text>
+              <Text style={styles.headerTitle} numberOfLines={1}>
+                {load.pickup_city} → {load.delivery_city}
+              </Text>
+            </View>
+            <TouchableOpacity style={styles.editIconBtn} onPress={startEditLoad} activeOpacity={0.7}>
+              <Ionicons name="pencil-outline" size={18} color={Colors.textSecondary} />
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.closeBtn} onPress={onClose} activeOpacity={0.7}>
+              <Ionicons name="close" size={20} color={Colors.textSecondary} />
+            </TouchableOpacity>
+          </>
+        )}
       </View>
 
       <ScrollView
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
       >
 
-        {/* Date + status + verdict badges */}
+        {/* Date + status badge — status tappable in edit mode */}
         <View style={styles.badgeRow}>
           <Text style={styles.dateLabel}>{fmt(load.date)}</Text>
           <View style={styles.badges}>
-            <View style={[styles.badge, { backgroundColor: statusColor + '20', borderColor: statusColor + '50' }]}>
+            <TouchableOpacity
+              style={[styles.badge, { backgroundColor: statusColor + '20', borderColor: statusColor + '50' }]}
+              onPress={editingLoad ? () => setStatusOpen(true) : undefined}
+              activeOpacity={editingLoad ? 0.7 : 1}
+            >
               <Text style={[styles.badgeText, { color: statusColor }]}>
-                {STATUS_I18N[load.status] ? t(`addLoad.statuses.${STATUS_I18N[load.status]}`) : load.status}
+                {STATUS_I18N[displayStatus] ? t(`addLoad.statuses.${STATUS_I18N[displayStatus]}`) : displayStatus}
               </Text>
-            </View>
-            {load.verdict && (
+              {editingLoad && <Ionicons name="chevron-down" size={11} color={statusColor} style={{ marginLeft: 3 }} />}
+            </TouchableOpacity>
+            {!editingLoad && load.verdict && (
               <View style={[styles.badge, { backgroundColor: (verdictColor ?? Colors.primary) + '20', borderColor: (verdictColor ?? Colors.primary) + '50' }]}>
                 <Text style={[styles.badgeText, { color: verdictColor ?? Colors.primary }]}>
                   {t(`loadDetail.verdict.${load.verdict}`)}
@@ -208,13 +303,28 @@ export default function LoadDetailScreen({ loadId, onClose }: Props) {
             <View style={styles.plHeroLeft}>
               <Text style={styles.plHeroLabel}>{t('loadDetail.netPay')}</Text>
               <Text style={[styles.plHeroValue, { color: netPositive ? Colors.primary : Colors.danger }]}>
-                {netPositive ? '+' : '-'}${money(Math.abs(load.net_pay))}
+                {netPositive ? '+' : '-'}${money(Math.abs(editingLoad ? editNetPay : load.net_pay))}
               </Text>
             </View>
             <View style={styles.plHeroDivider} />
             <View style={styles.plHeroRight}>
               <Text style={styles.plHeroLabel}>{t('loadDetail.grossPay')}</Text>
-              <Text style={styles.plHeroGross}>${money(load.gross_pay)}</Text>
+              {editingLoad ? (
+                <View style={styles.editGrossWrap}>
+                  <Text style={styles.editGrossDollar}>$</Text>
+                  <TextInput
+                    style={styles.editGrossInput}
+                    value={editGross}
+                    onChangeText={setEditGross}
+                    keyboardType="decimal-pad"
+                    placeholder="0"
+                    placeholderTextColor={Colors.textTertiary}
+                    selectTextOnFocus
+                  />
+                </View>
+              ) : (
+                <Text style={styles.plHeroGross}>${money(load.gross_pay)}</Text>
+              )}
             </View>
           </View>
           <Divider />
@@ -346,15 +456,87 @@ export default function LoadDetailScreen({ loadId, onClose }: Props) {
         {/* Load info */}
         <Text style={styles.sectionHeader}>{t('loadDetail.loadInfo')}</Text>
         <View style={styles.card}>
-          <DetailRow label={t('loadDetail.equipmentType')}  value={t(`addLoad.loadTypes.${load.equipment_type}`)} />
-          {load.is_backhaul === 1 && <><Divider /><DetailRow label={t('loadDetail.backhaul')}  value={t('loadDetail.yes')} valueColor={Colors.secondary} /></>}
-          {hasOptional && (
+          {/* Equipment type */}
+          {editingLoad ? (
+            <TouchableOpacity style={styles.editPickerRow} onPress={() => setEquipOpen(true)} activeOpacity={0.7}>
+              <Text style={styles.editPickerLabel}>{t('loadDetail.equipmentType')}</Text>
+              <View style={styles.editPickerRight}>
+                <Text style={styles.editPickerValue}>{t(`addLoad.loadTypes.${editEquip}`)}</Text>
+                <Ionicons name="chevron-forward" size={15} color={Colors.textTertiary} />
+              </View>
+            </TouchableOpacity>
+          ) : (
+            <DetailRow label={t('loadDetail.equipmentType')} value={t(`addLoad.loadTypes.${load.equipment_type}`)} />
+          )}
+
+          {/* Backhaul */}
+          <Divider />
+          {editingLoad ? (
+            <View style={styles.editToggleRow}>
+              <Text style={styles.editPickerLabel}>{t('loadDetail.backhaul')}</Text>
+              <Switch
+                value={editBackhaul}
+                onValueChange={setEditBackhaul}
+                trackColor={{ false: Colors.surfaceHigh, true: Colors.primaryMid }}
+                thumbColor={editBackhaul ? Colors.primary : Colors.textTertiary}
+              />
+            </View>
+          ) : (
+            load.is_backhaul === 1 && <DetailRow label={t('loadDetail.backhaul')} value={t('loadDetail.yes')} valueColor={Colors.secondary} />
+          )}
+
+          {/* Editable detail fields */}
+          {editingLoad ? (
             <>
-              {load.weight_lbs > 0 && <><Divider /><DetailRow label={t('loadDetail.weight')} value={`${load.weight_lbs.toLocaleString()} lbs`} /></>}
-              {!!load.bol_number   && <><Divider /><DetailRow label={t('loadDetail.bol')}   value={load.bol_number} /></>}
-              {!!load.broker_name  && <><Divider /><DetailRow label={t('loadDetail.broker')}  value={load.broker_name + (load.broker_mc ? ` (MC ${load.broker_mc})` : '')} /></>}
-              {!!load.notes        && <><Divider /><DetailRow label={t('loadDetail.notes')}   value={load.notes} /></>}
+              <Divider />
+              <View style={styles.editFieldRow}>
+                <Text style={styles.editFieldLabel}>{t('loadDetail.weight')}</Text>
+                <TextInput
+                  style={styles.editFieldInput}
+                  value={editWeight}
+                  onChangeText={setEditWeight}
+                  keyboardType="decimal-pad"
+                  placeholder="lbs"
+                  placeholderTextColor={Colors.textTertiary}
+                />
+              </View>
+              <Divider />
+              <View style={styles.editFieldRow}>
+                <Text style={styles.editFieldLabel}>{t('loadDetail.bol')}</Text>
+                <TextInput style={styles.editFieldInput} value={editBol} onChangeText={setEditBol} placeholder="BOL #" placeholderTextColor={Colors.textTertiary} />
+              </View>
+              <Divider />
+              <View style={styles.editFieldRow}>
+                <Text style={styles.editFieldLabel}>{t('loadDetail.broker')}</Text>
+                <TextInput style={styles.editFieldInput} value={editBroker} onChangeText={setEditBroker} placeholder="Broker name" placeholderTextColor={Colors.textTertiary} />
+              </View>
+              <Divider />
+              <View style={styles.editFieldRow}>
+                <Text style={styles.editFieldLabel}>MC #</Text>
+                <TextInput style={styles.editFieldInput} value={editBrokerMC} onChangeText={setEditBrokerMC} placeholder="MC number" placeholderTextColor={Colors.textTertiary} />
+              </View>
+              <Divider />
+              <View style={[styles.editFieldRow, { alignItems: 'flex-start', paddingVertical: 12 }]}>
+                <Text style={[styles.editFieldLabel, { paddingTop: 2 }]}>{t('loadDetail.notes')}</Text>
+                <TextInput
+                  style={[styles.editFieldInput, { minHeight: 60, textAlignVertical: 'top' }]}
+                  value={editNotes}
+                  onChangeText={setEditNotes}
+                  placeholder="Notes"
+                  placeholderTextColor={Colors.textTertiary}
+                  multiline
+                />
+              </View>
             </>
+          ) : (
+            hasOptional && (
+              <>
+                {load.weight_lbs > 0 && <><Divider /><DetailRow label={t('loadDetail.weight')} value={`${load.weight_lbs.toLocaleString()} lbs`} /></>}
+                {!!load.bol_number   && <><Divider /><DetailRow label={t('loadDetail.bol')} value={load.bol_number} /></>}
+                {!!load.broker_name  && <><Divider /><DetailRow label={t('loadDetail.broker')} value={load.broker_name + (load.broker_mc ? ` (MC ${load.broker_mc})` : '')} /></>}
+                {!!load.notes        && <><Divider /><DetailRow label={t('loadDetail.notes')} value={load.notes} /></>}
+              </>
+            )
           )}
         </View>
 
@@ -385,6 +567,54 @@ export default function LoadDetailScreen({ loadId, onClose }: Props) {
 
         <View style={{ height: 40 }} />
       </ScrollView>
+
+      {/* Status picker */}
+      <Modal visible={statusOpen} transparent animationType="fade" onRequestClose={() => setStatusOpen(false)}>
+        <Pressable style={styles.pickerBackdrop} onPress={() => setStatusOpen(false)}>
+          <Pressable style={styles.pickerSheet} onPress={e => e.stopPropagation()}>
+            <View style={styles.pickerHandle} />
+            <Text style={styles.pickerTitle}>{t('addLoad.status')}</Text>
+            {STATUSES.map(s => (
+              <TouchableOpacity
+                key={s}
+                style={[styles.pickerOption, s === editStatus && styles.pickerOptionActive]}
+                onPress={() => { setEditStatus(s); setStatusOpen(false); }}
+                activeOpacity={0.8}
+              >
+                <Text style={[styles.pickerOptionText, s === editStatus && styles.pickerOptionTextActive]}>
+                  {STATUS_I18N[s] ? t(`addLoad.statuses.${STATUS_I18N[s]}`) : s}
+                </Text>
+                {s === editStatus && <Ionicons name="checkmark" size={20} color={Colors.primary} />}
+              </TouchableOpacity>
+            ))}
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* Equipment picker */}
+      <Modal visible={equipOpen} transparent animationType="fade" onRequestClose={() => setEquipOpen(false)}>
+        <Pressable style={styles.pickerBackdrop} onPress={() => setEquipOpen(false)}>
+          <Pressable style={styles.pickerSheet} onPress={e => e.stopPropagation()}>
+            <View style={styles.pickerHandle} />
+            <Text style={styles.pickerTitle}>{t('addLoad.loadType')}</Text>
+            <ScrollView style={{ maxHeight: 320 }} showsVerticalScrollIndicator={false}>
+              {LOAD_TYPES.map(type => (
+                <TouchableOpacity
+                  key={type}
+                  style={[styles.pickerOption, type === editEquip && styles.pickerOptionActive]}
+                  onPress={() => { setEditEquip(type); setEquipOpen(false); }}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[styles.pickerOptionText, type === editEquip && styles.pickerOptionTextActive]}>
+                    {t(`addLoad.loadTypes.${type}`)}
+                  </Text>
+                  {type === editEquip && <Ionicons name="checkmark" size={20} color={Colors.primary} />}
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </Pressable>
+        </Pressable>
+      </Modal>
 
       {/* Full-screen BOL photo viewer */}
       <Modal visible={photoOpen} transparent animationType="fade" onRequestClose={() => setPhotoOpen(false)}>
@@ -480,6 +710,61 @@ const styles = StyleSheet.create({
   detailRow:   { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 13, paddingHorizontal: Spacing.cardPad },
   detailLabel: { fontFamily: FontFamily.regular, fontSize: FontSize.body, color: Colors.textSecondary },
   detailValue: { fontFamily: FontFamily.semiBold, fontSize: FontSize.body, color: Colors.textPrimary, textAlign: 'right', flex: 1, marginLeft: 16 },
+
+  // Header edit mode buttons
+  editCancelBtn: { paddingHorizontal: 4, paddingVertical: 6 },
+  editCancelText: { fontFamily: FontFamily.medium, fontSize: FontSize.body, color: Colors.textSecondary },
+  editSaveBtn: { paddingHorizontal: 4, paddingVertical: 6 },
+  editSaveText: { fontFamily: FontFamily.bold, fontSize: FontSize.body, color: Colors.primary },
+  editIconBtn: {
+    width: 34, height: 34, borderRadius: Radius.pill,
+    backgroundColor: Colors.surfaceHigh, borderWidth: 1, borderColor: Colors.border,
+    alignItems: 'center', justifyContent: 'center', marginRight: 8,
+  },
+
+  // Gross pay edit in hero
+  editGrossWrap: { flexDirection: 'row', alignItems: 'center' },
+  editGrossDollar: { fontFamily: FontFamily.bold, fontSize: FontSize.subtitle, color: Colors.textSecondary, marginRight: 2 },
+  editGrossInput: {
+    fontFamily: FontFamily.bold, fontSize: FontSize.subtitle, color: Colors.textPrimary,
+    borderBottomWidth: 1.5, borderBottomColor: Colors.primary, minWidth: 80,
+    padding: 0, textAlign: 'right',
+  },
+
+  // Load info edit fields
+  editPickerRow: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingVertical: 13, paddingHorizontal: Spacing.cardPad,
+  },
+  editPickerLabel: { fontFamily: FontFamily.regular, fontSize: FontSize.body, color: Colors.textSecondary },
+  editPickerRight: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  editPickerValue: { fontFamily: FontFamily.semiBold, fontSize: FontSize.body, color: Colors.textPrimary },
+  editToggleRow: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingVertical: 10, paddingHorizontal: Spacing.cardPad,
+  },
+  editFieldRow: {
+    flexDirection: 'row', alignItems: 'center',
+    paddingVertical: 8, paddingHorizontal: Spacing.cardPad, gap: 12,
+  },
+  editFieldLabel: { fontFamily: FontFamily.regular, fontSize: FontSize.body, color: Colors.textSecondary, width: 80 },
+  editFieldInput: {
+    flex: 1, fontFamily: FontFamily.semiBold, fontSize: FontSize.body, color: Colors.textPrimary,
+    borderBottomWidth: 1, borderBottomColor: Colors.border, padding: 0, paddingBottom: 4,
+  },
+
+  // Picker modals (status + equipment)
+  pickerBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
+  pickerSheet: {
+    backgroundColor: Colors.surface, borderTopLeftRadius: Radius.xl, borderTopRightRadius: Radius.xl,
+    paddingBottom: 32, paddingHorizontal: Spacing.screenH,
+  },
+  pickerHandle: { width: 36, height: 4, borderRadius: 2, backgroundColor: Colors.border, alignSelf: 'center', marginTop: 12, marginBottom: 8 },
+  pickerTitle: { fontFamily: FontFamily.bold, fontSize: FontSize.subtitle, color: Colors.textPrimary, paddingVertical: 14 },
+  pickerOption: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 14, borderTopWidth: 1, borderTopColor: Colors.borderSubtle },
+  pickerOptionActive: { },
+  pickerOptionText: { fontFamily: FontFamily.medium, fontSize: FontSize.body, color: Colors.textPrimary },
+  pickerOptionTextActive: { color: Colors.primary },
 
   // Expense editing
   expEditHeader: {
