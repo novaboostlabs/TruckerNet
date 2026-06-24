@@ -497,6 +497,8 @@
     "fixedCost": "固定成本",
     "additionalCosts": "额外成本",
     "deductionsTotal": "扣款合计",
+    "deductions": "扣款",
+    "addExpense": "添加费用",
     "grossRPM": "总每英里收入",
     "netRPM": "净每英里收入",
     "fairMarketRange": "市场公允价区间",

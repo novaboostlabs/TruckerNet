@@ -497,6 +497,8 @@
     "fixedCost": "Costo fijo",
     "additionalCosts": "Costos adicionales",
     "deductionsTotal": "Total deducciones",
+    "deductions": "Deducciones",
+    "addExpense": "Agregar gasto",
     "grossRPM": "RPM Bruto",
     "netRPM": "RPM Neto",
     "fairMarketRange": "Rango de mercado justo",

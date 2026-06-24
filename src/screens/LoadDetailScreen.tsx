@@ -1,13 +1,17 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Modal,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Modal, TextInput,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { getDateLocale } from '../lib/i18n';
 import { Colors, FontFamily, FontSize, Spacing, Radius, SectionLabel } from '../theme/theme';
-import { getLoadById, LoadDetail } from '../db/database';
+import {
+  getLoadById, LoadDetail, addSingleLoadExpense, deleteSingleLoadExpense,
+} from '../db/database';
+import { useAuth } from '../contexts/AuthContext';
+import { pushLoads } from '../lib/sync/loadsSync';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -65,14 +69,54 @@ interface Props {
   onClose: () => void;
 }
 
+// Quick-add expense categories (matches AddLoadScreen chips)
+const EXPENSE_CATS = [
+  { cat: 'scale',     labelKey: 'addLoad.expCat.scale',     defaultAmt: '11' },
+  { cat: 'lumper',    labelKey: 'addLoad.expCat.lumper',     defaultAmt: '' },
+  { cat: 'toll',      labelKey: 'addLoad.expCat.toll',       defaultAmt: '' },
+  { cat: 'detention', labelKey: 'addLoad.expCat.detention',  defaultAmt: '' },
+  { cat: 'other',     labelKey: 'addLoad.expCat.other',      defaultAmt: '' },
+];
+
 export default function LoadDetailScreen({ loadId, onClose }: Props) {
   const { t } = useTranslation();
-  const [load, setLoad] = useState<LoadDetail | null>(null);
+  const { user } = useAuth();
+  const [load,      setLoad]      = useState<LoadDetail | null>(null);
   const [photoOpen, setPhotoOpen] = useState(false);
+  const [editingExp, setEditingExp] = useState(false);
 
-  useEffect(() => {
+  // Pending expense being typed in (null = no add row showing)
+  const [pending, setPending] = useState<{ label: string; amount: string; category: string } | null>(null);
+
+  const refreshLoad = useCallback(() => {
     setLoad(getLoadById(loadId));
   }, [loadId]);
+
+  useEffect(() => { refreshLoad(); }, [refreshLoad]);
+
+  function handleAddChip(cat: string, defaultLabel: string, defaultAmt: string) {
+    setPending({ label: defaultLabel, amount: defaultAmt, category: cat });
+  }
+
+  function handleConfirmExpense() {
+    if (!pending) return;
+    const amt = parseFloat(pending.amount);
+    if (!amt || amt <= 0) { setPending(null); return; }
+    addSingleLoadExpense(loadId, {
+      label:    pending.label.trim() || pending.category,
+      category: pending.category,
+      amount:   amt,
+    });
+    refreshLoad();
+    setPending(null);
+    if (user) pushLoads(user.id);
+  }
+
+  function handleDeleteExpense(expenseId: string) {
+    deleteSingleLoadExpense(expenseId, loadId);
+    refreshLoad();
+    if (user) pushLoads(user.id);
+  }
 
   if (!load) {
     return (
@@ -177,18 +221,109 @@ export default function LoadDetailScreen({ loadId, onClose }: Props) {
           <DetailRow label={t('loadDetail.fuelCost')}   value={`$${money(load.fuel_cost_for_load)}`} />
           <Divider />
           <DetailRow label={t('loadDetail.fixedCost')}  value={`$${money(load.fixed_cost_for_load)}`} />
-          {load.loadExpenses?.length > 0 && (
+          {/* ── Expense rows — editable ── */}
+          {(load.loadExpenses?.length > 0 || editingExp) && (
             <>
               <Divider />
-              {load.loadExpenses.map((e, i) => (
-                <React.Fragment key={e.id}>
-                  <DetailRow label={e.label} value={`-$${money(e.amount)}`} valueColor={Colors.danger} />
-                  {i < load.loadExpenses.length - 1 && <Divider />}
-                </React.Fragment>
+              {/* Edit / Done toggle */}
+              <View style={styles.expEditHeader}>
+                <Text style={styles.expEditLabel}>{t('loadDetail.deductions')}</Text>
+                <TouchableOpacity
+                  onPress={() => { setEditingExp(e => !e); setPending(null); }}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                  <Text style={styles.expEditToggle}>
+                    {editingExp ? t('common.done') : t('common.edit')}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              {load.loadExpenses.map((e) => (
+                <View key={e.id} style={styles.expRow}>
+                  <Text style={styles.expRowLabel} numberOfLines={1}>{e.label}</Text>
+                  <Text style={styles.expRowAmount}>-${money(e.amount)}</Text>
+                  {editingExp && (
+                    <TouchableOpacity
+                      onPress={() => handleDeleteExpense(e.id)}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    >
+                      <Ionicons name="close-circle" size={18} color={Colors.danger} />
+                    </TouchableOpacity>
+                  )}
+                </View>
               ))}
+
+              {/* Pending add row */}
+              {editingExp && pending && (
+                <View style={styles.expPendingRow}>
+                  <TextInput
+                    style={styles.expPendingLabel}
+                    value={pending.label}
+                    onChangeText={(v) => setPending(p => p ? { ...p, label: v } : p)}
+                    placeholder={t('addLoad.expCat.other')}
+                    placeholderTextColor={Colors.textTertiary}
+                  />
+                  <View style={styles.expPendingAmtWrap}>
+                    <Text style={styles.expPendingDollar}>$</Text>
+                    <TextInput
+                      style={styles.expPendingAmt}
+                      value={pending.amount}
+                      onChangeText={(v) => setPending(p => p ? { ...p, amount: v } : p)}
+                      keyboardType="decimal-pad"
+                      placeholder="0"
+                      placeholderTextColor={Colors.textTertiary}
+                      autoFocus
+                    />
+                  </View>
+                  <TouchableOpacity onPress={handleConfirmExpense} style={styles.expConfirmBtn}>
+                    <Ionicons name="checkmark" size={16} color={Colors.background} />
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() => setPending(null)}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  >
+                    <Ionicons name="close" size={16} color={Colors.textSecondary} />
+                  </TouchableOpacity>
+                </View>
+              )}
+
+              {/* Quick-add chips — visible in edit mode */}
+              {editingExp && !pending && (
+                <View style={styles.expChips}>
+                  {EXPENSE_CATS.map(({ cat, labelKey, defaultAmt }) => (
+                    <TouchableOpacity
+                      key={cat}
+                      style={styles.expChip}
+                      onPress={() => handleAddChip(cat, t(labelKey), defaultAmt)}
+                      activeOpacity={0.75}
+                    >
+                      <Ionicons name="add" size={12} color={Colors.textSecondary} />
+                      <Text style={styles.expChipText}>{t(labelKey)}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
             </>
           )}
-          {load.additional_costs > 0 && <><Divider /><DetailRow label={t('loadDetail.deductionsTotal')} value={`-$${money(load.additional_costs)}`} valueColor={Colors.danger} /></>}
+
+          {/* "Add expense" entry point when no expenses yet and not editing */}
+          {!editingExp && (load.loadExpenses?.length ?? 0) === 0 && (
+            <>
+              <Divider />
+              <TouchableOpacity
+                style={styles.expAddRow}
+                onPress={() => setEditingExp(true)}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="add-circle-outline" size={16} color={Colors.primary} />
+                <Text style={styles.expAddRowText}>{t('loadDetail.addExpense')}</Text>
+              </TouchableOpacity>
+            </>
+          )}
+
+          {load.additional_costs > 0 && (
+            <><Divider /><DetailRow label={t('loadDetail.deductionsTotal')} value={`-$${money(load.additional_costs)}`} valueColor={Colors.danger} /></>
+          )}
           <Divider />
           <DetailRow label={t('loadDetail.grossRPM')}   value={`$${load.gross_rate_per_mile.toFixed(3)}/mi`} />
           <Divider />
@@ -345,4 +480,52 @@ const styles = StyleSheet.create({
   detailRow:   { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 13, paddingHorizontal: Spacing.cardPad },
   detailLabel: { fontFamily: FontFamily.regular, fontSize: FontSize.body, color: Colors.textSecondary },
   detailValue: { fontFamily: FontFamily.semiBold, fontSize: FontSize.body, color: Colors.textPrimary, textAlign: 'right', flex: 1, marginLeft: 16 },
+
+  // Expense editing
+  expEditHeader: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    paddingVertical: 10, paddingHorizontal: Spacing.cardPad,
+  },
+  expEditLabel: { fontFamily: FontFamily.medium, fontSize: FontSize.caption, color: Colors.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5 },
+  expEditToggle: { fontFamily: FontFamily.semiBold, fontSize: FontSize.label, color: Colors.primary },
+  expRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    paddingVertical: 10, paddingHorizontal: Spacing.cardPad,
+    borderTopWidth: 1, borderTopColor: Colors.borderSubtle,
+  },
+  expRowLabel: { flex: 1, fontFamily: FontFamily.regular, fontSize: FontSize.body, color: Colors.textSecondary },
+  expRowAmount: { fontFamily: FontFamily.semiBold, fontSize: FontSize.body, color: Colors.danger },
+  expPendingRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    paddingVertical: 8, paddingHorizontal: Spacing.cardPad,
+    backgroundColor: Colors.surfaceHigh,
+    borderTopWidth: 1, borderTopColor: Colors.borderSubtle,
+  },
+  expPendingLabel: {
+    flex: 1, fontFamily: FontFamily.regular, fontSize: FontSize.label,
+    color: Colors.textPrimary, padding: 0,
+  },
+  expPendingAmtWrap: { flexDirection: 'row', alignItems: 'center', gap: 3 },
+  expPendingDollar: { fontFamily: FontFamily.medium, fontSize: FontSize.label, color: Colors.textSecondary },
+  expPendingAmt: {
+    width: 70, fontFamily: FontFamily.semiBold, fontSize: FontSize.label,
+    color: Colors.textPrimary, textAlign: 'right', padding: 0,
+  },
+  expConfirmBtn: {
+    backgroundColor: Colors.primary, borderRadius: Radius.sm,
+    padding: 5, alignItems: 'center', justifyContent: 'center',
+  },
+  expChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 7, paddingHorizontal: Spacing.cardPad, paddingVertical: 10, borderTopWidth: 1, borderTopColor: Colors.borderSubtle },
+  expChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 3,
+    backgroundColor: Colors.surfaceHigh, borderRadius: Radius.pill,
+    paddingHorizontal: 10, paddingVertical: 6,
+    borderWidth: 1, borderColor: Colors.border,
+  },
+  expChipText: { fontFamily: FontFamily.medium, fontSize: FontSize.caption, color: Colors.textSecondary },
+  expAddRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 7,
+    paddingVertical: 12, paddingHorizontal: Spacing.cardPad,
+  },
+  expAddRowText: { fontFamily: FontFamily.medium, fontSize: FontSize.label, color: Colors.primary },
 });

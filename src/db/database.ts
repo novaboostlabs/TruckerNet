@@ -657,6 +657,65 @@ export interface LoadExpenseRow {
   created_at: string;
 }
 
+/**
+ * Recompute additional_costs, net_pay, net_rate_per_mile, and verdict on a
+ * load after its load_expenses rows change. Called after every add/delete.
+ */
+function recalculateLoadFinancials(loadId: string): void {
+  const load = db.getFirstSync<{
+    gross_pay: number;
+    fuel_cost_for_load: number;
+    fixed_cost_for_load: number;
+    total_miles: number;
+  }>(
+    `SELECT gross_pay, fuel_cost_for_load, fixed_cost_for_load, total_miles
+     FROM loads WHERE id = ?`,
+    [loadId]
+  );
+  if (!load) return;
+
+  const expRow = db.getFirstSync<{ total: number }>(
+    `SELECT COALESCE(SUM(amount), 0) as total FROM load_expenses WHERE load_id = ?`,
+    [loadId]
+  );
+  const additionalCosts = expRow?.total ?? 0;
+  const netPay    = load.gross_pay - load.fuel_cost_for_load - load.fixed_cost_for_load - additionalCosts;
+  const netRPM    = load.total_miles > 0 ? netPay / load.total_miles : 0;
+
+  const { breakEvenRPM } = calcBreakEven();
+  let verdict: string | null = null;
+  if (breakEvenRPM > 0) {
+    if (netRPM >= breakEvenRPM * 1.15)   verdict = 'green';
+    else if (netRPM >= breakEvenRPM)      verdict = 'amber';
+    else                                  verdict = 'red';
+  }
+
+  db.runSync(
+    `UPDATE loads
+     SET additional_costs = ?, net_pay = ?, net_rate_per_mile = ?, verdict = ?
+     WHERE id = ?`,
+    [additionalCosts, netPay, netRPM, verdict, loadId]
+  );
+}
+
+/** Add one expense to an existing load and update its financials immediately. */
+export function addSingleLoadExpense(loadId: string, expense: LoadExpenseInsert): void {
+  const now  = new Date().toISOString();
+  const date = now.split('T')[0];
+  db.runSync(
+    `INSERT INTO load_expenses (id, load_id, label, category, amount, date, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    [uuidv4(), loadId, expense.label, expense.category, expense.amount, date, now]
+  );
+  recalculateLoadFinancials(loadId);
+}
+
+/** Remove one expense from an existing load and update its financials immediately. */
+export function deleteSingleLoadExpense(expenseId: string, loadId: string): void {
+  db.runSync('DELETE FROM load_expenses WHERE id = ?', [expenseId]);
+  recalculateLoadFinancials(loadId);
+}
+
 export function getLoadExpenses(loadId: string): LoadExpenseRow[] {
   return db.getAllSync<LoadExpenseRow>(
     `SELECT id, load_id, label, category, amount, date, created_at

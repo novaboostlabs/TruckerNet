@@ -497,6 +497,8 @@
     "fixedCost": "Fixed cost",
     "additionalCosts": "Additional costs",
     "deductionsTotal": "Total deductions",
+    "deductions": "Deductions",
+    "addExpense": "Add expense",
     "grossRPM": "Gross RPM",
     "netRPM": "Net RPM",
     "fairMarketRange": "Fair market range",
