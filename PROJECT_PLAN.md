@@ -75,8 +75,52 @@ _(Add any other launch-gating items here as they come up.)_
 
 ## 0.6 📋 PHASE 1 BACKLOG — recorded, fix later (do NOT action yet)
 
-User-reported items (2026-06-19). Captured so nothing is forgotten; **explicitly
-deferred** — do not start these until the user calls for them. Newest batch first.
+User-reported items. Captured so nothing is forgotten; **explicitly deferred** —
+do not start these until the user calls for them. Newest batch first.
+
+### Added 2026-06-23
+
+11. **Load-attached expenses + net profit per load.** Drivers should be able to log
+    an expense (e.g. a scale ticket, toll, lumper fee) and attach it directly to the
+    load they're currently running. That expense reduces the net pay on that specific
+    load, and ripples through to the "This Week" / "This Month" dashboard cards so
+    gross vs. net is always accurate. Bonus: a calendar view of expenses by date for
+    accounting purposes. Implementation: add `load_id` FK on a new `load_expenses`
+    table (or reuse `user_expenses` with a nullable `load_id`), wire through to
+    `net_pay` calculation in `saveLoad` and dashboard queries.
+
+12. **Splash screen + app icon: use teal (#00C896), not amber.** The animated splash
+    screen and any icon assets should use the primary teal green (`Colors.primary =
+    #00C896`) as the accent, not amber (`Colors.secondary = #E8A020`). Amber is used
+    sparingly in-app; the splash should lead with the brand's primary color. Also
+    update the `expo-notifications` color in `app.json` (currently `#E8A020`).
+
+13. **Paywall/funnel full screens.** The current "Upgrade to Pro to see…" triggers
+    open `PaywallScreen` as a modal. Each trigger point (Fair Market in CheckLoad,
+    Fair Market in AddLoad, IFTA tab, History past-periods, load limit) should have
+    a tailored headline and value prop that speaks to what the driver just tried to
+    do. Review `PaywallScreen.tsx` — the `reason` prop already tailors the subtitle,
+    but the screen may need a stronger visual treatment to convert at $34.99/mo.
+    Also ensure the paywall is shown correctly from all 5 trigger points.
+
+14. **Blur state mileage in Add Load for free users.** The per-state mileage breakdown
+    section in `AddLoadScreen` (IFTA data) is currently visible to all users. Free
+    users should see the state rows blurred with an "Upgrade to Pro — auto state
+    mileage for IFTA" overlay, matching the IFTA tab blur-teaser pattern. Pro users
+    see it unblurred as today.
+
+15. **Fuel fill-up notification reminder.** Add a local notification that fires daily
+    at a time that makes sense for drivers (e.g. 8pm) reminding them to log their
+    latest fuel fill-up if they haven't logged one today. Should only fire if the
+    user hasn't already logged a fill-up that day (check last entry date). Controlled
+    by the existing Notifications toggle in Settings.
+
+16. **Add Load status default: change from "completed" to "upcoming".** When a driver
+    opens Add Load, the status defaults to "completed" which makes no sense — they're
+    in the process of adding a load they're about to run or are currently on. Change
+    default to "upcoming" (or "in_progress" if they're actively on a load). Consider
+    smart defaulting: if there's already an in-progress load, default to "completed"
+    (they're probably logging a finished run); otherwise default to "upcoming".
 
 1. **Per-session data congruency / one source of truth.** Expenses page shows
    conflicting info entered across different sessions (e.g. fuel added one session,
