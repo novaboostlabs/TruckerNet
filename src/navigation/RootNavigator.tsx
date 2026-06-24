@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { View, ActivityIndicator } from 'react-native';
+import * as SplashScreen from 'expo-splash-screen';
+import AppSplashScreen from '../screens/AppSplashScreen';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useAuth } from '../contexts/AuthContext';
 import { Colors } from '../theme/theme';
@@ -38,10 +40,14 @@ type Step =
   | 'onboarding_result'
   | 'app';
 
+// Keep native splash visible until our animated JS splash finishes.
+SplashScreen.preventAutoHideAsync().catch(() => {});
+
 export default function RootNavigator() {
   const { session, loading: authLoading } = useAuth();
-  const [step, setStep] = useState<Step>('loading');
-  const initialized     = useRef(false);
+  const [step, setStep]           = useState<Step>('loading');
+  const [splashDone, setSplashDone] = useState(false);
+  const initialized               = useRef(false);
 
   // ── Determine starting point ONCE when auth finishes loading ──
   useEffect(() => {
@@ -137,11 +143,14 @@ export default function RootNavigator() {
 
   // ── Render based on step ──
 
-  if (step === 'loading') {
+  if (step === 'loading' || !splashDone) {
     return (
-      <View style={{ flex: 1, backgroundColor: Colors.background, alignItems: 'center', justifyContent: 'center' }}>
-        <ActivityIndicator color={Colors.primary} />
-      </View>
+      <AppSplashScreen
+        onDone={() => {
+          SplashScreen.hideAsync().catch(() => {});
+          setSplashDone(true);
+        }}
+      />
     );
   }
 
