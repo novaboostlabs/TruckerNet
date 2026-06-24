@@ -24,6 +24,42 @@ _Last updated: 2026-06-23 — Crowdsourced rate engine built. Onboarding pre-pop
 
 ---
 
+## 0a. Long-Term Business Vision (2026-06-23)
+
+**The $50K MRR North Star is step 1 of a much larger business.**
+Full strategic detail in memory file `enterprise-strategy.md`. Key points:
+
+**Tier roadmap:**
+- **Driver Pro** ($34.99/mo) → $5–10M ARR — individual owner-operators. Building now.
+- **Fleet** ($89.99–149.99/mo, 2–10 trucks) → $25–50M ARR. Adds fleet dashboard,
+  combined IFTA, dispatcher view, per-driver break-even.
+- **Enterprise** ($199–699/mo, 11–100+ trucks) → $50–100M ARR. Adds accounting
+  exports, API access, role-based access, SLA, account manager.
+- **Mega-carrier B2B** (custom annual $150–500K/yr per carrier) → $100M+ ARR.
+
+**The real enterprise play — selling to C-suite at carriers like Schneider/Swift:**
+This is NOT a driver app distributed through carriers. It is a pure B2B platform
+sold to the CFO/VP of Operations. Three value props, each worth paying for alone:
+1. **Fleet IFTA automation** — eliminates entire compliance teams, saves $30–50K/yr
+2. **Competitive rate intelligence** — real driver-reported lane rates (not broker
+   estimates), a data product no competitor can replicate, licensable to carriers
+   and brokers. THE crowdsourced rate database is the long-term moat.
+3. **Driver & lane profitability analytics** — per-driver, per-lane true net P&L;
+   which drivers make money, which lanes are actually profitable, which brokers
+   underpay. Impacts operational decisions worth tens of millions.
+
+**Founder advantage:** Direct experience at Swift and Schneider. Authentic insight
+into carrier operations that no tech competitor can fake.
+
+**Sequencing:** Consumer product first → fleet case studies → mid-size carrier deals
+→ mega-carrier data licensing. Each stage funds the next. Do NOT build enterprise
+features before consumer is solid.
+
+**Exit path:** Strategic acquisition by TMS provider (McLeod, Oracle Transportation)
+or PE roll-up wanting the data asset, OR raise Series A at $3–5M ARR.
+
+---
+
 ## 0. North Star & PRD (read first — frames every decision)
 
 **The full product vision is the canonical [`PRD.md`](./PRD.md) (TruckerNet PRD
