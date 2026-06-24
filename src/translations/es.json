@@ -508,7 +508,17 @@
   "paywall": {
     "badge": "DRIVER PRO",
     "title": "Desbloquea Driver Pro",
+    "titleFairMarket": "Conoce lo que debe pagar cada carga",
+    "titleLoadLimit": "Sin límites",
+    "titleHistory": "Tu P&L completo, cada carga",
+    "titleIfta": "IFTA automático — sin papeles",
+    "titleExport": "Exporta tus reportes",
     "subtitleGeneric": "Todo lo que necesitas para manejar tu negocio como un profesional.",
+    "unlocks": "ACTIVA",
+    "roi": "Una mejor negociación paga todo el año.",
+    "bestValue": "MEJOR VALOR",
+    "cancelAnytime": "Cancela cuando quieras",
+    "secure": "Pago seguro",
     "reason": {
       "fairMarket": "Mira lo que cada carga debería pagar de verdad.",
       "loadLimit": "Registraste 15 cargas este mes — hazlo ilimitado.",

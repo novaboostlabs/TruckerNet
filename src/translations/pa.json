@@ -508,7 +508,17 @@
   "paywall": {
     "badge": "DRIVER PRO",
     "title": "Driver Pro ਅਨਲਾਕ ਕਰੋ",
+    "titleFairMarket": "ਜਾਣੋ ਹਰ ਲੋਡ ਕਿੰਨਾ ਦੇਣਾ ਚਾਹੀਦਾ ਹੈ",
+    "titleLoadLimit": "ਅਸੀਮਤ ਜਾਓ",
+    "titleHistory": "ਤੁਹਾਡਾ ਪੂਰਾ P&L, ਹਰ ਲੋਡ",
+    "titleIfta": "ਆਟੋ IFTA — ਕਦੇ ਹੱਥੀਂ ਨਹੀਂ",
+    "titleExport": "ਆਪਣੇ ਰਿਪੋਰਟ ਐਕਸਪੋਰਟ ਕਰੋ",
     "subtitleGeneric": "ਆਪਣਾ ਕਾਰੋਬਾਰ ਪ੍ਰੋ ਵਾਂਗ ਚਲਾਉਣ ਲਈ ਸਭ ਕੁਝ।",
+    "unlocks": "ਖੁੱਲ੍ਹਦਾ ਹੈ",
+    "roi": "ਇੱਕ ਵਧੀਆ ਗੱਲਬਾਤ ਸਾਰੇ ਸਾਲ ਦੀ ਕੀਮਤ ਅਦਾ ਕਰਦੀ ਹੈ।",
+    "bestValue": "ਸਭ ਤੋਂ ਵਧੀਆ",
+    "cancelAnytime": "ਕਦੇ ਵੀ ਰੱਦ ਕਰੋ",
+    "secure": "ਸੁਰੱਖਿਅਤ ਭੁਗਤਾਨ",
     "reason": {
       "fairMarket": "ਦੇਖੋ ਹਰ ਲੋਡ ਨੂੰ ਅਸਲ ਵਿੱਚ ਕਿੰਨਾ ਭੁਗਤਾਨ ਮਿਲਣਾ ਚਾਹੀਦਾ ਹੈ।",
       "loadLimit": "ਤੁਸੀਂ ਇਸ ਮਹੀਨੇ 15 ਲੋਡ ਦਰਜ ਕੀਤੇ — ਅਸੀਮਤ ਕਰੋ।",

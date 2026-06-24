@@ -508,7 +508,17 @@
   "paywall": {
     "badge": "DRIVER PRO",
     "title": "解锁 Driver Pro",
+    "titleFairMarket": "了解每票货应该支付多少",
+    "titleLoadLimit": "无限制运单",
+    "titleHistory": "完整盈亏，每票在册",
+    "titleIfta": "自动IFTA — 告别手动申报",
+    "titleExport": "导出您的报告",
     "subtitleGeneric": "像专业人士一样经营业务所需的一切。",
+    "unlocks": "解锁",
+    "roi": "一次更好的报价谈判，足以支付全年费用。",
+    "bestValue": "最划算",
+    "cancelAnytime": "随时取消",
+    "secure": "安全支付",
     "reason": {
       "fairMarket": "看看每一单实际应该付多少。",
       "loadLimit": "本月你已记录 15 单——升级为无限量。",

@@ -1,17 +1,13 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert, Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
-import {
-  Colors, FontFamily, FontSize, Spacing, Radius,
-} from '../theme/theme';
+import { Colors, FontFamily, FontSize, Spacing, Radius } from '../theme/theme';
 import { useSubscription } from '../contexts/SubscriptionContext';
 
-// What triggered the paywall — tailors the headline so the upsell speaks to
-// exactly the value the user just reached for. Maps to paywall.reason.* keys.
 export type PaywallReason =
   | 'generic'
   | 'fairMarket'
@@ -26,14 +22,35 @@ const URL_PRIVACY = 'https://truckernet.novaboostlabs.co/privacy';
 const PRICE_MONTHLY = '$34.99';
 const PRICE_ANNUAL  = '$297.99';
 
-const FEATURES: { icon: React.ComponentProps<typeof Ionicons>['name']; key: string }[] = [
-  { icon: 'pricetags-outline',  key: 'fairMarket' },
-  { icon: 'infinite-outline',   key: 'unlimitedLoads' },
-  { icon: 'calendar-outline',   key: 'history' },
+type FeatureKey = 'fairMarket' | 'unlimitedLoads' | 'history' | 'ifta' | 'sync' | 'analytics';
+
+interface Feature {
+  icon: React.ComponentProps<typeof Ionicons>['name'];
+  key: FeatureKey;
+}
+
+const ALL_FEATURES: Feature[] = [
+  { icon: 'pricetags-outline',     key: 'fairMarket' },
+  { icon: 'infinite-outline',      key: 'unlimitedLoads' },
+  { icon: 'calendar-outline',      key: 'history' },
   { icon: 'document-text-outline', key: 'ifta' },
-  { icon: 'sync-outline',       key: 'sync' },
-  { icon: 'stats-chart-outline', key: 'analytics' },
+  { icon: 'sync-outline',          key: 'sync' },
+  { icon: 'stats-chart-outline',   key: 'analytics' },
 ];
+
+// Per-reason config: which i18n title key + which feature to surface first.
+const REASON_CONFIG: Record<PaywallReason, {
+  titleKey: string;
+  heroIcon: React.ComponentProps<typeof Ionicons>['name'];
+  highlight: FeatureKey;
+}> = {
+  generic:    { titleKey: 'paywall.title',              heroIcon: 'diamond',             highlight: 'fairMarket' },
+  fairMarket: { titleKey: 'paywall.titleFairMarket',    heroIcon: 'pricetags-outline',   highlight: 'fairMarket' },
+  loadLimit:  { titleKey: 'paywall.titleLoadLimit',     heroIcon: 'infinite-outline',    highlight: 'unlimitedLoads' },
+  history:    { titleKey: 'paywall.titleHistory',       heroIcon: 'calendar-outline',    highlight: 'history' },
+  ifta:       { titleKey: 'paywall.titleIfta',          heroIcon: 'map-outline',         highlight: 'ifta' },
+  export:     { titleKey: 'paywall.titleExport',        heroIcon: 'download-outline',    highlight: 'ifta' },
+};
 
 interface Props {
   onClose: () => void;
@@ -46,17 +63,24 @@ export default function PaywallScreen({ onClose, reason = 'generic' }: Props) {
   const [plan, setPlan] = useState<'annual' | 'monthly'>('annual');
   const [busy, setBusy] = useState(false);
 
-  const reasonText =
-    reason === 'generic'
-      ? t('paywall.subtitleGeneric')
-      : t(`paywall.reason.${reason}`);
+  const config = REASON_CONFIG[reason];
+
+  // Put the triggered feature first, then the rest in original order.
+  const features = useMemo(() => {
+    const highlighted = ALL_FEATURES.find(f => f.key === config.highlight)!;
+    const rest = ALL_FEATURES.filter(f => f.key !== config.highlight);
+    return [highlighted, ...rest];
+  }, [config.highlight]);
+
+  const subtitle = reason === 'generic'
+    ? t('paywall.subtitleGeneric')
+    : t(`paywall.reason.${reason}`);
 
   async function handlePurchase() {
     setBusy(true);
     const { error } = await purchase(plan);
     setBusy(false);
     if (error) {
-      // Mock-first: products aren't live yet, so surface the honest message.
       Alert.alert(t('paywall.comingSoonTitle'), error);
       return;
     }
@@ -74,29 +98,27 @@ export default function PaywallScreen({ onClose, reason = 'generic' }: Props) {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
-      {/* Close */}
+      {/* Close button */}
       <TouchableOpacity style={styles.closeBtn} onPress={onClose} activeOpacity={0.7}>
         <Ionicons name="close" size={20} color={Colors.textSecondary} />
       </TouchableOpacity>
 
-      <ScrollView
-        contentContainerStyle={styles.content}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Crown badge */}
-        <View style={styles.crownWrap}>
-          <View style={styles.crownCircle}>
-            <Ionicons name="diamond" size={26} color={Colors.secondary} />
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+
+        {/* ── Hero ── */}
+        <View style={styles.heroWrap}>
+          <View style={styles.heroIconCircle}>
+            <Ionicons name={config.heroIcon} size={28} color={Colors.secondary} />
           </View>
           <View style={styles.proBadge}>
             <Text style={styles.proBadgeText}>{t('paywall.badge')}</Text>
           </View>
         </View>
 
-        <Text style={styles.title}>{t('paywall.title')}</Text>
-        <Text style={styles.subtitle}>{reasonText}</Text>
+        <Text style={styles.title}>{t(config.titleKey)}</Text>
+        <Text style={styles.subtitle}>{subtitle}</Text>
 
-        {/* Already Pro short-circuit (e.g. mock toggle on) */}
+        {/* Already Pro short-circuit */}
         {isPro && (
           <View style={styles.alreadyProCard}>
             <Ionicons name="checkmark-circle" size={20} color={Colors.primary} />
@@ -104,22 +126,49 @@ export default function PaywallScreen({ onClose, reason = 'generic' }: Props) {
           </View>
         )}
 
-        {/* Feature list */}
+        {/* ── Feature list — highlighted feature appears first ── */}
         <View style={styles.featureCard}>
-          {FEATURES.map((f, i) => (
-            <View key={f.key} style={[styles.featureRow, i > 0 && styles.featureDivider]}>
-              <View style={styles.featureIcon}>
-                <Ionicons name={f.icon} size={18} color={Colors.primary} />
+          {features.map((f, i) => {
+            const isHighlight = f.key === config.highlight;
+            return (
+              <View
+                key={f.key}
+                style={[
+                  styles.featureRow,
+                  i > 0 && styles.featureDivider,
+                  isHighlight && styles.featureRowHighlight,
+                ]}
+              >
+                <View style={[styles.featureIcon, isHighlight && styles.featureIconHighlight]}>
+                  <Ionicons
+                    name={f.icon}
+                    size={18}
+                    color={isHighlight ? Colors.secondary : Colors.primary}
+                  />
+                </View>
+                <View style={styles.featureText}>
+                  <Text style={[styles.featureTitle, isHighlight && styles.featureTitleHighlight]}>
+                    {t(`paywall.features.${f.key}`)}
+                  </Text>
+                  <Text style={styles.featureSub}>{t(`paywall.features.${f.key}Sub`)}</Text>
+                </View>
+                {isHighlight && (
+                  <View style={styles.featureNewBadge}>
+                    <Text style={styles.featureNewBadgeText}>{t('paywall.unlocks')}</Text>
+                  </View>
+                )}
               </View>
-              <View style={styles.featureText}>
-                <Text style={styles.featureTitle}>{t(`paywall.features.${f.key}`)}</Text>
-                <Text style={styles.featureSub}>{t(`paywall.features.${f.key}Sub`)}</Text>
-              </View>
-            </View>
-          ))}
+            );
+          })}
         </View>
 
-        {/* Plan picker */}
+        {/* ── ROI callout ── */}
+        <View style={styles.roiCard}>
+          <Ionicons name="trending-up-outline" size={15} color={Colors.primary} />
+          <Text style={styles.roiText}>{t('paywall.roi')}</Text>
+        </View>
+
+        {/* ── Plan picker ── */}
         <PlanOption
           selected={plan === 'annual'}
           onPress={() => setPlan('annual')}
@@ -127,7 +176,8 @@ export default function PaywallScreen({ onClose, reason = 'generic' }: Props) {
           price={PRICE_ANNUAL}
           unit={t('paywall.perYear')}
           sublabel={t('paywall.annualMonthly')}
-          badge={t('paywall.saveBadge')}
+          badge={t('paywall.bestValue')}
+          savingsBadge={t('paywall.saveBadge')}
         />
         <PlanOption
           selected={plan === 'monthly'}
@@ -137,21 +187,24 @@ export default function PaywallScreen({ onClose, reason = 'generic' }: Props) {
           unit={t('paywall.perMonth')}
         />
 
-        {/* Trial note */}
+        {/* ── Trial note ── */}
         <View style={styles.trialNote}>
           <Ionicons name="gift-outline" size={15} color={Colors.primary} />
           <Text style={styles.trialNoteText}>{t('paywall.trialBadge')}</Text>
         </View>
 
-        {/* CTA */}
+        {/* ── CTA ── */}
         <TouchableOpacity
           style={[styles.cta, busy && styles.ctaDisabled]}
           onPress={handlePurchase}
           activeOpacity={0.85}
           disabled={busy}
         >
-          <Text style={styles.ctaText}>{t('paywall.ctaTrial')}</Text>
+          <Text style={styles.ctaText}>
+            {busy ? t('common.loading') : t('paywall.ctaTrial')}
+          </Text>
         </TouchableOpacity>
+
         <Text style={styles.ctaSub}>
           {t('paywall.ctaThen', {
             price: plan === 'annual'
@@ -160,12 +213,24 @@ export default function PaywallScreen({ onClose, reason = 'generic' }: Props) {
           })}
         </Text>
 
-        {/* Restore */}
+        {/* ── Trust strip ── */}
+        <View style={styles.trustStrip}>
+          <View style={styles.trustItem}>
+            <Ionicons name="lock-closed-outline" size={12} color={Colors.textTertiary} />
+            <Text style={styles.trustText}>{t('paywall.secure')}</Text>
+          </View>
+          <View style={styles.trustDot} />
+          <View style={styles.trustItem}>
+            <Ionicons name="close-circle-outline" size={12} color={Colors.textTertiary} />
+            <Text style={styles.trustText}>{t('paywall.cancelAnytime')}</Text>
+          </View>
+        </View>
+
+        {/* ── Restore + Legal ── */}
         <TouchableOpacity onPress={handleRestore} activeOpacity={0.7} style={styles.restoreBtn}>
           <Text style={styles.restoreText}>{t('paywall.restore')}</Text>
         </TouchableOpacity>
 
-        {/* Legal */}
         <Text style={styles.legal}>
           {t('paywall.legal')}{' '}
           <Text style={styles.legalLink} onPress={() => Linking.openURL(URL_TERMS)}>
@@ -177,25 +242,26 @@ export default function PaywallScreen({ onClose, reason = 'generic' }: Props) {
           </Text>
         </Text>
 
-        <View style={{ height: 24 }} />
+        <View style={{ height: 32 }} />
       </ScrollView>
     </SafeAreaView>
   );
 }
 
-// ── Plan option card ─────────────────────────────────────────────────────────
+// ── Plan option ──────────────────────────────────────────────────────────────
 
 interface PlanOptionProps {
-  selected: boolean;
-  onPress: () => void;
-  title: string;
-  price: string;
-  unit: string;
-  sublabel?: string;
-  badge?: string;
+  selected:      boolean;
+  onPress:       () => void;
+  title:         string;
+  price:         string;
+  unit:          string;
+  sublabel?:     string;
+  badge?:        string;   // "BEST VALUE"
+  savingsBadge?: string;   // "SAVE $122"
 }
 
-function PlanOption({ selected, onPress, title, price, unit, sublabel, badge }: PlanOptionProps) {
+function PlanOption({ selected, onPress, title, price, unit, sublabel, badge, savingsBadge }: PlanOptionProps) {
   return (
     <TouchableOpacity
       style={[styles.plan, selected && styles.planSelected]}
@@ -209,8 +275,13 @@ function PlanOption({ selected, onPress, title, price, unit, sublabel, badge }: 
         <View style={styles.planTitleRow}>
           <Text style={styles.planTitle}>{title}</Text>
           {badge && (
-            <View style={styles.planBadge}>
-              <Text style={styles.planBadgeText}>{badge}</Text>
+            <View style={styles.planBestValue}>
+              <Text style={styles.planBestValueText}>{badge}</Text>
+            </View>
+          )}
+          {savingsBadge && (
+            <View style={styles.planSavings}>
+              <Text style={styles.planSavingsText}>{savingsBadge}</Text>
             </View>
           )}
         </View>
@@ -227,229 +298,207 @@ function PlanOption({ selected, onPress, title, price, unit, sublabel, badge }: 
 // ── Styles ───────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: Colors.background },
+  safe:    { flex: 1, backgroundColor: Colors.background },
 
   closeBtn: {
-    position: 'absolute',
-    top: 52, right: Spacing.screenH,
-    zIndex: 10,
-    width: 36, height: 36,
-    borderRadius: Radius.pill,
-    backgroundColor: Colors.surfaceHigh,
-    borderWidth: 1, borderColor: Colors.border,
+    position: 'absolute', top: 52, right: Spacing.screenH, zIndex: 10,
+    width: 36, height: 36, borderRadius: Radius.pill,
+    backgroundColor: Colors.surfaceHigh, borderWidth: 1, borderColor: Colors.border,
     alignItems: 'center', justifyContent: 'center',
   },
 
   content: {
     paddingHorizontal: Spacing.screenH,
-    paddingTop: 36,
+    paddingTop: 40,
     alignItems: 'center',
   },
 
-  // Crown
-  crownWrap: { alignItems: 'center', marginBottom: 18 },
-  crownCircle: {
-    width: 64, height: 64,
-    borderRadius: 32,
+  // Hero
+  heroWrap:       { alignItems: 'center', marginBottom: 20 },
+  heroIconCircle: {
+    width: 72, height: 72, borderRadius: 36,
     backgroundColor: Colors.secondaryDim,
-    borderWidth: 1, borderColor: Colors.secondary + '40',
+    borderWidth: 1.5, borderColor: Colors.secondary + '50',
     alignItems: 'center', justifyContent: 'center',
-    marginBottom: 10,
+    marginBottom: 12,
+    shadowColor: Colors.secondary, shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.3, shadowRadius: 18, elevation: 6,
   },
   proBadge: {
-    backgroundColor: Colors.secondary,
-    borderRadius: Radius.pill,
-    paddingHorizontal: 12, paddingVertical: 4,
+    backgroundColor: Colors.secondary, borderRadius: Radius.pill,
+    paddingHorizontal: 14, paddingVertical: 5,
   },
   proBadgeText: {
-    fontFamily: FontFamily.bold,
-    fontSize: FontSize.micro,
-    color: Colors.background,
-    letterSpacing: 1.5,
+    fontFamily: FontFamily.bold, fontSize: FontSize.micro,
+    color: Colors.background, letterSpacing: 2,
   },
 
   title: {
-    fontFamily: FontFamily.bold,
-    fontSize: FontSize.title,
-    color: Colors.textPrimary,
-    textAlign: 'center',
-    marginBottom: 8,
+    fontFamily: FontFamily.bold, fontSize: 26,
+    color: Colors.textPrimary, textAlign: 'center',
+    marginBottom: 8, letterSpacing: -0.3,
   },
   subtitle: {
-    fontFamily: FontFamily.regular,
-    fontSize: FontSize.body,
-    color: Colors.textSecondary,
-    textAlign: 'center',
-    lineHeight: 22,
-    marginBottom: 24,
-    paddingHorizontal: 8,
+    fontFamily: FontFamily.regular, fontSize: FontSize.body,
+    color: Colors.textSecondary, textAlign: 'center',
+    lineHeight: 22, marginBottom: 28, paddingHorizontal: 8,
   },
 
   alreadyProCard: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
-    backgroundColor: Colors.primaryDim,
-    borderWidth: 1, borderColor: Colors.primaryMid,
-    borderRadius: Radius.md,
-    paddingVertical: 12, paddingHorizontal: 16,
-    alignSelf: 'stretch',
-    marginBottom: 20,
+    backgroundColor: Colors.primaryDim, borderWidth: 1, borderColor: Colors.primaryMid,
+    borderRadius: Radius.md, paddingVertical: 12, paddingHorizontal: 16,
+    alignSelf: 'stretch', marginBottom: 20,
   },
   alreadyProText: {
-    fontFamily: FontFamily.semiBold,
-    fontSize: FontSize.label,
-    color: Colors.primary,
+    fontFamily: FontFamily.semiBold, fontSize: FontSize.label, color: Colors.primary,
   },
 
-  // Features
+  // Feature list
   featureCard: {
-    alignSelf: 'stretch',
-    backgroundColor: Colors.surface,
+    alignSelf: 'stretch', backgroundColor: Colors.surface,
     borderWidth: 1, borderColor: Colors.border,
-    borderRadius: Radius.lg,
-    paddingHorizontal: Spacing.cardPad,
-    marginBottom: 24,
+    borderRadius: Radius.lg, paddingHorizontal: Spacing.cardPad,
+    marginBottom: 16, overflow: 'hidden',
   },
   featureRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 14,
-    paddingVertical: 13,
+    flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 13,
   },
-  featureDivider: {
-    borderTopWidth: 1,
-    borderTopColor: Colors.borderSubtle,
+  featureRowHighlight: {
+    backgroundColor: Colors.secondaryDim + '60',
+    marginHorizontal: -Spacing.cardPad,
+    paddingHorizontal: Spacing.cardPad,
+    borderLeftWidth: 3, borderLeftColor: Colors.secondary,
   },
+  featureDivider: { borderTopWidth: 1, borderTopColor: Colors.borderSubtle },
   featureIcon: {
-    width: 34, height: 34,
-    borderRadius: Radius.sm,
+    width: 34, height: 34, borderRadius: Radius.sm,
     backgroundColor: Colors.primaryDim,
     alignItems: 'center', justifyContent: 'center',
   },
+  featureIconHighlight: { backgroundColor: Colors.secondaryDim },
   featureText: { flex: 1 },
   featureTitle: {
-    fontFamily: FontFamily.semiBold,
-    fontSize: FontSize.body,
-    color: Colors.textPrimary,
-    marginBottom: 2,
+    fontFamily: FontFamily.semiBold, fontSize: FontSize.body,
+    color: Colors.textPrimary, marginBottom: 2,
   },
+  featureTitleHighlight: { color: Colors.secondary },
   featureSub: {
-    fontFamily: FontFamily.regular,
-    fontSize: FontSize.caption,
-    color: Colors.textSecondary,
+    fontFamily: FontFamily.regular, fontSize: FontSize.caption, color: Colors.textSecondary,
+  },
+  featureNewBadge: {
+    backgroundColor: Colors.secondary, borderRadius: Radius.sm,
+    paddingHorizontal: 7, paddingVertical: 3,
+  },
+  featureNewBadgeText: {
+    fontFamily: FontFamily.bold, fontSize: 9,
+    color: Colors.background, letterSpacing: 0.5, textTransform: 'uppercase',
+  },
+
+  // ROI callout
+  roiCard: {
+    flexDirection: 'row', alignItems: 'center', gap: 7,
+    alignSelf: 'stretch',
+    backgroundColor: Colors.primaryDim, borderWidth: 1, borderColor: Colors.primaryMid,
+    borderRadius: Radius.md, paddingVertical: 10, paddingHorizontal: 14,
+    marginBottom: 24,
+  },
+  roiText: {
+    flex: 1, fontFamily: FontFamily.medium, fontSize: FontSize.label,
+    color: Colors.primary, lineHeight: 18,
   },
 
   // Plan options
   plan: {
-    alignSelf: 'stretch',
-    flexDirection: 'row', alignItems: 'center', gap: 14,
-    backgroundColor: Colors.surface,
-    borderWidth: 1.5, borderColor: Colors.border,
-    borderRadius: Radius.lg,
-    padding: 16,
-    marginBottom: 12,
+    alignSelf: 'stretch', flexDirection: 'row', alignItems: 'center', gap: 14,
+    backgroundColor: Colors.surface, borderWidth: 1.5, borderColor: Colors.border,
+    borderRadius: Radius.lg, padding: 16, marginBottom: 10,
   },
-  planSelected: {
-    borderColor: Colors.primary,
-    backgroundColor: Colors.primaryDim,
-  },
+  planSelected: { borderColor: Colors.primary, backgroundColor: Colors.primaryDim },
   radio: {
-    width: 22, height: 22,
-    borderRadius: 11,
-    borderWidth: 2, borderColor: Colors.border,
-    alignItems: 'center', justifyContent: 'center',
+    width: 22, height: 22, borderRadius: 11,
+    borderWidth: 2, borderColor: Colors.border, alignItems: 'center', justifyContent: 'center',
   },
   radioSelected: { borderColor: Colors.primary },
-  radioDot: {
-    width: 11, height: 11, borderRadius: 6,
-    backgroundColor: Colors.primary,
-  },
-  planInfo: { flex: 1 },
-  planTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  radioDot: { width: 11, height: 11, borderRadius: 6, backgroundColor: Colors.primary },
+  planInfo:     { flex: 1 },
+  planTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' },
   planTitle: {
-    fontFamily: FontFamily.semiBold,
-    fontSize: FontSize.body,
-    color: Colors.textPrimary,
+    fontFamily: FontFamily.semiBold, fontSize: FontSize.body, color: Colors.textPrimary,
   },
-  planBadge: {
-    backgroundColor: Colors.primary,
-    borderRadius: Radius.sm,
-    paddingHorizontal: 7, paddingVertical: 2,
+  planBestValue: {
+    backgroundColor: Colors.primary, borderRadius: Radius.sm,
+    paddingHorizontal: 6, paddingVertical: 2,
   },
-  planBadgeText: {
-    fontFamily: FontFamily.bold,
-    fontSize: FontSize.micro,
-    color: Colors.background,
-    letterSpacing: 0.5,
+  planBestValueText: {
+    fontFamily: FontFamily.bold, fontSize: 9,
+    color: Colors.background, letterSpacing: 0.8,
+  },
+  planSavings: {
+    backgroundColor: Colors.secondaryDim, borderRadius: Radius.sm,
+    paddingHorizontal: 6, paddingVertical: 2,
+    borderWidth: 1, borderColor: Colors.secondary + '40',
+  },
+  planSavingsText: {
+    fontFamily: FontFamily.bold, fontSize: 9, color: Colors.secondary, letterSpacing: 0.5,
   },
   planSub: {
-    fontFamily: FontFamily.regular,
-    fontSize: FontSize.caption,
-    color: Colors.textSecondary,
-    marginTop: 3,
+    fontFamily: FontFamily.regular, fontSize: FontSize.caption,
+    color: Colors.textSecondary, marginTop: 3,
   },
   planPriceWrap: { alignItems: 'flex-end' },
   planPrice: {
-    fontFamily: FontFamily.bold,
-    fontSize: FontSize.subtitle,
-    color: Colors.textPrimary,
+    fontFamily: FontFamily.bold, fontSize: FontSize.subtitle, color: Colors.textPrimary,
   },
   planUnit: {
-    fontFamily: FontFamily.regular,
-    fontSize: FontSize.caption,
-    color: Colors.textSecondary,
+    fontFamily: FontFamily.regular, fontSize: FontSize.caption, color: Colors.textSecondary,
   },
 
   // Trial note
   trialNote: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    marginTop: 6, marginBottom: 16,
+    flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 6, marginBottom: 20,
   },
   trialNoteText: {
-    fontFamily: FontFamily.medium,
-    fontSize: FontSize.label,
-    color: Colors.primary,
+    fontFamily: FontFamily.medium, fontSize: FontSize.label, color: Colors.primary,
   },
 
   // CTA
   cta: {
-    alignSelf: 'stretch',
-    backgroundColor: Colors.primary,
-    borderRadius: Radius.md,
-    paddingVertical: 17,
-    alignItems: 'center',
+    alignSelf: 'stretch', backgroundColor: Colors.primary,
+    borderRadius: Radius.md, paddingVertical: 18, alignItems: 'center',
+    shadowColor: Colors.primary, shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35, shadowRadius: 12, elevation: 8,
   },
   ctaDisabled: { opacity: 0.6 },
   ctaText: {
-    fontFamily: FontFamily.bold,
-    fontSize: FontSize.body,
-    color: Colors.background,
+    fontFamily: FontFamily.bold, fontSize: FontSize.body, color: Colors.background,
   },
   ctaSub: {
-    fontFamily: FontFamily.regular,
-    fontSize: FontSize.caption,
-    color: Colors.textSecondary,
-    textAlign: 'center',
-    marginTop: 10,
+    fontFamily: FontFamily.regular, fontSize: FontSize.caption,
+    color: Colors.textSecondary, textAlign: 'center', marginTop: 10,
   },
 
-  // Restore
+  // Trust strip
+  trustStrip: {
+    flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 14, marginBottom: 4,
+  },
+  trustItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  trustText: {
+    fontFamily: FontFamily.regular, fontSize: FontSize.micro, color: Colors.textTertiary,
+  },
+  trustDot: {
+    width: 3, height: 3, borderRadius: 2, backgroundColor: Colors.textTertiary,
+  },
+
+  // Restore / Legal
   restoreBtn: { paddingVertical: 14, marginTop: 4 },
   restoreText: {
-    fontFamily: FontFamily.medium,
-    fontSize: FontSize.label,
-    color: Colors.textSecondary,
-    textDecorationLine: 'underline',
+    fontFamily: FontFamily.medium, fontSize: FontSize.label,
+    color: Colors.textSecondary, textDecorationLine: 'underline',
   },
-
-  // Legal
   legal: {
-    fontFamily: FontFamily.regular,
-    fontSize: FontSize.micro,
-    color: Colors.textTertiary,
-    textAlign: 'center',
-    lineHeight: 16,
-    paddingHorizontal: 12,
+    fontFamily: FontFamily.regular, fontSize: FontSize.micro,
+    color: Colors.textTertiary, textAlign: 'center', lineHeight: 16, paddingHorizontal: 12,
   },
-  legalLink: {
-    color: Colors.textSecondary,
-    textDecorationLine: 'underline',
-  },
+  legalLink: { color: Colors.textSecondary, textDecorationLine: 'underline' },
 });
