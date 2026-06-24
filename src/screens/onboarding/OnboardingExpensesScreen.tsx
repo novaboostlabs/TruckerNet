@@ -7,7 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, FontFamily, FontSize, Spacing, Radius, SectionLabel } from '../../theme/theme';
-import db from '../../db/database';
+import db, { getUserExpenses } from '../../db/database';
 import { toMonthlyAmount, ExpenseFrequency } from '../../utils/marketRates';
 import 'react-native-get-random-values';
 import { v4 as uuid } from 'uuid';
@@ -57,18 +57,35 @@ export default function OnboardingExpensesScreen({ onNext, onBack }: Props) {
 
   const freqLabel = (f: ExpenseFrequency) => t(`onboarding.expenses.frequencies.${f}`);
 
-  const [fixed, setFixed] = useState<ExpenseEntry[]>(() =>
-    FIXED_EXPENSES.map((f) => ({
-      id: uuid(),
-      label: t(`onboarding.expenses.fixedLabels.${f.category}`),
-      subtitle: t(`onboarding.expenses.fixedSubtitles.${f.category}`),
-      icon: f.icon,
-      category: f.category,
-      amount: '',
-      frequency: 'monthly' as ExpenseFrequency,
-    }))
-  );
-  const [others, setOthers] = useState<ExpenseEntry[]>([]);
+  // Pre-populate from saved user_expenses so Replay Setup edits existing data
+  // rather than wiping it (blank-start was the cross-session conflict root cause).
+  const [fixed, setFixed] = useState<ExpenseEntry[]>(() => {
+    const saved = getUserExpenses();
+    return FIXED_EXPENSES.map((f) => {
+      const match = saved.find((e) => e.category === f.category);
+      return {
+        id:        match?.id ?? uuid(),
+        label:     t(`onboarding.expenses.fixedLabels.${f.category}`),
+        subtitle:  t(`onboarding.expenses.fixedSubtitles.${f.category}`),
+        icon:      f.icon,
+        category:  f.category,
+        amount:    match ? String(match.amount) : '',
+        frequency: (match?.frequency as ExpenseFrequency) ?? 'monthly',
+      };
+    });
+  });
+  const [others, setOthers] = useState<ExpenseEntry[]>(() => {
+    const fixedCats = new Set(FIXED_EXPENSES.map((f) => f.category));
+    return getUserExpenses()
+      .filter((e) => !fixedCats.has(e.category))
+      .map((e) => ({
+        id:        e.id,
+        label:     e.label,
+        category:  e.category || 'other',
+        amount:    String(e.amount),
+        frequency: (e.frequency as ExpenseFrequency) ?? 'monthly',
+      }));
+  });
   const [draft, setDraft] = useState<Draft>(emptyDraft());
   const [freqTarget, setFreqTarget] = useState<FreqTarget>(null);
 
@@ -152,8 +169,10 @@ export default function OnboardingExpensesScreen({ onNext, onBack }: Props) {
       });
     }
 
+    // Always replace — even if collected is empty (user cleared everything).
+    // Without this, old expenses survive if the user removes all entries on replay.
+    db.runSync('DELETE FROM user_expenses');
     if (collected.length > 0) {
-      db.runSync('DELETE FROM user_expenses');
       const now = new Date().toISOString();
       for (let i = 0; i < collected.length; i++) {
         const e = collected[i];

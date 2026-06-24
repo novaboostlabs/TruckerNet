@@ -7,13 +7,16 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, FontFamily, FontSize, Spacing, Radius, SectionLabel } from '../../theme/theme';
-import { setSetting } from '../../db/database';
+import { getSetting, setSetting } from '../../db/database';
 
 interface Props { onNext: () => void; onBack: () => void; }
 
 export default function OnboardingMilesScreen({ onNext, onBack }: Props) {
   const { t }  = useTranslation();
-  const [miles,   setMiles]   = useState('');
+  const [miles,   setMiles]   = useState(() => {
+    const w = getSetting('weekly_miles');
+    return w && parseFloat(w) > 0 ? w : '';
+  });
   const [focused, setFocused] = useState(false);
 
   const weekly  = parseFloat(miles) || 0;

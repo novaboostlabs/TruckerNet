@@ -7,13 +7,13 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, FontFamily, FontSize, Spacing, Radius, SectionLabel } from '../../theme/theme';
-import { setSetting } from '../../db/database';
+import { getSetting, setSetting } from '../../db/database';
 
 interface Props { onNext: () => void; }
 
 export default function OnboardingFuelScreen({ onNext }: Props) {
   const { t } = useTranslation();
-  const [amount,  setAmount]  = useState('');
+  const [amount,  setAmount]  = useState(() => getSetting('weekly_fuel_cost') ?? '');
   const [focused, setFocused] = useState(false);
 
   const weekly  = parseFloat(amount) || 0;
