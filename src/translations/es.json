@@ -334,6 +334,8 @@
     "autoCalculated": "Calculado automáticamente · editable",
     "missingInfoTitle": "Falta información",
     "missingInfo": "Ingresa el pago de la carga y las millas para continuar.",
+    "missingStatus": "Por favor selecciona el estado de la carga para continuar.",
+    "statusPlaceholder": "Seleccionar estado",
     "saveErrorTitle": "Error",
     "saveError": "No se pudo guardar la carga. Inténtalo de nuevo.",
     "photo": {

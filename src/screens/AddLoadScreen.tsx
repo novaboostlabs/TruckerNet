@@ -125,7 +125,7 @@ export default function AddLoadScreen({ onClose, onSaved, prefill }: Props) {
   // ── Load details ──
   const [grossPay, setGrossPay] = useState(prefill?.grossPay ?? '');
   const [loadType, setLoadType] = useState<LoadType>(prefill?.loadType ?? 'dry_van');
-  const [status,   setStatus]   = useState<LoadStatus>('completed');
+  const [status,   setStatus]   = useState<LoadStatus | null>(null);
   const [backhaul, setBackhaul] = useState(prefill?.backhaul ?? false);
 
   // ── Optional fields ──
@@ -361,6 +361,10 @@ export default function AddLoadScreen({ onClose, onSaved, prefill }: Props) {
   async function handleSave() {
     if (!gross || !loadMi) {
       Alert.alert(t('addLoad.missingInfoTitle'), t('addLoad.missingInfo'));
+      return;
+    }
+    if (!status) {
+      Alert.alert(t('addLoad.missingInfoTitle'), t('addLoad.missingStatus'));
       return;
     }
     // Free tier caps at 15 loads/month — the 16th opens the paywall instead.
@@ -684,8 +688,10 @@ export default function AddLoadScreen({ onClose, onSaved, prefill }: Props) {
 
           {/* ── Status ── */}
           <Text style={[styles.fieldLabel, { marginTop: 18 }]}>{t('addLoad.status')}</Text>
-          <TouchableOpacity style={styles.dropdown} onPress={() => setStatusOpen(true)} activeOpacity={0.8}>
-            <Text style={styles.dropdownText}>{t(`addLoad.statuses.${STATUS_I18N[status]}`)}</Text>
+          <TouchableOpacity style={[styles.dropdown, !status && styles.dropdownPlaceholder]} onPress={() => setStatusOpen(true)} activeOpacity={0.8}>
+            <Text style={[styles.dropdownText, !status && styles.dropdownPlaceholderText]}>
+              {status ? t(`addLoad.statuses.${STATUS_I18N[status]}`) : t('addLoad.statusPlaceholder')}
+            </Text>
             <Ionicons name="chevron-down" size={18} color={Colors.primary} />
           </TouchableOpacity>
 
@@ -1037,6 +1043,8 @@ const styles = StyleSheet.create({
     borderRadius: Radius.lg, paddingHorizontal: 18, paddingVertical: 16,
   },
   dropdownText: { fontFamily: FontFamily.semiBold, fontSize: FontSize.body, color: Colors.textPrimary },
+  dropdownPlaceholder: { borderColor: Colors.border },
+  dropdownPlaceholderText: { fontFamily: FontFamily.regular, color: Colors.textTertiary },
 
   toggleCard: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',

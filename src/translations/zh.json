@@ -334,6 +334,8 @@
     "autoCalculated": "自动计算 · 可编辑",
     "missingInfoTitle": "信息缺失",
     "missingInfo": "请输入订单报酬和英里数以继续。",
+    "missingStatus": "请选择运单状态以继续。",
+    "statusPlaceholder": "选择运单状态",
     "saveErrorTitle": "错误",
     "saveError": "保存订单失败。请重试。",
     "photo": {

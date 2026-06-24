@@ -334,6 +334,8 @@
     "autoCalculated": "Auto-calculated · editable",
     "missingInfoTitle": "Missing info",
     "missingInfo": "Enter the load pay and miles to continue.",
+    "missingStatus": "Please select a load status to continue.",
+    "statusPlaceholder": "Select load status",
     "saveErrorTitle": "Error",
     "saveError": "Failed to save load. Please try again.",
     "photo": {

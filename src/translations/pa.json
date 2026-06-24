@@ -334,6 +334,8 @@
     "autoCalculated": "ਆਪਣੇ ਆਪ ਗਣਿਆ · ਸੰਪਾਦਨਯੋਗ",
     "missingInfoTitle": "ਜਾਣਕਾਰੀ ਗੁੰਮ",
     "missingInfo": "ਜਾਰੀ ਰੱਖਣ ਲਈ ਲੋਡ ਭੁਗਤਾਨ ਅਤੇ ਮੀਲ ਦਾਖਲ ਕਰੋ।",
+    "missingStatus": "ਜਾਰੀ ਰੱਖਣ ਲਈ ਕਿਰਪਾ ਕਰਕੇ ਲੋਡ ਸਥਿਤੀ ਚੁਣੋ।",
+    "statusPlaceholder": "ਲੋਡ ਸਥਿਤੀ ਚੁਣੋ",
     "saveErrorTitle": "ਗਲਤੀ",
     "saveError": "ਲੋਡ ਸੁਰੱਖਿਅਤ ਕਰਨ ਵਿੱਚ ਅਸਫਲ। ਕਿਰਪਾ ਕਰਕੇ ਦੁਬਾਰਾ ਕੋਸ਼ਿਸ਼ ਕਰੋ।",
     "photo": {

@@ -50,7 +50,7 @@
       [
         "expo-notifications",
         {
-          "color": "#E8A020",
+          "color": "#00C896",
           "iosDisplayInForeground": true
         }
       ],
