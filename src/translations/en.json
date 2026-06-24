@@ -458,7 +458,17 @@
     "proActiveSub": "Active subscription",
     "manageSub": "Manage Subscription",
     "devProToggle": "Mock Pro (dev only)",
-    "devProToggleSub": "Toggle Pro entitlement for testing"
+    "devProToggleSub": "Toggle Pro entitlement for testing",
+    "dataPrivacy": "Data & Privacy",
+    "shareRateData": "Share load data anonymously",
+    "shareRateDataSub": "Helps all drivers see accurate fair-market rates"
+  },
+  "rateInsights": {
+    "communityTitle": "Community",
+    "communityCount": "{{count}} drivers on this lane",
+    "historyTitle": "Your history",
+    "historyOne": "${{pay}} last time ({{date}})",
+    "historyMulti": "{{count}} loads · avg ${{avg}} · last ${{last}}"
   },
   "loadDetail": {
     "eyebrow": "LOAD DETAILS",

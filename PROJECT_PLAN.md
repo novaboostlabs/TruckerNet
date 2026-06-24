@@ -16,7 +16,7 @@
 > branch and push `main`** so the user's build always reflects the latest.
 > (Decided 2026-06-19 after changes weren't appearing because `main` was stale.)
 
-_Last updated: 2026-06-23 — App renamed "TruckerNet: Driver Finance". EAS configured + first successful iOS preview build installed on device via internal distribution. Deps fixed (reanimated 3→4, async-storage, get-random-values). NEXT: RevenueCat products in App Store Connect (ASC was down last session) → ping to wire real SDK; DNS/Terms/Privacy/email alias; production EAS build when ready._
+_Last updated: 2026-06-23 — Crowdsourced rate engine built (Waze model). Community rates from `rate_reports` Supabase table (opt-out, anonymous, 90-day rolling, min 3 reports). Personal lane history from local DB. Both surfaces in CheckLoad + AddLoad. Settings toggle. All 4 languages at parity. USER must run migration: `supabase/migrations/2026-06-23_rate_reports.sql`. NEXT: RevenueCat products in App Store Connect → ping to wire real SDK; DNS/Terms/Privacy/email alias._
 
 > **Backend sync state:** Sync is **local-first** — SQLite is source of truth;
 > push on save, pull on sign-in. All 3 slices wired: expenses + fuel + loads.
@@ -428,6 +428,53 @@ calibration = future.
 ---
 
 ## 6. Work Log (newest first)
+
+### 2026-06-23 — Crowdsourced fair-market rate engine (Waze model)
+
+**The core feature:** when a driver saves a completed load, TruckerNet anonymously
+contributes that lane's pay to a community pool. Any driver who later evaluates the
+same lane sees real reported rates from real drivers — not just the seeded model.
+
+**What was built:**
+
+- **`supabase/migrations/2026-06-23_rate_reports.sql`** — new `rate_reports` table
+  (origin_state, destination_state, load_type, distance_band, total_pay, pay_per_mile,
+  miles, reported_at). No user_id — fully anonymous. Indexed for fast lane queries.
+  RLS: authenticated insert + select.
+
+- **`src/lib/rateReports.ts`** — three exports:
+  - `shouldShareRateData()` — reads `share_rate_data` setting (on by default = opt-out)
+  - `contributeRateReport()` — fire-and-forget insert on load save (completed status
+    only; skipped for guests/unconfigured Supabase/sharing off)
+  - `getCommunityRate()` — queries Supabase for matching lane reports in the last 90
+    days; returns P25/P50/P75 pay; returns null if < 3 reports (too sparse to show)
+
+- **`src/db/database.ts`** — new `getPersonalLaneHistory()`: queries local `loads`
+  table for completed loads on same origin_state + destination_state + load_type.
+  Returns count, avgPay, lastPay, lastDate. Free for all users (it's their own data).
+
+- **`src/utils/marketRates.ts`** — exported `getDistanceBand()` and `DistanceBand`
+  type (were private; needed by rateReports.ts).
+
+**UI wiring:**
+
+- **CheckLoadScreen** — personal history card appears between load-type dropdown and
+  result card as soon as both endpoints are selected (free + Pro). Inside the result
+  card, community rates row appears below the fair-market range (Pro only), showing
+  "N drivers on this lane · $low–$high" pulled from Supabase.
+
+- **AddLoadScreen** — same two cards appear below the fair-market section when both
+  endpoints are selected. On save (completed status), fires `contributeRateReport()`
+  as a best-effort background call.
+
+- **SettingsScreen** — new "Data & Privacy" section card with a toggle:
+  "Share load data anonymously" (on by default). Persisted to SQLite `share_rate_data`.
+
+- **i18n** — new `rateInsights.*` namespace (5 keys) + `settings.dataPrivacy/shareRateData/
+  shareRateDataSub` — all 4 languages at 100% parity.
+
+**USER action required:** run `supabase/migrations/2026-06-23_rate_reports.sql`
+in Supabase SQL Editor to create the table.
 
 ### 2026-06-23 — App Store name + EAS setup + first successful TestFlight build
 

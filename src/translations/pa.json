@@ -458,7 +458,17 @@
     "proActiveSub": "ਸਰਗਰਮ ਸਬਸਕ੍ਰਿਪਸ਼ਨ",
     "manageSub": "ਸਬਸਕ੍ਰਿਪਸ਼ਨ ਪ੍ਰਬੰਧਿਤ ਕਰੋ",
     "devProToggle": "Mock Pro (ਸਿਰਫ਼ dev)",
-    "devProToggleSub": "ਟੈਸਟਿੰਗ ਲਈ Pro ਚਾਲੂ ਕਰੋ"
+    "devProToggleSub": "ਟੈਸਟਿੰਗ ਲਈ Pro ਚਾਲੂ ਕਰੋ",
+    "dataPrivacy": "ਡੇਟਾ ਅਤੇ ਗੋਪਨੀਯਤਾ",
+    "shareRateData": "ਲੋਡ ਡੇਟਾ ਗੁਮਨਾਮ ਤੌਰ 'ਤੇ ਸਾਂਝਾ ਕਰੋ",
+    "shareRateDataSub": "ਸਾਰੇ ਡਰਾਈਵਰਾਂ ਨੂੰ ਸਹੀ ਮਾਰਕੀਟ ਦਰਾਂ ਦੇਖਣ ਵਿੱਚ ਮਦਦ ਕਰਦਾ ਹੈ"
+  },
+  "rateInsights": {
+    "communityTitle": "ਕਮਿਊਨਿਟੀ",
+    "communityCount": "ਇਸ ਰੂਟ 'ਤੇ {{count}} ਡਰਾਈਵਰ",
+    "historyTitle": "ਤੁਹਾਡਾ ਇਤਿਹਾਸ",
+    "historyOne": "ਪਿਛਲੀ ਵਾਰ ${{pay}} ({{date}})",
+    "historyMulti": "{{count}} ਲੋਡ · ਔਸਤ ${{avg}} · ਆਖਰੀ ${{last}}"
   },
   "loadDetail": {
     "eyebrow": "ਲੋਡ ਵੇਰਵੇ",

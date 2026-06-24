@@ -13,7 +13,7 @@ import { AppFlowContext } from '../contexts/AppFlowContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useSubscription } from '../contexts/SubscriptionContext';
 import { usePaywall } from '../contexts/PaywallContext';
-import { getWeeklyMiles, setSetting } from '../db/database';
+import { getWeeklyMiles, getSetting, setSetting } from '../db/database';
 
 // ── Constants ──────────────────────────────────────────────────────────────
 
@@ -122,6 +122,7 @@ export default function SettingsScreen({ onClose, onNavigateToExpenses }: Props)
   const [weeklyMiles,  setWeeklyMilesLocal] = useState(() => getWeeklyMiles());
   const [editingMiles, setEditingMiles]     = useState(false);
   const [milesInput,   setMilesInput]       = useState('');
+  const [shareData, setShareData] = useState(() => getSetting('share_rate_data') !== 'false');
   const milesRef = useRef<TextInput>(null);
 
   const startEditMiles = useCallback(() => {
@@ -416,6 +417,30 @@ export default function SettingsScreen({ onClose, onNavigateToExpenses }: Props)
                 </React.Fragment>
               );
             })}
+          </View>
+
+          {/* ── Data & Privacy ── */}
+          <SectionHeader label={t('settings.dataPrivacy')} />
+          <View style={styles.card}>
+            <Row
+              icon="shield-checkmark-outline"
+              iconBg={Colors.primaryDim}
+              iconColor={Colors.primary}
+              label={t('settings.shareRateData')}
+              sublabel={t('settings.shareRateDataSub')}
+              chevron={false}
+              rightElement={
+                <Switch
+                  value={shareData}
+                  onValueChange={(v) => {
+                    setSetting('share_rate_data', v ? 'true' : 'false');
+                    setShareData(v);
+                  }}
+                  trackColor={{ false: Colors.surfaceHigh, true: Colors.primaryMid }}
+                  thumbColor={shareData ? Colors.primary : Colors.textTertiary}
+                />
+              }
+            />
           </View>
 
           {/* ── About ── */}

@@ -11,7 +11,7 @@ import { Ionicons } from '@expo/vector-icons';
 import 'react-native-get-random-values';
 import { Colors, FontFamily, FontSize, Spacing, Radius, SectionLabel } from '../theme/theme';
 import { getDateLocale } from '../lib/i18n';
-import { calcBreakEven, saveLoad } from '../db/database';
+import { calcBreakEven, saveLoad, getPersonalLaneHistory, LaneHistory } from '../db/database';
 import { useAuth } from '../contexts/AuthContext';
 import { useSubscription } from '../contexts/SubscriptionContext';
 import { usePaywall } from '../contexts/PaywallContext';
@@ -24,6 +24,7 @@ import AddressAutocomplete from '../components/AddressAutocomplete';
 import FairMarketLock from '../components/FairMarketLock';
 import { getRouteData, geocodeAddress, AddressSuggestion } from '../lib/mapbox';
 import { splitRouteByState } from '../lib/stateSplit';
+import { contributeRateReport, getCommunityRate, CommunityRate } from '../lib/rateReports';
 
 export interface AddLoadPrefill {
   grossPay?:    string;
@@ -198,6 +199,33 @@ export default function AddLoadScreen({ onClose, onSaved, prefill }: Props) {
   }, [pickupSel, deliverySel]);
 
   const { breakEvenRPM, fuelCPM, fixedCPM } = useMemo(() => calcBreakEven(), []);
+
+  // ── Community + personal lane rate insights ──
+  const [communityRate,    setCommunityRate]    = useState<CommunityRate | null>(null);
+  const [communityLoading, setCommunityLoading] = useState(false);
+
+  const personalHistory = useMemo<LaneHistory | null>(() => {
+    if (!pickupSel || !deliverySel) return null;
+    return getPersonalLaneHistory(
+      extractState(pickupSel.label),
+      extractState(deliverySel.label),
+      loadType,
+    );
+  }, [pickupSel, deliverySel, loadType]);
+
+  useEffect(() => {
+    if (!pickupSel || !deliverySel) { setCommunityRate(null); return; }
+    const orig = extractState(pickupSel.label);
+    const dest = extractState(deliverySel.label);
+    const mi   = parseFloat(miles) || 0;
+    if (!orig || !dest || mi <= 0) { setCommunityRate(null); return; }
+
+    setCommunityLoading(true);
+    getCommunityRate(orig, dest, loadType, mi)
+      .then(r  => setCommunityRate(r))
+      .catch(() => setCommunityRate(null))
+      .finally(() => setCommunityLoading(false));
+  }, [pickupSel, deliverySel, loadType, miles]);
 
   const gross   = parseFloat(grossPay) || 0;
   const loadMi  = parseFloat(miles)    || 0;
@@ -394,6 +422,13 @@ export default function AddLoadScreen({ onClose, onSaved, prefill }: Props) {
         validStateMiles.map(r => ({ state: r.state, miles: parseFloat(r.miles) }))
       );
 
+      // Anonymously contribute rate data to the community pool (completed loads only).
+      if (status === 'completed') {
+        const orig = extractState(pLabel);
+        const dest = extractState(dLabel);
+        contributeRateReport({ originState: orig, destState: dest, loadType, miles: loadMi, totalPay: gross }).catch(() => {});
+      }
+
       // Back up to the cloud (local-first; no-op for guests).
       if (user) pushLoads(user.id);
       onSaved?.();
@@ -582,6 +617,40 @@ export default function AddLoadScreen({ onClose, onSaved, prefill }: Props) {
                 <FairMarketLock onUpgrade={() => presentPaywall('fairMarket')} />
               </View>
             )
+          )}
+
+          {/* ── Lane insights (community + personal history) ── */}
+          {(pickupSel && deliverySel) && (
+            <>
+              {isPro && (communityLoading || communityRate) && (
+                <View style={styles.insightCard}>
+                  <View style={styles.insightHeader}>
+                    <Ionicons name="people-outline" size={13} color={Colors.primary} />
+                    <Text style={styles.insightTitle}>{t('rateInsights.communityTitle')}</Text>
+                  </View>
+                  {communityLoading ? (
+                    <ActivityIndicator size="small" color={Colors.textTertiary} style={styles.insightLoader} />
+                  ) : communityRate ? (
+                    <Text style={styles.insightValue}>
+                      {t('rateInsights.communityCount', { count: communityRate.count })} · ${money(communityRate.lowPay)}–${money(communityRate.highPay)}
+                    </Text>
+                  ) : null}
+                </View>
+              )}
+              {personalHistory && (
+                <View style={styles.insightCard}>
+                  <View style={styles.insightHeader}>
+                    <Ionicons name="time-outline" size={13} color={Colors.textSecondary} />
+                    <Text style={styles.insightTitle}>{t('rateInsights.historyTitle')}</Text>
+                  </View>
+                  <Text style={styles.insightValue}>
+                    {personalHistory.count === 1
+                      ? t('rateInsights.historyOne', { pay: money(personalHistory.lastPay), date: personalHistory.lastDate })
+                      : t('rateInsights.historyMulti', { count: personalHistory.count, avg: money(personalHistory.avgPay), last: money(personalHistory.lastPay) })}
+                  </Text>
+                </View>
+              )}
+            </>
           )}
 
           {/* Net pay preview */}
@@ -933,6 +1002,15 @@ const styles = StyleSheet.create({
   },
   fairLabel: { fontFamily: FontFamily.regular, fontSize: FontSize.label, color: Colors.textSecondary },
   fairValue: { fontFamily: FontFamily.semiBold, fontSize: FontSize.label, color: Colors.textPrimary },
+
+  insightCard: {
+    marginTop: 8, padding: 12, backgroundColor: Colors.surface,
+    borderRadius: Radius.md, borderWidth: 1, borderColor: Colors.border,
+  },
+  insightHeader: { flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 4 },
+  insightTitle: { fontFamily: FontFamily.medium, fontSize: 11, color: Colors.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5 },
+  insightValue: { fontFamily: FontFamily.regular, fontSize: FontSize.label, color: Colors.textPrimary },
+  insightLoader: { alignSelf: 'flex-start', marginTop: 2 },
 
   netPreview: {
     backgroundColor: Colors.surface, borderWidth: 2, borderRadius: Radius.lg,

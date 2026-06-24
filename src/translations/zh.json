@@ -458,7 +458,17 @@
     "proActiveSub": "订阅已激活",
     "manageSub": "管理订阅",
     "devProToggle": "Mock Pro（仅开发）",
-    "devProToggleSub": "切换 Pro 权限用于测试"
+    "devProToggleSub": "切换 Pro 权限用于测试",
+    "dataPrivacy": "数据与隐私",
+    "shareRateData": "匿名共享运单数据",
+    "shareRateDataSub": "帮助所有司机查看准确的市场运价"
+  },
+  "rateInsights": {
+    "communityTitle": "社区数据",
+    "communityCount": "此线路 {{count}} 名司机",
+    "historyTitle": "您的历史",
+    "historyOne": "上次 ${{pay}}（{{date}}）",
+    "historyMulti": "{{count}} 次 · 均 ${{avg}} · 上次 ${{last}}"
   },
   "loadDetail": {
     "eyebrow": "订单详情",

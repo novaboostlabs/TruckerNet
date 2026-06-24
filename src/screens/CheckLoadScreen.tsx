@@ -7,7 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, FontFamily, FontSize, Spacing, Radius, SectionLabel } from '../theme/theme';
-import { calcBreakEven } from '../db/database';
+import { calcBreakEven, getPersonalLaneHistory, LaneHistory } from '../db/database';
 import {
   getFairMarketRate, calcDeadheadCost, LoadType,
 } from '../utils/marketRates';
@@ -17,6 +17,7 @@ import { useSubscription } from '../contexts/SubscriptionContext';
 import { usePaywall } from '../contexts/PaywallContext';
 import { getRouteMiles, AddressSuggestion } from '../lib/mapbox';
 import { AddLoadPrefill } from './AddLoadScreen';
+import { getCommunityRate, CommunityRate } from '../lib/rateReports';
 
 interface Props {
   onClose: () => void;
@@ -32,6 +33,11 @@ type Verdict = 'green' | 'amber' | 'red';
 
 function money(n: number, decimals = 0): string {
   return n.toLocaleString('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+}
+
+function extractState(label: string): string {
+  const m = label.match(/,\s*([A-Z]{2})(?:\s+\d{5}[-\d]*)?(?:,|\s*$)/);
+  return m?.[1] ?? '';
 }
 
 export default function CheckLoadScreen({ onClose, onLogLoad }: Props) {
@@ -56,6 +62,33 @@ export default function CheckLoadScreen({ onClose, onLogLoad }: Props) {
   const [loadType, setLoadType] = useState<LoadType>('dry_van');
   const [typeOpen, setTypeOpen] = useState(false);
   const [backhaul, setBackhaul] = useState(false);
+
+  // ── Community + personal lane rate insights ──
+  const [communityRate,    setCommunityRate]    = useState<CommunityRate | null>(null);
+  const [communityLoading, setCommunityLoading] = useState(false);
+
+  const personalHistory = useMemo<LaneHistory | null>(() => {
+    if (!pickupSel || !deliverySel) return null;
+    return getPersonalLaneHistory(
+      extractState(pickupSel.label),
+      extractState(deliverySel.label),
+      loadType,
+    );
+  }, [pickupSel, deliverySel, loadType]);
+
+  useEffect(() => {
+    if (!pickupSel || !deliverySel) { setCommunityRate(null); return; }
+    const orig = extractState(pickupSel.label);
+    const dest = extractState(deliverySel.label);
+    const mi   = parseFloat(miles) || 0;
+    if (!orig || !dest || mi <= 0) { setCommunityRate(null); return; }
+
+    setCommunityLoading(true);
+    getCommunityRate(orig, dest, loadType, mi)
+      .then(r  => setCommunityRate(r))
+      .catch(() => setCommunityRate(null))
+      .finally(() => setCommunityLoading(false));
+  }, [pickupSel, deliverySel, loadType, miles]);
 
   // When both endpoints are geocoded, auto-fill miles from the driving route.
   useEffect(() => {
@@ -231,6 +264,21 @@ export default function CheckLoadScreen({ onClose, onLogLoad }: Props) {
             />
           </View>
 
+          {/* ── Personal lane history (shown as soon as both endpoints are known) ── */}
+          {personalHistory && (
+            <View style={styles.insightCard}>
+              <View style={styles.insightHeader}>
+                <Ionicons name="time-outline" size={13} color={Colors.textSecondary} />
+                <Text style={styles.insightTitle}>{t('rateInsights.historyTitle')}</Text>
+              </View>
+              <Text style={styles.insightValue}>
+                {personalHistory.count === 1
+                  ? t('rateInsights.historyOne', { pay: money(personalHistory.lastPay), date: personalHistory.lastDate })
+                  : t('rateInsights.historyMulti', { count: personalHistory.count, avg: money(personalHistory.avgPay), last: money(personalHistory.lastPay) })}
+              </Text>
+            </View>
+          )}
+
           {/* ── Result ── */}
           {hasInputs && (
             <View style={[styles.resultCard, { borderColor: verdictColor }]}>
@@ -285,14 +333,29 @@ export default function CheckLoadScreen({ onClose, onLogLoad }: Props) {
                   the break-even verdict above stays free + unlimited. */}
               {fair && (
                 isPro ? (
-                  <View style={styles.fairRow}>
-                    <Text style={styles.fairLabel}>
-                      {t('checkLoad.result.fairMarket', { type: t(`addLoad.loadTypes.${loadType}`) })}
-                    </Text>
-                    <Text style={styles.fairValue}>
-                      ${money(fair.minTotal)}–${money(fair.maxTotal)}
-                    </Text>
-                  </View>
+                  <>
+                    <View style={styles.fairRow}>
+                      <Text style={styles.fairLabel}>
+                        {t('checkLoad.result.fairMarket', { type: t(`addLoad.loadTypes.${loadType}`) })}
+                      </Text>
+                      <Text style={styles.fairValue}>
+                        ${money(fair.minTotal)}–${money(fair.maxTotal)}
+                      </Text>
+                    </View>
+                    {/* Community rates — more accurate than the seeded model when data exists */}
+                    {(communityLoading || communityRate) && (
+                      <View style={styles.communityRow}>
+                        <Ionicons name="people-outline" size={13} color={Colors.primary} />
+                        {communityLoading ? (
+                          <ActivityIndicator size="small" color={Colors.textTertiary} />
+                        ) : communityRate ? (
+                          <Text style={styles.communityText}>
+                            {t('rateInsights.communityCount', { count: communityRate.count })} · ${money(communityRate.lowPay)}–${money(communityRate.highPay)}
+                          </Text>
+                        ) : null}
+                      </View>
+                    )}
+                  </>
                 ) : (
                   <View style={styles.fairLockWrap}>
                     <FairMarketLock onUpgrade={() => presentPaywall('fairMarket')} />
@@ -491,6 +554,17 @@ const styles = StyleSheet.create({
   },
   fairLabel: { fontFamily: FontFamily.regular, fontSize: FontSize.label, color: Colors.textSecondary, flex: 1, marginRight: 12 },
   fairValue: { fontFamily: FontFamily.semiBold, fontSize: FontSize.body, color: Colors.textPrimary },
+
+  communityRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 8 },
+  communityText: { fontFamily: FontFamily.regular, fontSize: FontSize.caption, color: Colors.primary },
+
+  insightCard: {
+    marginTop: 16, padding: 12, backgroundColor: Colors.surface,
+    borderRadius: Radius.md, borderWidth: 1, borderColor: Colors.border,
+  },
+  insightHeader: { flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 4 },
+  insightTitle: { fontFamily: FontFamily.medium, fontSize: 11, color: Colors.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5 },
+  insightValue: { fontFamily: FontFamily.regular, fontSize: FontSize.label, color: Colors.textPrimary },
 
   setupNote: { fontFamily: FontFamily.regular, fontSize: FontSize.caption, color: Colors.textSecondary, marginTop: 14, lineHeight: 18 },
 

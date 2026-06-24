@@ -458,7 +458,17 @@
     "proActiveSub": "Suscripción activa",
     "manageSub": "Administrar suscripción",
     "devProToggle": "Mock Pro (solo dev)",
-    "devProToggleSub": "Activa el acceso Pro para pruebas"
+    "devProToggleSub": "Activa el acceso Pro para pruebas",
+    "dataPrivacy": "Datos y Privacidad",
+    "shareRateData": "Compartir datos de carga anónimamente",
+    "shareRateDataSub": "Ayuda a todos los conductores a ver tarifas precisas"
+  },
+  "rateInsights": {
+    "communityTitle": "Comunidad",
+    "communityCount": "{{count}} conductores en esta ruta",
+    "historyTitle": "Tu historial",
+    "historyOne": "${{pay}} la última vez ({{date}})",
+    "historyMulti": "{{count}} cargas · prom. ${{avg}} · últ. ${{last}}"
   },
   "loadDetail": {
     "eyebrow": "DETALLES DE LA CARGA",

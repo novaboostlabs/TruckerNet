@@ -54,7 +54,7 @@ const EQUIPMENT_MULT: Record<LoadType, number> = {
 // ── Distance band multipliers (relative to standard 501–1000 mi = 1.0) ───────
 // Short hauls have high $/mi because fixed costs (loading, detention, paperwork)
 // are spread over fewer miles. Under 150 mi, minimum floor often overrides $/mi.
-type DistanceBand = 'micro' | 'local' | 'short' | 'medium' | 'standard' | 'long' | 'mega';
+export type DistanceBand = 'micro' | 'local' | 'short' | 'medium' | 'standard' | 'long' | 'mega';
 
 const DISTANCE_MULT: Record<DistanceBand, number> = {
   micro:    1.85,   // ≤50 mi  — floor almost always binding; $4–$8/mi if billed
@@ -109,7 +109,7 @@ const SEASONAL_INDEX: Record<number, number> = {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function getDistanceBand(miles: number): DistanceBand {
+export function getDistanceBand(miles: number): DistanceBand {
   if (miles <= 50)   return 'micro';
   if (miles <= 100)  return 'local';
   if (miles <= 250)  return 'short';

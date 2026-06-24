@@ -396,6 +396,47 @@ export function getActiveLoad(): LoadSummary | null {
   ) ?? null;
 }
 
+// ── Personal lane history ──
+
+export interface LaneHistory {
+  count:    number;
+  avgPay:   number;
+  lastPay:  number;
+  lastDate: string;
+}
+
+export function getPersonalLaneHistory(
+  originState: string,
+  destState:   string,
+  loadType:    string,
+): LaneHistory | null {
+  if (!originState || !destState) return null;
+
+  const stats = db.getFirstSync<{ count: number; avg_pay: number }>(
+    `SELECT COUNT(*) as count, AVG(gross_pay) as avg_pay
+     FROM loads
+     WHERE pickup_state = ? AND delivery_state = ? AND equipment_type = ?
+       AND status = 'completed'`,
+    [originState, destState, loadType],
+  );
+  if (!stats || stats.count === 0) return null;
+
+  const last = db.getFirstSync<{ gross_pay: number; date: string }>(
+    `SELECT gross_pay, date FROM loads
+     WHERE pickup_state = ? AND delivery_state = ? AND equipment_type = ?
+       AND status = 'completed'
+     ORDER BY date DESC, created_at DESC LIMIT 1`,
+    [originState, destState, loadType],
+  );
+
+  return {
+    count:    stats.count,
+    avgPay:   Math.round(stats.avg_pay ?? 0),
+    lastPay:  Math.round(last?.gross_pay ?? 0),
+    lastDate: last?.date ?? '',
+  };
+}
+
 // ── IFTA helpers ──
 
 export interface IFTARow {
