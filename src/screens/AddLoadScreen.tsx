@@ -551,53 +551,84 @@ export default function AddLoadScreen({ onClose, onSaved, prefill }: Props) {
           <View style={styles.sectionDivider} />
           <View style={styles.sectionHeaderRow}>
             <Text style={styles.fieldLabel}>{t('addLoad.stateMileage')}</Text>
-            <Text style={styles.sectionHint}>{milesAuto ? t('addLoad.autoCalculated') : t('addLoad.editState')}</Text>
+            {isPro && (
+              <Text style={styles.sectionHint}>{milesAuto ? t('addLoad.autoCalculated') : t('addLoad.editState')}</Text>
+            )}
           </View>
 
-          {stateMiles.map((row, idx) => (
-            <View key={idx} style={styles.stateRow}>
-              <TextInput
-                style={styles.stateInput}
-                value={row.state}
-                onChangeText={(v) => updateStateRow(idx, 'state', v)}
-                placeholder="TX"
-                placeholderTextColor={Colors.textTertiary}
-                maxLength={2}
-                autoCapitalize="characters"
-              />
-              <TextInput
-                style={styles.stateMilesInput}
-                value={row.miles}
-                onChangeText={(v) => updateStateRow(idx, 'miles', v)}
-                keyboardType="decimal-pad"
-                placeholder="0"
-                placeholderTextColor={Colors.textTertiary}
-              />
-              <Text style={styles.stateMilesLabel}>mi</Text>
-              {stateMiles.length > 1 && (
-                <TouchableOpacity
-                  onPress={() => removeStateRow(idx)}
-                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                >
-                  <Ionicons name="remove-circle" size={20} color={Colors.danger} />
-                </TouchableOpacity>
-              )}
-            </View>
-          ))}
+          {/* State rows — gated for free users (data still saves silently for
+              future use; driver sees a blur teaser + upgrade prompt). */}
+          <View style={styles.stateMileageWrap}>
+            {/* Always render rows — blurred at 0.12 for free users so they can
+                sense the value, just can't read or edit it. */}
+            <View
+              style={isPro ? undefined : styles.stateMileageBlurred}
+              pointerEvents={isPro ? 'auto' : 'none'}
+            >
+              {stateMiles.map((row, idx) => (
+                <View key={idx} style={styles.stateRow}>
+                  <TextInput
+                    style={styles.stateInput}
+                    value={row.state}
+                    onChangeText={(v) => updateStateRow(idx, 'state', v)}
+                    placeholder="TX"
+                    placeholderTextColor={Colors.textTertiary}
+                    maxLength={2}
+                    autoCapitalize="characters"
+                  />
+                  <TextInput
+                    style={styles.stateMilesInput}
+                    value={row.miles}
+                    onChangeText={(v) => updateStateRow(idx, 'miles', v)}
+                    keyboardType="decimal-pad"
+                    placeholder="0"
+                    placeholderTextColor={Colors.textTertiary}
+                  />
+                  <Text style={styles.stateMilesLabel}>mi</Text>
+                  {stateMiles.length > 1 && (
+                    <TouchableOpacity
+                      onPress={() => removeStateRow(idx)}
+                      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                    >
+                      <Ionicons name="remove-circle" size={20} color={Colors.danger} />
+                    </TouchableOpacity>
+                  )}
+                </View>
+              ))}
 
-          <View style={styles.stateFooter}>
-            <TouchableOpacity style={styles.addStateBtn} onPress={addStateRow}>
-              <Ionicons name="add-circle-outline" size={16} color={Colors.primary} />
-              <Text style={styles.addStateBtnText}>{t('addLoad.addState')}</Text>
-            </TouchableOpacity>
-            {loadMi > 0 && stateMilesTotal > 0 && (
-              <View style={[styles.stateTotalPill, stateMilesDiff < 2 ? styles.stateTotalOk : styles.stateTotalWarn]}>
-                <Text style={[styles.stateTotalText, stateMilesDiff < 2 ? { color: Colors.primary } : { color: Colors.secondary }]}>
-                  {stateMilesDiff < 2
-                    ? `${Math.round(stateMilesTotal)} mi ✓`
-                    : `${Math.round(stateMilesTotal)} / ${Math.round(loadMi)} mi`}
-                </Text>
+              <View style={styles.stateFooter}>
+                <TouchableOpacity style={styles.addStateBtn} onPress={addStateRow}>
+                  <Ionicons name="add-circle-outline" size={16} color={Colors.primary} />
+                  <Text style={styles.addStateBtnText}>{t('addLoad.addState')}</Text>
+                </TouchableOpacity>
+                {loadMi > 0 && stateMilesTotal > 0 && (
+                  <View style={[styles.stateTotalPill, stateMilesDiff < 2 ? styles.stateTotalOk : styles.stateTotalWarn]}>
+                    <Text style={[styles.stateTotalText, stateMilesDiff < 2 ? { color: Colors.primary } : { color: Colors.secondary }]}>
+                      {stateMilesDiff < 2
+                        ? `${Math.round(stateMilesTotal)} mi ✓`
+                        : `${Math.round(stateMilesTotal)} / ${Math.round(loadMi)} mi`}
+                    </Text>
+                  </View>
+                )}
               </View>
+            </View>
+
+            {/* Upgrade overlay — free users only */}
+            {!isPro && (
+              <TouchableOpacity
+                style={styles.stateMileageGate}
+                activeOpacity={0.85}
+                onPress={() => presentPaywall('ifta')}
+              >
+                <View style={styles.stateMileageGateLock}>
+                  <Ionicons name="map-outline" size={18} color={Colors.secondary} />
+                </View>
+                <Text style={styles.stateMileageGateTitle}>{t('addLoad.stateMileageLockTitle')}</Text>
+                <Text style={styles.stateMileageGateSub}>{t('addLoad.stateMileageLockBody')}</Text>
+                <View style={styles.stateMileageGateCta}>
+                  <Text style={styles.stateMileageGateCtaText}>{t('addLoad.stateMileageLockCta')}</Text>
+                </View>
+              </TouchableOpacity>
             )}
           </View>
 
@@ -972,6 +1003,41 @@ const styles = StyleSheet.create({
   stateTotalOk:   { backgroundColor: Colors.primaryDim },
   stateTotalWarn: { backgroundColor: Colors.secondaryDim },
   stateTotalText: { fontFamily: FontFamily.semiBold, fontSize: FontSize.caption },
+
+  // State mileage gate (free users)
+  stateMileageWrap:     { position: 'relative', minHeight: 80 },
+  stateMileageBlurred:  { opacity: 0.1 },
+  stateMileageGate: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center', justifyContent: 'center',
+    backgroundColor: Colors.surface + 'D0',
+    borderRadius: Radius.md,
+    paddingHorizontal: Spacing.cardPad,
+    paddingVertical: 20,
+  },
+  stateMileageGateLock: {
+    width: 40, height: 40, borderRadius: 20,
+    backgroundColor: Colors.secondaryDim,
+    borderWidth: 1, borderColor: Colors.secondary + '40',
+    alignItems: 'center', justifyContent: 'center',
+    marginBottom: 10,
+  },
+  stateMileageGateTitle: {
+    fontFamily: FontFamily.bold, fontSize: FontSize.body,
+    color: Colors.textPrimary, marginBottom: 4, textAlign: 'center',
+  },
+  stateMileageGateSub: {
+    fontFamily: FontFamily.regular, fontSize: FontSize.caption,
+    color: Colors.textSecondary, textAlign: 'center',
+    lineHeight: 17, marginBottom: 14, maxWidth: 260,
+  },
+  stateMileageGateCta: {
+    backgroundColor: Colors.secondary, borderRadius: Radius.pill,
+    paddingHorizontal: 18, paddingVertical: 9,
+  },
+  stateMileageGateCtaText: {
+    fontFamily: FontFamily.bold, fontSize: FontSize.label, color: Colors.background,
+  },
 
   fairLockWrap: { marginTop: 10 },
 
