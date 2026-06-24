@@ -177,7 +177,18 @@ export default function LoadDetailScreen({ loadId, onClose }: Props) {
           <DetailRow label={t('loadDetail.fuelCost')}   value={`$${money(load.fuel_cost_for_load)}`} />
           <Divider />
           <DetailRow label={t('loadDetail.fixedCost')}  value={`$${money(load.fixed_cost_for_load)}`} />
-          {load.additional_costs > 0 && <><Divider /><DetailRow label={t('loadDetail.additionalCosts')} value={`$${money(load.additional_costs)}`} /></>}
+          {load.loadExpenses?.length > 0 && (
+            <>
+              <Divider />
+              {load.loadExpenses.map((e, i) => (
+                <React.Fragment key={e.id}>
+                  <DetailRow label={e.label} value={`-$${money(e.amount)}`} valueColor={Colors.danger} />
+                  {i < load.loadExpenses.length - 1 && <Divider />}
+                </React.Fragment>
+              ))}
+            </>
+          )}
+          {load.additional_costs > 0 && <><Divider /><DetailRow label={t('loadDetail.deductionsTotal')} value={`-$${money(load.additional_costs)}`} valueColor={Colors.danger} /></>}
           <Divider />
           <DetailRow label={t('loadDetail.grossRPM')}   value={`$${load.gross_rate_per_mile.toFixed(3)}/mi`} />
           <Divider />

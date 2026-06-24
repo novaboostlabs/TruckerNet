@@ -14,7 +14,8 @@
 import { supabase, isSupabaseConfigured } from '../supabase';
 import {
   getAllLoads, getAllStateMileage, replaceLoads,
-  LoadRow, StateMileageRow,
+  getAllLoadExpenses, replaceLoadExpenses,
+  LoadRow, StateMileageRow, LoadExpenseRow,
 } from '../../db/database';
 
 interface SyncResult { error: string | null; }
@@ -68,7 +69,6 @@ export async function pushLoads(userId: string): Promise<SyncResult> {
       if (loadsErr) return { error: loadsErr.message };
 
       // Sync state_mileage: delete all remote rows for these loads, then re-insert.
-      // This is simpler than diffing rows that have no stable client-side PK.
       const { error: delErr } = await supabase
         .from('state_mileage')
         .delete()
@@ -82,10 +82,31 @@ export async function pushLoads(userId: string): Promise<SyncResult> {
           miles:             sm.miles,
           is_manually_edited: !!sm.is_manually_edited,
         }));
-        const { error: smErr } = await supabase
-          .from('state_mileage')
-          .insert(smPayload);
+        const { error: smErr } = await supabase.from('state_mileage').insert(smPayload);
         if (smErr) return { error: smErr.message };
+      }
+
+      // Sync load_expenses: same delete-then-reinsert pattern.
+      const allExpenses = getAllLoadExpenses();
+      const { error: delExpErr } = await supabase
+        .from('load_expenses')
+        .delete()
+        .in('load_id', localIds);
+      if (delExpErr) return { error: delExpErr.message };
+
+      if (allExpenses.length > 0) {
+        const expPayload = allExpenses.map((e) => ({
+          id:         e.id,
+          load_id:    e.load_id,
+          user_id:    userId,
+          label:      e.label,
+          category:   e.category,
+          amount:     e.amount,
+          date:       e.date,
+          created_at: e.created_at,
+        }));
+        const { error: expErr } = await supabase.from('load_expenses').insert(expPayload);
+        if (expErr) return { error: expErr.message };
       }
     }
 
@@ -107,7 +128,7 @@ export async function pullLoads(userId: string): Promise<PullResult> {
   if (!isSupabaseConfigured() || !userId) return { error: null, found: false };
 
   try {
-    // Fetch loads with their nested state_mileage in one round-trip.
+    // Fetch loads with nested state_mileage + load_expenses in one round-trip.
     const { data, error } = await supabase
       .from('loads')
       .select(`
@@ -119,7 +140,8 @@ export async function pullLoads(userId: string): Promise<PullResult> {
         benchmark_fair_pay_min, benchmark_fair_pay_max,
         fuel_cost_for_load, fixed_cost_for_load, net_pay,
         gross_rate_per_mile, net_rate_per_mile, verdict, created_at,
-        state_mileage ( load_id, state, miles, is_manually_edited )
+        state_mileage ( load_id, state, miles, is_manually_edited ),
+        load_expenses ( id, load_id, label, category, amount, date, created_at )
       `)
       .eq('user_id', userId)
       .order('date', { ascending: false });
@@ -170,7 +192,26 @@ export async function pullLoads(userId: string): Promise<PullResult> {
         }))
       );
 
+      const loadExpenses: LoadExpenseRow[] = rows.flatMap((r: any) =>
+        (r.load_expenses ?? []).map((e: any) => ({
+          id:         e.id,
+          load_id:    r.id,
+          label:      e.label ?? '',
+          category:   e.category ?? 'other',
+          amount:     Number(e.amount) || 0,
+          date:       String(e.date ?? '').split('T')[0],
+          created_at: e.created_at ?? new Date().toISOString(),
+        }))
+      );
+
       replaceLoads(loads, stateMileage);
+
+      // Restore load expenses — replace per-load rather than wiping all.
+      const loadIds = loads.map(l => l.id);
+      for (const loadId of loadIds) {
+        const forLoad = loadExpenses.filter(e => e.load_id === loadId);
+        replaceLoadExpenses(loadId, forLoad);
+      }
     }
 
     return { error: null, found: rows.length > 0 };

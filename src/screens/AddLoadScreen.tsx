@@ -11,7 +11,7 @@ import { Ionicons } from '@expo/vector-icons';
 import 'react-native-get-random-values';
 import { Colors, FontFamily, FontSize, Spacing, Radius, SectionLabel } from '../theme/theme';
 import { getDateLocale } from '../lib/i18n';
-import { calcBreakEven, saveLoad, getPersonalLaneHistory, LaneHistory } from '../db/database';
+import { calcBreakEven, saveLoad, getPersonalLaneHistory, LaneHistory, LoadExpenseInsert } from '../db/database';
 import { useAuth } from '../contexts/AuthContext';
 import { useSubscription } from '../contexts/SubscriptionContext';
 import { usePaywall } from '../contexts/PaywallContext';
@@ -128,6 +128,30 @@ export default function AddLoadScreen({ onClose, onSaved, prefill }: Props) {
   const [status,   setStatus]   = useState<LoadStatus | null>(null);
   const [backhaul, setBackhaul] = useState(prefill?.backhaul ?? false);
 
+  // ── Load expenses (scale, toll, lumper, etc.) ──
+  const [loadExpenses, setLoadExpenses] = useState<{ id: string; label: string; amount: string; category: string }[]>([]);
+
+  function addExpense(category: string, defaultLabel: string, defaultAmount = '') {
+    setLoadExpenses(prev => [...prev, {
+      id: Math.random().toString(36).slice(2),
+      label: defaultLabel,
+      amount: defaultAmount,
+      category,
+    }]);
+  }
+
+  function updateExpense(id: string, field: 'label' | 'amount', value: string) {
+    setLoadExpenses(prev => prev.map(e =>
+      e.id === id ? { ...e, [field]: field === 'amount' ? cap(value, 50000) : value } : e
+    ));
+  }
+
+  function removeExpense(id: string) {
+    setLoadExpenses(prev => prev.filter(e => e.id !== id));
+  }
+
+  const expensesTotal = loadExpenses.reduce((sum, e) => sum + (parseFloat(e.amount) || 0), 0);
+
   // ── Optional fields ──
   const [weight,      setWeight]      = useState('');
   const [bolNumber,   setBolNumber]   = useState('');
@@ -234,7 +258,7 @@ export default function AddLoadScreen({ onClose, onSaved, prefill }: Props) {
 
   const fuelCost  = loadMi * fuelCPM;
   const fixedCost = loadMi * fixedCPM;
-  const netPay    = gross - fuelCost - fixedCost;
+  const netPay    = gross - fuelCost - fixedCost - expensesTotal;
   const netRPM    = loadMi > 0 ? netPay / loadMi  : 0;
   const grossRPM  = loadMi > 0 ? gross  / loadMi  : 0;
 
@@ -395,6 +419,10 @@ export default function AddLoadScreen({ onClose, onSaved, prefill }: Props) {
         bolPhotoUrl = uploaded ?? bolPhotoUri;
       }
 
+      const validExpenses: LoadExpenseInsert[] = loadExpenses
+        .filter(e => (parseFloat(e.amount) || 0) > 0)
+        .map(e => ({ label: e.label.trim() || e.category, category: e.category, amount: parseFloat(e.amount) }));
+
       const savedLoadId = saveLoad(
         {
           date:            loadDate,
@@ -413,6 +441,7 @@ export default function AddLoadScreen({ onClose, onSaved, prefill }: Props) {
           benchmark_fair_pay_max: fair?.maxTotal,
           fuel_cost_for_load:  fuelCost,
           fixed_cost_for_load: fixedCost,
+          additional_costs:    expensesTotal,
           net_pay:             netPay,
           gross_rate_per_mile: grossRPM,
           net_rate_per_mile:   netRPM,
@@ -424,7 +453,8 @@ export default function AddLoadScreen({ onClose, onSaved, prefill }: Props) {
           broker_mc:    brokerMC,
           notes,
         },
-        validStateMiles.map(r => ({ state: r.state, miles: parseFloat(r.miles) }))
+        validStateMiles.map(r => ({ state: r.state, miles: parseFloat(r.miles) })),
+        validExpenses,
       );
 
       // Schedule/cancel load reminder notification based on status.
@@ -686,6 +716,68 @@ export default function AddLoadScreen({ onClose, onSaved, prefill }: Props) {
                 </View>
               )}
             </>
+          )}
+
+          {/* ── Load Deductions ── */}
+          <View style={styles.sectionDivider} />
+          <View style={styles.sectionHeaderRow}>
+            <Text style={styles.fieldLabel}>{t('addLoad.deductions')}</Text>
+            <Text style={styles.sectionHint}>{t('addLoad.deductionsHint')}</Text>
+          </View>
+
+          {/* Quick-add chips */}
+          <View style={styles.expenseChips}>
+            {[
+              { cat: 'scale',     label: t('addLoad.expCat.scale'),     amt: '11' },
+              { cat: 'lumper',    label: t('addLoad.expCat.lumper'),     amt: '' },
+              { cat: 'toll',      label: t('addLoad.expCat.toll'),       amt: '' },
+              { cat: 'detention', label: t('addLoad.expCat.detention'),  amt: '' },
+              { cat: 'other',     label: t('addLoad.expCat.other'),      amt: '' },
+            ].map(({ cat, label, amt }) => (
+              <TouchableOpacity
+                key={cat}
+                style={styles.expenseChip}
+                onPress={() => addExpense(cat, label, amt)}
+                activeOpacity={0.75}
+              >
+                <Ionicons name="add" size={13} color={Colors.textSecondary} />
+                <Text style={styles.expenseChipText}>{label}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          {/* Expense rows */}
+          {loadExpenses.map((exp) => (
+            <View key={exp.id} style={styles.expenseRow}>
+              <TextInput
+                style={styles.expenseLabelInput}
+                value={exp.label}
+                onChangeText={(v) => updateExpense(exp.id, 'label', v)}
+                placeholder={t('addLoad.expCat.other')}
+                placeholderTextColor={Colors.textTertiary}
+              />
+              <View style={styles.expenseAmountWrap}>
+                <Text style={styles.expenseDollar}>$</Text>
+                <TextInput
+                  style={styles.expenseAmountInput}
+                  value={exp.amount}
+                  onChangeText={(v) => updateExpense(exp.id, 'amount', v)}
+                  keyboardType="decimal-pad"
+                  placeholder="0"
+                  placeholderTextColor={Colors.textTertiary}
+                />
+              </View>
+              <TouchableOpacity onPress={() => removeExpense(exp.id)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                <Ionicons name="close-circle" size={20} color={Colors.danger} />
+              </TouchableOpacity>
+            </View>
+          ))}
+
+          {expensesTotal > 0 && (
+            <View style={styles.expenseTotalRow}>
+              <Text style={styles.expenseTotalLabel}>{t('addLoad.deductionsTotal')}</Text>
+              <Text style={styles.expenseTotalValue}>-${money(expensesTotal)}</Text>
+            </View>
           )}
 
           {/* Net pay preview */}
@@ -1074,6 +1166,38 @@ const styles = StyleSheet.create({
   },
   fairLabel: { fontFamily: FontFamily.regular, fontSize: FontSize.label, color: Colors.textSecondary },
   fairValue: { fontFamily: FontFamily.semiBold, fontSize: FontSize.label, color: Colors.textPrimary },
+
+  // Load expense styles
+  expenseChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 10 },
+  expenseChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    backgroundColor: Colors.surfaceHigh, borderRadius: Radius.pill,
+    paddingHorizontal: 12, paddingVertical: 7,
+    borderWidth: 1, borderColor: Colors.border,
+  },
+  expenseChipText: { fontFamily: FontFamily.medium, fontSize: FontSize.caption, color: Colors.textSecondary },
+  expenseRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    backgroundColor: Colors.surface, borderRadius: Radius.md,
+    borderWidth: 1, borderColor: Colors.border,
+    paddingHorizontal: 12, paddingVertical: 8, marginBottom: 8,
+  },
+  expenseLabelInput: {
+    flex: 1, fontFamily: FontFamily.regular, fontSize: FontSize.label,
+    color: Colors.textPrimary, padding: 0,
+  },
+  expenseAmountWrap: { flexDirection: 'row', alignItems: 'center', gap: 3 },
+  expenseDollar: { fontFamily: FontFamily.medium, fontSize: FontSize.label, color: Colors.textSecondary },
+  expenseAmountInput: {
+    width: 70, fontFamily: FontFamily.semiBold, fontSize: FontSize.label,
+    color: Colors.textPrimary, textAlign: 'right', padding: 0,
+  },
+  expenseTotalRow: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    paddingVertical: 8, paddingHorizontal: 4, marginBottom: 4,
+  },
+  expenseTotalLabel: { fontFamily: FontFamily.medium, fontSize: FontSize.label, color: Colors.textSecondary },
+  expenseTotalValue: { fontFamily: FontFamily.bold, fontSize: FontSize.label, color: Colors.danger },
 
   insightCard: {
     marginTop: 8, padding: 12, backgroundColor: Colors.surface,

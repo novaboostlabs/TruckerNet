@@ -98,6 +98,17 @@ export function initDatabase(): void {
       miles             REAL NOT NULL,
       is_manually_edited INTEGER NOT NULL DEFAULT 0
     );
+
+    -- Per-load variable expenses: scale tickets, tolls, lumper fees, detention, etc.
+    CREATE TABLE IF NOT EXISTS load_expenses (
+      id         TEXT PRIMARY KEY,
+      load_id    TEXT NOT NULL REFERENCES loads(id) ON DELETE CASCADE,
+      label      TEXT NOT NULL,
+      category   TEXT NOT NULL DEFAULT 'other',
+      amount     REAL NOT NULL,
+      date       TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    );
   `);
 
   // ── Migrations: add new columns to existing tables safely ──
@@ -630,7 +641,54 @@ export interface StateMileageInsert {
   miles: number;
 }
 
-export function saveLoad(load: LoadInsert, stateMileage: StateMileageInsert[]): string {
+export interface LoadExpenseInsert {
+  label:    string;
+  category: string;
+  amount:   number;
+}
+
+export interface LoadExpenseRow {
+  id:         string;
+  load_id:    string;
+  label:      string;
+  category:   string;
+  amount:     number;
+  date:       string;
+  created_at: string;
+}
+
+export function getLoadExpenses(loadId: string): LoadExpenseRow[] {
+  return db.getAllSync<LoadExpenseRow>(
+    `SELECT id, load_id, label, category, amount, date, created_at
+     FROM load_expenses WHERE load_id = ? ORDER BY created_at ASC`,
+    [loadId]
+  );
+}
+
+export function getAllLoadExpenses(): LoadExpenseRow[] {
+  return db.getAllSync<LoadExpenseRow>(
+    `SELECT id, load_id, label, category, amount, date, created_at FROM load_expenses`
+  );
+}
+
+/** Delete + re-insert all expenses for a load (sync-safe replace). */
+export function replaceLoadExpenses(loadId: string, expenses: LoadExpenseRow[]): void {
+  db.runSync('DELETE FROM load_expenses WHERE load_id = ?', [loadId]);
+  const now = new Date().toISOString();
+  for (const e of expenses) {
+    db.runSync(
+      `INSERT INTO load_expenses (id, load_id, label, category, amount, date, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [e.id, loadId, e.label, e.category, e.amount, e.date, e.created_at ?? now]
+    );
+  }
+}
+
+export function saveLoad(
+  load: LoadInsert,
+  stateMileage: StateMileageInsert[],
+  expenses: LoadExpenseInsert[] = [],
+): string {
   const id   = uuidv4();
   const now  = new Date().toISOString();
   const date = load.date ?? now.split('T')[0];
@@ -668,6 +726,17 @@ export function saveLoad(load: LoadInsert, stateMileage: StateMileageInsert[]): 
       'INSERT INTO state_mileage (load_id, state, miles) VALUES (?,?,?)',
       [id, sm.state, sm.miles]
     );
+  }
+
+  // Insert load expense rows (scale, toll, lumper, etc.)
+  if (expenses.length > 0) {
+    for (const e of expenses) {
+      db.runSync(
+        `INSERT INTO load_expenses (id, load_id, label, category, amount, date, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [uuidv4(), id, e.label, e.category, e.amount, date, now]
+      );
+    }
   }
 
   return id;
@@ -808,6 +877,7 @@ export interface LoadDetail {
   net_rate_per_mile:      number;
   verdict:                string | null;
   stateMileage:           { state: string; miles: number }[];
+  loadExpenses:           { id: string; label: string; category: string; amount: number }[];
 }
 
 export function getLoadById(id: string): LoadDetail | null {
@@ -827,7 +897,11 @@ export function getLoadById(id: string): LoadDetail | null {
     `SELECT state, miles FROM state_mileage WHERE load_id = ? ORDER BY miles DESC`,
     [id]
   );
-  return { ...load, stateMileage };
+  const loadExpenses = db.getAllSync<{ id: string; label: string; category: string; amount: number }>(
+    `SELECT id, label, category, amount FROM load_expenses WHERE load_id = ? ORDER BY created_at ASC`,
+    [id]
+  );
+  return { ...load, stateMileage, loadExpenses };
 }
 
 /**
