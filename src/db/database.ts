@@ -1,8 +1,6 @@
-import * as SQLite from 'expo-sqlite';
 import 'react-native-get-random-values';
 import { v4 as uuidv4 } from 'uuid';
-
-const db = SQLite.openDatabaseSync('truckernet.db');
+import { db } from './sqlite';
 
 export function initDatabase(): void {
   db.execSync(`

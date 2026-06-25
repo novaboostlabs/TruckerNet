@@ -18,6 +18,7 @@ import {
   NotoSansSC_700Bold,
 } from '@expo-google-fonts/noto-sans-sc';
 import { StatusBar } from 'expo-status-bar';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { initDatabase } from './src/db/database';
 import { AuthProvider } from './src/contexts/AuthContext';
@@ -75,15 +76,17 @@ export default function App() {
   }
 
   return (
-    <AuthProvider>
-      <SubscriptionProvider>
-        <PaywallProvider>
-          <NavigationContainer>
-            <StatusBar style="light" />
-            <RootNavigator />
-          </NavigationContainer>
-        </PaywallProvider>
-      </SubscriptionProvider>
-    </AuthProvider>
+    <SafeAreaProvider>
+      <AuthProvider>
+        <SubscriptionProvider>
+          <PaywallProvider>
+            <NavigationContainer>
+              <StatusBar style="light" />
+              <RootNavigator />
+            </NavigationContainer>
+          </PaywallProvider>
+        </SubscriptionProvider>
+      </AuthProvider>
+    </SafeAreaProvider>
   );
 }
