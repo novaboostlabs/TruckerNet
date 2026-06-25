@@ -519,7 +519,316 @@ calibration = future.
 
 ---
 
+## 5.5 V1 Launch Checklist & V2 Backlog (2026-06-25)
+
+> **Context:** As of 2026-06-25, the core loop is fully built — load logging, net
+> pay, IFTA, fuel tracking, fair-market rates, paywall, RevenueCat, push
+> notifications, crowdsourced rates, full load editing, expenses-on-loads. The gap
+> audit below is what remains between "working app" and "app people pay $34.99/month
+> for and tell other drivers about."
+>
+> **V1 bar:** not MVP — a premium, subscription-first tool that competes with YNAB
+> and Calm. A driver who tries it must feel it's worth the money. Every V1 item
+> below either makes the core loop feel incomplete or directly drives conversion and
+> retention.
+
+---
+
+### V1 — Must ship before public launch
+
+#### Bugs (make the app look unfinished)
+
+| # | Issue | Why V1 |
+|---|-------|--------|
+| B1 | **Add Load status defaults to "completed"** — every new load starts with the wrong status | Immediate UX confusion on the single most-used flow |
+| B2 | **Demo data flashes on first paint of each tab** before real data loads | Looks buggy; undermines trust |
+| B3 | **Onboarding break-even result screen** shows `—` for fixed-cost component of the formula | The payoff moment of onboarding looks broken |
+| B4 | **Per-session data congruency** — conflicting expense data appears across sessions on the same account | Corrupts the driver's break-even number silently |
+
+#### Features that complete the core loop
+
+**History search**
+Drivers need to find "that Memphis load from March" by BOL number, city, or broker
+name. Once a driver has 20+ loads, the date-only browsing in History becomes
+inadequate. This is table-stakes for a $34.99/month bookkeeping tool.
+
+**Income goal tracker**
+User sets a weekly or monthly net pay target in Settings. Dashboard shows a progress
+bar toward it. Push notification fires at 75% and 100%. This is the difference between
+an app that *records* and an app that *motivates*. Without it, there is no reason to
+open the app on days you aren't logging a load — the primary retention lever identified
+in the PRD.
+
+**Analytics charts**
+At minimum two charts: (1) net pay trend over the last 8–12 weeks (bar chart), and
+(2) cost breakdown showing what share of gross goes to fuel / fixed / per-load expenses.
+This is what makes Pro worth paying for over Free. Right now the tier difference is
+mostly access, not intelligence. Charts are the "aha" moment that justifies renewal.
+
+**IFTA PDF export**
+CSV export is built. But IFTA is a flagship differentiator — "never do IFTA by hand
+again" — and truckers hand their accountant a document, not a spreadsheet. Without PDF,
+the feature is commercially incomplete. Q1 is IFTA filing season; this needs to exist.
+
+**Pre-onboarding walkthrough + driver profile**
+3–4 illustrated screens before sign-up that explain what TruckerNet does ("Know your
+true net pay," "Auto-build your IFTA," "See if a load is worth it"). Then a profile
+setup screen: driver name, home base city/state, primary equipment type. Without this,
+cold installs from TikTok or Reddit don't understand the value before they bounce.
+Profile also seeds equipment type so Add Load auto-defaults — small but polished.
+
+#### Growth infrastructure
+
+**Referral program**
+"Give a driver 30 days free, get $10 off yours." The PRD identifies this as the
+primary organic growth engine. It must exist before any marketing spend so every
+early user who tells a friend compounds growth. Implementation: unique link per user
+(Supabase), extended 30-day trial for referred user (RevenueCat), $10 credit for
+referrer, entry point in onboarding + Settings. Keep it simple for V1 — no leaderboard.
+
+**PostHog product analytics**
+Not user-facing, but a hard V1 requirement. You cannot improve a funnel you cannot
+see. Before launch you need: where in onboarding do drivers drop off, which paywall
+trigger converts best, what % of free users hit the load limit, DAU/WAU, free→paid
+conversion rate. Two days of instrumentation gives leverage over the next year.
+
+**Sentry error tracking**
+One crash-on-launch for a new user is a lost driver. The free tier covers the volume
+at launch. This is infrastructure, not a feature, but it is not optional in production.
+
+---
+
+### V1 Summary Table
+
+| Item | Effort | Rationale |
+|------|--------|-----------|
+| Bug: status default (B1) | XS | Polish — wrong on every new load |
+| Bug: demo data flash (B2) | XS | Looks broken |
+| Bug: onboarding formula (B3) | XS | Payoff moment looks broken |
+| Bug: session data congruency (B4) | S | Silently corrupts break-even |
+| History search | S–M | Table-stakes once loads accumulate |
+| Income goal tracker | M | Primary retention mechanic |
+| Analytics charts | M | Makes Pro worth $34.99/mo |
+| IFTA PDF export | M | Completes flagship feature |
+| Pre-onboarding walkthrough + profile | M | Cold install conversion |
+| Referral program | M | Organic growth from day one |
+| PostHog | S | Can't improve what you can't see |
+| Sentry | S | Error visibility in production |
+
+---
+
+### V2 — Post-launch, meaningful but can wait
+
+Build these after launch, once you have real user data showing what drivers actually
+use and ask for.
+
+**Maintenance tracking** (PRD §19)
+Log oil changes, tire rotations, brake jobs, DOT inspections. Track by odometer; alert
+when service is due. Maintenance cost feeds the monthly expense average automatically.
+Rounds out the "financial OS for owner-operators" story significantly. Great V2 anchor.
+
+**Broker scorecard** (PRD §20)
+Broker name and MC are already stored on every load. The missing piece is a rating
+screen (payment speed, reliability, communication) and a history view — "this broker
+was slow 3 of the last 5 loads." Data hook exists; the feature screen does not.
+
+**Voice input** (PRD §11)
+Microphone on every text/number field; device-native speech recognition (free, offline,
+fast). High-value UX for hands-free logging at a dock, but requires careful
+implementation to feel right. Better to do it properly in V2 than rush it.
+
+**Lane profitability analytics**
+"Which routes make you the most money?" A per-driver heat map of origin→destination
+pairs ranked by average net pay. Requires a meaningful load history to be useful;
+build it once drivers have that history.
+
+**History: filter by equipment/state + sort options**
+Currently only date-period filtering. Adding "show only reefer loads" or "sort by net
+pay" is a power-user feature most drivers won't need until they have 50+ loads.
+V1 search covers the most urgent case.
+
+**Full load history CSV export**
+A complete accounting dump with all load fields. Useful for accountants, but most
+early-stage drivers won't have one asking for this yet. IFTA CSV export covers the
+near-term accountant need.
+
+**Email reports** (PRD §16)
+Weekly net pay summary, monthly P&L, quarterly IFTA reminder via Resend. Push
+notifications (already built) cover the same retention intent for V1. Resend is low
+effort but email reporting is a V2 polish item.
+
+**Supabase Realtime**
+Multi-device live sync. Current push-on-save + pull-on-sign-in is solid enough for V1.
+Most owner-operators use one device. Realtime becomes important once fleet features
+(multiple users on one account) exist.
+
+**Editable route on Load Detail**
+If a driver logged the wrong origin/destination or total miles, they currently must
+delete and re-add. All other fields are editable. Route editing is the remaining gap,
+but it's an edge case — most drivers don't enter a city wrong.
+
+**Fuel CPM trend: expand to 20 entries**
+The current chart shows the last 5 fill-ups. PRD calls for 20. The data is there;
+it's a display limit. Low priority.
+
+**Web companion**
+Desktop-optimized for bookkeeping and IFTA review. Blocked anyway until the native
+app has proven product-market fit.
+
+---
+
+### V2 Summary Table
+
+| Item | Notes |
+|------|-------|
+| Maintenance tracking | Completes "financial OS" story; strong V2 anchor |
+| Broker scorecard | Data hook exists; feature screen does not |
+| Voice input | High value; do properly, not rushed |
+| Lane profitability analytics | Needs 50+ loads of history to be meaningful |
+| History: equipment/state filters + sort | Power user; V1 search covers urgent case |
+| Full load history CSV export | IFTA CSV covers near-term accountant need |
+| Email reports (Resend) | Push notifications cover V1 retention intent |
+| Supabase Realtime | Needed for fleet features; V1 push-on-save is fine |
+| Editable route on Load Detail | Edge case; delete-and-re-add is workable |
+| Fuel CPM trend: 20-entry chart | Minor display limit; data is already there |
+| Web companion | Post product-market fit |
+
+---
+
 ## 6. Work Log (newest first)
+
+### 2026-06-25 — UI Diagnosis: Full Onboarding + Dashboard Review
+
+**Method:** Playwright MCP is now operational for browser-based UI inspection.
+Web SQLite is mocked via a no-op stub (`src/db/sqlite.web.ts`) so the app renders
+without crashing in Playwright. Native Expo Go / iOS / Android SQLite remains
+completely unchanged (`src/db/sqlite.native.ts` → real `expo-sqlite`).
+
+Every screen was walked in order: Language → Sign In → Onboarding Steps 1–4 →
+Dashboard → Fuel tab + Log Fill-up → IFTA → Expenses → History → Check Load →
+Add Load → Settings → Paywall modal. Load Detail is the only screen not yet
+inspected — it requires a persisted load which is not possible via the web no-op DB.
+
+---
+
+#### Critical (fix before any user sees it)
+
+| # | Screen | Issue |
+|---|--------|-------|
+| C1 | All screens | **Every `@expo/vector-icons` icon is blank on web.** The icon font does not load in the web bundle. Affects every tab icon, every button icon, every form icon — ~50+ blank boxes across the entire app. Single root cause. |
+
+---
+
+#### High Severity
+
+| # | Screen | Issue |
+|---|--------|-------|
+| H1 | Language | Logo monogram renders as a bare `"T"` character (15×26px) — looks like a typo, not a logo |
+| H2 | Language | No selected-state visible on language options — no checkmark, border, or highlight shows which language is active |
+| H3 | Onboarding Step 2 (Expenses) | Page is **1,679px tall** — nearly 2× the viewport. Next button is at y=1,585, completely off-screen with no scroll hint |
+| H4 | Onboarding Step 4 (Result) | `"How we calculated this:"` has literal opening and closing quotation marks in the copy — looks like a copy-paste artifact from code |
+| H5 | Onboarding Step 4 (Result) | On web: all values show `—` because no data persists through the no-op DB. The user just filled in 3 screens and sees blank results — anticlimactic. On native with real DB this resolves, but worth guarding |
+| H6 | Onboarding Step 4 (Result) | Tip text "Add your expenses and miles to calculate your break-even rate" is shown to every user including those who just completed all 3 steps. Should only show when all steps were skipped |
+| H7 | Expenses tab | Page is **1,796px tall** — same extreme scroll problem as onboarding expenses. "Save Expenses" button is at y=1,711 |
+| H8 | All screens | No max-width constraint. Mobile 375px layouts stretch to 1,152px on a 1,200px desktop viewport — everything looks uncomfortably wide |
+| H9 | Settings | Language section layout broken: "English" (selected) renders as a full-width settings row with chevron; other languages (Español, ਪੰਜਾਬੀ, 中文) render as smaller inline text items with no matching structure |
+
+---
+
+#### Medium Severity
+
+| # | Screen | Issue |
+|---|--------|-------|
+| M1 | Language | "Continue" button is 70×20px — plain unstyled text, easy to miss on a large screen |
+| M2 | Sign In | Apple SSO logo icon blank (renders as just the word "Apple"); password eye-toggle icon blank |
+| M3 | Sign In | "Sign In" button is 53×20px — same tiny text pattern |
+| M4 | Onboarding Step 1 (Fuel) | Step icon is blank (32×35px empty box); repeats on every onboarding step |
+| M5 | Onboarding Step 1 (Fuel) | No visual progress indicator — "Step N of 4" is plain text only, no bar or dots |
+| M6 | Onboarding Step 1 (Fuel) | Button label inconsistency: Step 1 (Fuel) says "Skip" when empty, "Next" when filled. Step 3 (Miles) says "Next" even when empty. No consistency across steps |
+| M7 | Onboarding Step 1 (Fuel) | ~320px dead vertical gap between content (y≈450) and Next button (y=771) |
+| M8 | Onboarding Step 2 (Expenses) | All expense input fields default to `"0"` — users must clear zero before typing. Should be empty with placeholder |
+| M9 | Onboarding Step 2 (Expenses) | Frequency dropdown looks like a static label — "Monthly" text with blank chevron, not obviously interactive |
+| M10 | Onboarding Step 2 (Expenses) | No "Skip" affordance — Step 1 had Skip, Step 2 doesn't. A user with no expenses must scroll 1,679px to advance |
+| M11 | Onboarding Step 4 (Result) | "Start Tracking →" button has a literal `→` in the text AND a separate (blank) arrow icon element — double arrow on native |
+| M12 | Dashboard | FAB "+" button is 26×29px blank — empty-state copy says "Tap +" but the + is invisible |
+| M13 | Dashboard | Settings icon in header is blank (19×22px) |
+| M14 | Dashboard | Break-even hero card shows `—` (em-dash) with no fallback prompt to set up break-even |
+| M15 | Check Load | Close/X icon in header is blank; location pin icons in address fields are blank |
+| M16 | Check Load | "Accept & Log This Load" — no visible verdict/result card shown in the form (no break-even rate to compare against in web) |
+| M17 | Add Load | Page is **1,539px tall** in a modal dialog — significant scrolling required |
+| M18 | Add Load | Inline paywall card (IFTA state mileage gate) mid-form has a tiny "Upgrade to Pro" button (102×17px). Interrupts the form flow |
+| M19 | Add Load | "Scan BOL to autofill" scan icon blank; "Add details" disclosure icon blank; date nav arrows blank |
+| M20 | Fuel tab | "CPM TREND — LAST 0 FILL-UPS" — "LAST 0" reads awkwardly. Should hide the count or say "No data yet" when empty |
+| M21 | Fuel Entry | Odometer field shows placeholder `"487,892"` — suspicious specific default, looks like hardcoded test data |
+| M22 | IFTA | Year navigation arrows blank; quarter tab hit areas appear small (text is 17×17px, though actual tap zones may be larger) |
+| M23 | Settings | "Push Notifications" and "Share load data anonymously" switches are `[checked] [disabled]` on web — users can't toggle them, no explanation why |
+| M24 | Settings | Guest Mode icon renders as `"?"` (11×24px) — appears to be a missing icon |
+| M25 | All screens | Browser tab title shows `undefined` throughout the entire app |
+| M26 | Paywall | **"Start 7-Day Free Trial" CTA is below the fold.** Content is 1,141px tall; CTA sits at y=949 with an 843px viewport — users must scroll to find the buy button |
+| M27 | Paywall | CTA button is 165×20px — same tiny unstyled text pattern. Highest-stakes tap in the app deserves a full-width solid button |
+| M28 | Paywall | All 6 feature list icons are blank (18×20px each); DRIVER PRO logo icon blank |
+| M29 | Paywall | "BEST VALUE" (63×11px) and "SAVE $122" (52×11px) badges are 11px tall — nearly invisible |
+| M30 | Paywall | "UNLOCKS" badge on first feature is 48×11px — identifies which feature is the key free-to-Pro unlock, but at 11px it's unreadable |
+| M31 | Paywall | No clear visual distinction between the selected Annual row and the unselected Monthly row — no border, highlight, or checkmark visible |
+| M32 | Paywall | "Secure payment" and "Cancel anytime" trust-badge icons are blank (12×14px) |
+
+---
+
+#### Low Severity / Polish
+
+| # | Screen | Issue |
+|---|--------|-------|
+| L1 | Onboarding Step 3 (Miles) | Subtitle copy is weak: "We'll calculate your monthly miles from this" — doesn't explain WHY miles matter (break-even CPM) |
+| L2 | Onboarding Step 3 (Miles) | Live calc format inconsistency: Fuel shows `$2600` + `/ mo` as separate styled nodes; Miles shows `10,833 mi / mo` all in one string |
+| L3 | Onboarding Step 4 (Result) | `$—.———` placeholder uses 5 dashes after decimal — confirm intended format is `$X.XXX` (3 decimal RPM) |
+| L4 | Fuel tab | `TOTAL GALLONS` shows `"0.0"` with quotes in accessibility tree — minor rendering oddity |
+| L5 | History tab | Calendar date grid renders correct 7-column layout, but each column is ~157px wide on 1,200px viewport — tiny date numbers in huge columns |
+| L6 | History tab | Week/Month/All Time filter tabs have no visible selected state in snapshot |
+| L7 | Expenses tab | "Other expenses" custom row has structurally different layout from the preset expense rows — inconsistent card pattern mid-scroll |
+| L8 | Dashboard | "Check Load" row has blank icons on both sides (left icon + right chevron) |
+| L9 | Onboarding Step 2 / Expenses tab | All expense category icons blank (12 blank slots on the expenses screen) |
+| L10 | Add Load | Deduction quick-add chips (Scale, Lumper, Toll, Detention, Other) all have blank `+` icons — text labels still readable |
+
+---
+
+#### Priority Summary
+
+**Fix first (blocking visual quality for any demo or user test):**
+- C1 — Fix `@expo/vector-icons` rendering on web (single root cause, high impact)
+- H8 — Add `maxWidth` + `alignSelf: 'center'` on root containers (one-line fix, affects every screen)
+- H4 — Remove literal quote marks from "How we calculated this:" copy
+- H2 — Add selected state to language picker
+- H9 — Fix Language section row structure in Settings
+
+**Fix before user testing:**
+- H3, H7 — Extreme scroll on Expenses screens (onboarding + tab): consider collapsing preset fields or paginating
+- H5, H6 — Break-even result screen tip text logic
+- M11 — Double arrow on "Start Tracking →"
+- M5 — Add visual step progress dots to onboarding
+- M25 — Set document title properly on web
+- M26, M27 — Paywall CTA below fold + tiny button: this is a direct conversion killer
+
+**Polish pass (after above):**
+- M6 — Consistent Skip/Next label logic across onboarding steps
+- M7 — Remove dead vertical gap on Step 1
+- M8 — Empty inputs (remove zero defaults)
+- M20 — Fix "LAST 0 FILL-UPS" label
+- M21 — Investigate `487,892` odometer default
+- M28–M32 — Paywall visual polish (icons, badge sizes, plan selection state)
+- L1 — Improve miles step subtitle copy
+- L3 — Confirm $X.XXX format is intentional
+
+**Not inspected (requires persisted load, not possible via web no-op DB):**
+- Load Detail screen — needs native Expo Go or a real device session
+
+---
+
+#### Infrastructure notes
+- Playwright MCP is working. Web inspection is available for all future sessions.
+- `src/db/sqlite.web.ts` is a no-op stub — all reads return `null`/`[]`, all writes are silent. Native DB is untouched.
+- `App.tsx` wraps in `<SafeAreaProvider>` — required for web; no effect on native.
+- `.playwright-mcp/` is in `.gitignore`.
+- Load Detail is the one screen that cannot be reached via web (no persisted loads). Inspect on device.
 
 ### 2026-06-23 — Crowdsourced fair-market rate engine (Waze model)
 
