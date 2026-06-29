@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
-import { Colors, FontFamily, FontSize, Radius } from '../theme/theme';
+import { FontFamily, FontSize, Radius, ThemeColors } from '../theme/theme';
+import { useTheme } from '../theme/ThemeContext';
 
 /**
  * Pro-gated fair-market row shown to free users in place of the actual
@@ -12,6 +13,8 @@ import { Colors, FontFamily, FontSize, Radius } from '../theme/theme';
  */
 export default function FairMarketLock({ onUpgrade }: { onUpgrade: () => void }) {
   const { t } = useTranslation();
+  const { colors: Colors } = useTheme();
+  const styles = useMemo(() => makeStyles(Colors), [Colors]);
   return (
     <TouchableOpacity style={styles.lock} onPress={onUpgrade} activeOpacity={0.7}>
       <View style={styles.iconWrap}>
@@ -23,7 +26,7 @@ export default function FairMarketLock({ onUpgrade }: { onUpgrade: () => void })
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (Colors: ThemeColors) => StyleSheet.create({
   lock: {
     flexDirection: 'row',
     alignItems: 'center',

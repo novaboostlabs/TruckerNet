@@ -1,15 +1,21 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState, useMemo } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import {
-  View, Text, StyleSheet, TouchableOpacity, ScrollView, Share, Alert,
+  View, Text, StyleSheet, TouchableOpacity, ScrollView, Share, Alert, ActionSheetIOS, Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
-import { Colors, FontFamily, FontSize, Spacing, Radius, SectionLabel } from '../theme/theme';
+import * as Print from 'expo-print';
+import * as Sharing from 'expo-sharing';
+import { Colors, FontFamily, FontSize, Spacing, Radius, SectionLabel, ThemeColors, sectionLabel } from '../theme/theme';
+import { useTheme } from '../theme/ThemeContext';
 import { getLoadCount, getIFTAData, hasIFTAData, IFTARow } from '../db/database';
 import { useSubscription } from '../contexts/SubscriptionContext';
 import { usePaywall } from '../contexts/PaywallContext';
+import { capture } from '../lib/analytics';
+import GridBackground from '../components/GridBackground';
+import AccentRule from '../components/AccentRule';
 
 // Free users see the first couple of states as a real-data teaser; the rest of
 // the per-state breakdown (what they actually file) is blurred behind the gate.
@@ -37,7 +43,115 @@ function generateCSV(rows: IFTARow[], year: number, q: Quarter): string {
   return lines.join('\n');
 }
 
+const QUARTER_MONTHS: Record<Quarter, string> = {
+  1: 'Jan 1 – Mar 31',
+  2: 'Apr 1 – Jun 30',
+  3: 'Jul 1 – Sep 30',
+  4: 'Oct 1 – Dec 31',
+};
+
+function generatePDFHtml(rows: IFTARow[], year: number, q: Quarter): string {
+  const totalMiles   = rows.reduce((s, r) => s + r.miles,   0);
+  const totalGallons = rows.reduce((s, r) => s + r.gallons, 0);
+  const avgMPG       = totalGallons > 0 ? totalMiles / totalGallons : 0;
+  const dateRange    = QUARTER_MONTHS[q];
+  const generated    = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+
+  const rowsHtml = rows.map(r => `
+    <tr>
+      <td class="state">${r.state}</td>
+      <td class="num">${Math.round(r.miles).toLocaleString()}</td>
+      <td class="num">${r.gallons.toFixed(1)}</td>
+    </tr>`).join('');
+
+  return `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, 'Helvetica Neue', Arial, sans-serif; background: #fff; color: #111; padding: 40px; font-size: 13px; }
+  .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 28px; padding-bottom: 18px; border-bottom: 2.5px solid #E8A020; }
+  .brand { font-size: 11px; font-weight: 700; color: #E8A020; letter-spacing: 2px; margin-bottom: 6px; }
+  .title { font-size: 24px; font-weight: 700; color: #111; margin-bottom: 3px; }
+  .subtitle { font-size: 12px; color: #888; }
+  .generated { font-size: 10px; color: #aaa; text-align: right; line-height: 1.6; }
+  .stats { display: flex; gap: 14px; margin-bottom: 28px; }
+  .stat { flex: 1; background: #f6f6f6; border-radius: 8px; padding: 14px 16px; }
+  .stat-label { font-size: 9px; font-weight: 700; color: #aaa; letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 5px; }
+  .stat-value { font-size: 20px; font-weight: 700; color: #111; }
+  table { width: 100%; border-collapse: collapse; margin-bottom: 28px; }
+  thead tr { background: #f0f0f0; }
+  th { padding: 10px 14px; font-size: 9px; font-weight: 700; color: #888; letter-spacing: 1.5px; text-transform: uppercase; text-align: left; }
+  th.num { text-align: right; }
+  td { padding: 12px 14px; border-bottom: 1px solid #efefef; }
+  td.state { font-weight: 700; font-size: 14px; color: #111; }
+  td.num { text-align: right; color: #333; }
+  .totals td { font-weight: 700; background: #f6f6f6; border-top: 2px solid #ddd; border-bottom: none; font-size: 13px; color: #111; }
+  .disclaimer { font-size: 9.5px; color: #aaa; line-height: 1.6; border-top: 1px solid #eee; padding-top: 16px; }
+  .amber { color: #E8A020; }
+</style>
+</head>
+<body>
+  <div class="header">
+    <div>
+      <div class="brand">TRUCKERNET</div>
+      <div class="title">IFTA Quarterly Report</div>
+      <div class="subtitle"><span class="amber">Q${q} ${year}</span> &nbsp;·&nbsp; ${dateRange}</div>
+    </div>
+    <div class="generated">Generated<br>${generated}</div>
+  </div>
+
+  <div class="stats">
+    <div class="stat">
+      <div class="stat-label">Total Miles</div>
+      <div class="stat-value">${Math.round(totalMiles).toLocaleString()}</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Total Gallons</div>
+      <div class="stat-value">${totalGallons.toFixed(1)}</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Avg MPG</div>
+      <div class="stat-value">${avgMPG > 0 ? avgMPG.toFixed(2) : '—'}</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">States</div>
+      <div class="stat-value">${rows.length}</div>
+    </div>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>State</th>
+        <th class="num">Miles</th>
+        <th class="num">Gallons</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${rowsHtml}
+      <tr class="totals">
+        <td>TOTAL</td>
+        <td class="num">${Math.round(totalMiles).toLocaleString()}</td>
+        <td class="num">${totalGallons.toFixed(1)}</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="disclaimer">
+    These figures are estimates based on your logged loads and fuel entries in TruckerNet.
+    Verify all totals against your actual fuel receipts and odometer records before filing your IFTA return.
+    TruckerNet is not a licensed tax-filing service.
+  </div>
+</body>
+</html>`;
+}
+
 export default function IFTAScreen() {
+  const { colors: Colors } = useTheme();
+  const styles = useMemo(() => makeStyles(Colors), [Colors]);
   const { t } = useTranslation();
   const { isPro } = useSubscription();
   const { present: presentPaywall } = usePaywall();
@@ -55,7 +169,10 @@ export default function IFTAScreen() {
 
   useEffect(() => { loadData(year, quarter); }, [year, quarter, loadData]);
 
-  useFocusEffect(useCallback(() => { loadData(year, quarter); }, [year, quarter, loadData]));
+  useFocusEffect(useCallback(() => {
+    loadData(year, quarter);
+    capture('ifta_viewed', { year, quarter, is_pro: isPro });
+  }, [year, quarter, loadData, isPro]));
 
   const totalMiles   = rows.reduce((s, r) => s + r.miles,   0);
   const totalGallons = rows.reduce((s, r) => s + r.gallons, 0);
@@ -67,25 +184,70 @@ export default function IFTAScreen() {
   const visibleRows  = gated ? rows.slice(0, FREE_VISIBLE_ROWS) : rows;
   const hiddenRows   = gated ? rows.slice(FREE_VISIBLE_ROWS)    : [];
 
-  async function handleExport() {
-    if (gated) { presentPaywall('export'); return; }
-    if (!hasData) {
-      Alert.alert(t('ifta.exportNoDataTitle'), t('ifta.exportNoDataMsg', { quarter: `Q${quarter}`, year }));
-      return;
-    }
+  async function exportCSV() {
     const csv = generateCSV(rows, year, quarter);
     try {
-      await Share.share({
-        message: csv,
-        title:   `IFTA_Q${quarter}_${year}.csv`,
-      });
+      await Share.share({ message: csv, title: `IFTA_Q${quarter}_${year}.csv` });
     } catch {
       Alert.alert(t('ifta.exportFailedTitle'), t('ifta.exportFailedMsg'));
     }
   }
 
+  async function exportPDF() {
+    try {
+      const html = generatePDFHtml(rows, year, quarter);
+      const { uri } = await Print.printToFileAsync({ html, base64: false });
+      const canShare = await Sharing.isAvailableAsync();
+      if (canShare) {
+        await Sharing.shareAsync(uri, {
+          mimeType: 'application/pdf',
+          dialogTitle: `IFTA_Q${quarter}_${year}.pdf`,
+          UTI: 'com.adobe.pdf',
+        });
+      } else {
+        Alert.alert(t('ifta.exportFailedTitle'), t('ifta.exportFailedMsg'));
+      }
+    } catch {
+      Alert.alert(t('ifta.exportFailedTitle'), t('ifta.exportFailedMsg'));
+    }
+  }
+
+  function handleExport() {
+    capture('ifta_export_tapped', { quarter, year, is_pro: !gated });
+    if (gated) { presentPaywall('export'); return; }
+    if (!hasData) {
+      Alert.alert(t('ifta.exportNoDataTitle'), t('ifta.exportNoDataMsg', { quarter: `Q${quarter}`, year }));
+      return;
+    }
+
+    if (Platform.OS === 'ios') {
+      ActionSheetIOS.showActionSheetWithOptions(
+        {
+          options: [t('ifta.exportPDF'), t('ifta.exportCSV'), t('common.cancel')],
+          cancelButtonIndex: 2,
+          title: `Q${quarter} ${year} IFTA Report`,
+        },
+        (idx) => {
+          if (idx === 0) exportPDF();
+          if (idx === 1) exportCSV();
+        },
+      );
+    } else {
+      Alert.alert(
+        `Q${quarter} ${year} IFTA Report`,
+        t('ifta.exportChoose'),
+        [
+          { text: t('ifta.exportPDF'), onPress: exportPDF },
+          { text: t('ifta.exportCSV'), onPress: exportCSV },
+          { text: t('common.cancel'), style: 'cancel' },
+        ],
+      );
+    }
+  }
+
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
+      <GridBackground />
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
 
         {/* Header */}
@@ -93,10 +255,11 @@ export default function IFTAScreen() {
           <View>
             <Text style={styles.eyebrow}>{t('ifta.eyebrow')}</Text>
             <Text style={styles.title}>{t('ifta.title')}</Text>
+            <AccentRule style={{ marginTop: 8 }} />
           </View>
           <TouchableOpacity style={styles.exportBtn} onPress={handleExport} activeOpacity={0.8}>
             <Ionicons name="share-outline" size={15} color={Colors.textSecondary} />
-            <Text style={styles.exportText}>{t('ifta.exportCSV')}</Text>
+            <Text style={styles.exportText}>{t('ifta.export')}</Text>
           </TouchableOpacity>
         </View>
 
@@ -256,14 +419,14 @@ export default function IFTAScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (Colors: ThemeColors) => StyleSheet.create({
   safe:    { flex: 1, backgroundColor: Colors.background },
   scroll:  { flex: 1 },
   content: { paddingHorizontal: Spacing.screenH, paddingBottom: 40 },
 
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', paddingTop: 16, paddingBottom: 24 },
-  eyebrow: { ...SectionLabel, marginBottom: 4 },
-  title:   { fontFamily: FontFamily.bold, fontSize: FontSize.title, color: Colors.textPrimary },
+  eyebrow: { ...sectionLabel(Colors), marginBottom: 4 },
+  title:   { fontFamily: FontFamily.monoBold, fontSize: FontSize.title, color: Colors.textPrimary },
   exportBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
     backgroundColor: Colors.surface, borderRadius: Radius.pill,
@@ -273,29 +436,29 @@ const styles = StyleSheet.create({
 
   selectorBlock: { marginBottom: 20 },
   yearRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 16, marginBottom: 12 },
-  yearLabel: { fontFamily: FontFamily.semiBold, fontSize: FontSize.subtitle, color: Colors.textPrimary, minWidth: 56, textAlign: 'center' },
+  yearLabel: { fontFamily: FontFamily.monoSemiBold, fontSize: FontSize.subtitle, color: Colors.textPrimary, minWidth: 56, textAlign: 'center' },
 
   quarterRow:           { flexDirection: 'row', gap: 8 },
   quarterChip:          { flex: 1, paddingVertical: 11, alignItems: 'center', borderRadius: Radius.pill, borderWidth: 1, borderColor: Colors.border, backgroundColor: Colors.surface },
   quarterChipActive:    { borderColor: Colors.primary, backgroundColor: Colors.primaryDim },
-  quarterChipText:      { fontFamily: FontFamily.semiBold, fontSize: FontSize.label, color: Colors.textSecondary },
+  quarterChipText:      { fontFamily: FontFamily.monoSemiBold, fontSize: FontSize.label, color: Colors.textSecondary },
   quarterChipTextActive: { color: Colors.primary },
 
   summaryRow:   { flexDirection: 'row', gap: 12, marginBottom: 16 },
-  summaryCard:  { flex: 1, backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border, borderRadius: Radius.lg, padding: Spacing.cardPad },
-  summaryLabel: { ...SectionLabel, fontSize: 10, marginBottom: 6 },
-  summaryValue: { fontFamily: FontFamily.bold, fontSize: FontSize.subtitle, color: Colors.textPrimary },
+  summaryCard:  { flex: 1, backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border, borderRadius: Radius.md, padding: Spacing.cardPad },
+  summaryLabel: { ...sectionLabel(Colors), fontSize: 10, marginBottom: 6 },
+  summaryValue: { fontFamily: FontFamily.monoBold, fontSize: FontSize.subtitle, color: Colors.textPrimary },
 
-  tableCard:      { backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border, borderRadius: Radius.lg, overflow: 'hidden', marginBottom: 20 },
+  tableCard:      { backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border, borderRadius: Radius.md, overflow: 'hidden', marginBottom: 20 },
   tableHeaderRow: { flexDirection: 'row', paddingHorizontal: Spacing.cardPad, paddingVertical: 12, backgroundColor: Colors.surfaceHigh },
-  tableHeader:    { ...SectionLabel, fontSize: 10, marginBottom: 0 },
+  tableHeader:    { ...sectionLabel(Colors), fontSize: 10, marginBottom: 0 },
   tableRow:       { flexDirection: 'row', paddingHorizontal: Spacing.cardPad, paddingVertical: 14, alignItems: 'center' },
-  stateCode:      { fontFamily: FontFamily.bold, fontSize: FontSize.body, color: Colors.textPrimary },
+  stateCode:      { fontFamily: FontFamily.monoBold, fontSize: FontSize.body, color: Colors.textPrimary },
   tableCellText:  { fontFamily: FontFamily.regular, fontSize: FontSize.body, color: Colors.textPrimary },
   rowDivider:     { height: 1, backgroundColor: Colors.borderSubtle, marginHorizontal: Spacing.cardPad },
   totalsRow:      { flexDirection: 'row', paddingHorizontal: Spacing.cardPad, paddingVertical: 14, borderTopWidth: 1, borderTopColor: Colors.border, backgroundColor: Colors.surfaceHigh },
-  totalsLabel:    { fontFamily: FontFamily.bold, fontSize: FontSize.label, color: Colors.textSecondary },
-  totalsValue:    { fontFamily: FontFamily.bold, fontSize: FontSize.label, color: Colors.textPrimary },
+  totalsLabel:    { fontFamily: FontFamily.monoBold, fontSize: FontSize.label, color: Colors.textSecondary },
+  totalsValue:    { fontFamily: FontFamily.monoBold, fontSize: FontSize.label, color: Colors.textPrimary },
 
   // Pro gate (IFTA teaser)
   gatedContent: { opacity: 0.12 },
@@ -312,14 +475,14 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
     marginBottom: 12,
   },
-  gateTitle: { fontFamily: FontFamily.bold, fontSize: FontSize.body, color: Colors.textPrimary, marginBottom: 4, textAlign: 'center' },
+  gateTitle: { fontFamily: FontFamily.monoBold, fontSize: FontSize.body, color: Colors.textPrimary, marginBottom: 4, textAlign: 'center' },
   gateSub: { fontFamily: FontFamily.regular, fontSize: FontSize.caption, color: Colors.textSecondary, textAlign: 'center', lineHeight: 17, marginBottom: 14, maxWidth: 260 },
   gateCta: { backgroundColor: Colors.secondary, borderRadius: Radius.pill, paddingHorizontal: 18, paddingVertical: 9 },
-  gateCtaText: { fontFamily: FontFamily.bold, fontSize: FontSize.label, color: Colors.background },
+  gateCtaText: { fontFamily: FontFamily.monoBold, fontSize: FontSize.label, color: Colors.onPrimary },
 
-  emptyCard: { backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border, borderRadius: Radius.lg, paddingVertical: 44, paddingHorizontal: Spacing.cardPad, alignItems: 'center', marginBottom: 20 },
+  emptyCard: { backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border, borderRadius: Radius.md, paddingVertical: 44, paddingHorizontal: Spacing.cardPad, alignItems: 'center', marginBottom: 20 },
   emptyIcon: { width: 52, height: 52, borderRadius: Radius.pill, backgroundColor: Colors.surfaceHigh, borderWidth: 1, borderColor: Colors.border, alignItems: 'center', justifyContent: 'center', marginBottom: 16 },
-  emptyTitle: { fontFamily: FontFamily.semiBold, fontSize: FontSize.body, color: Colors.textPrimary, marginBottom: 6 },
+  emptyTitle: { fontFamily: FontFamily.monoSemiBold, fontSize: FontSize.body, color: Colors.textPrimary, marginBottom: 6 },
   emptySub:   { fontFamily: FontFamily.regular, fontSize: FontSize.label, color: Colors.textSecondary, textAlign: 'center', lineHeight: 20, maxWidth: 260 },
 
   disclaimer: { fontFamily: FontFamily.regular, fontSize: FontSize.caption, color: Colors.textTertiary, textAlign: 'center', lineHeight: 18 },

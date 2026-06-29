@@ -7,24 +7,28 @@ import { getSetting, setSetting } from '../db/database';
 // RevenueCat configuration
 // ─────────────────────────────────────────────────────────────────────────────
 
-// 🚨 BEFORE APP STORE SUBMISSION: replace test_ key with the live key from
-//    RevenueCat → Project Settings → API Keys → Public app-specific (iOS).
-const IOS_API_KEY     = 'test_MHQhqpsKYgUVrPYkZkECVNiZBXN';
+// Live iOS public SDK key from RevenueCat (set 2026-06-29).
+const IOS_API_KEY     = 'appl_JvoQxWtuPHFOIitrxyHEVEmGuve';
 const ANDROID_API_KEY = ''; // add when Play Console + RC Android app is set up
 
-// The identifier set on the entitlement in the RevenueCat dashboard.
-const ENTITLEMENT_ID = 'TruckerNet: Driver Finance Pro';
+// The entitlement IDENTIFIER (not display name) set in the RevenueCat dashboard.
+// Dashboard: identifier "pro", display name "TruckerNet Pro", with products
+// truckernet_pro_monthly + truckernet_pro_annual attached. Must match exactly —
+// the app reads entitlements.active['pro'] to decide isPro.
+const ENTITLEMENT_ID = 'pro';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Dynamic import — react-native-purchases is a native module that crashes Expo Go
 // at import time. Wrapping in try/catch degrades gracefully to mock mode.
 // ─────────────────────────────────────────────────────────────────────────────
-let Purchases: any            = null;
-let PURCHASES_ERROR_CODE: any = null;
+let Purchases: any              = null;
+let PURCHASES_ERROR_CODE: any   = null;
+let INTRO_ELIGIBILITY_STATUS: any = null;
 try {
-  const rc             = require('react-native-purchases');
-  Purchases            = rc.default ?? rc;
-  PURCHASES_ERROR_CODE = rc.PURCHASES_ERROR_CODE;
+  const rc                 = require('react-native-purchases');
+  Purchases                = rc.default ?? rc;
+  PURCHASES_ERROR_CODE     = rc.PURCHASES_ERROR_CODE;
+  INTRO_ELIGIBILITY_STATUS = rc.INTRO_ELIGIBILITY_STATUS;
 } catch { /* Expo Go — native module unavailable, mock mode active */ }
 
 // True when running in the Expo Go client (native modules unavailable).
@@ -35,11 +39,44 @@ const IS_EXPO_GO = Constants.appOwnership === 'expo' || Purchases === null;
 // ─────────────────────────────────────────────────────────────────────────────
 const MOCK_PRO_KEY = 'mock_is_pro';
 
+/** A single plan's price, sourced live from the store via RevenueCat. */
+export interface PlanPrice {
+  /** Localized, store-formatted price string (e.g. "$34.99", "34,99 €"). */
+  priceString:  string;
+  /** Raw numeric amount, for computing per-month equivalents and savings. */
+  price:        number;
+  /** ISO currency code (e.g. "USD"). */
+  currencyCode: string;
+}
+
+export interface Pricing {
+  monthly: PlanPrice | null;
+  annual:  PlanPrice | null;
+}
+
+/**
+ * Whether the user can still claim the free trial / intro offer on each plan.
+ * Defaults to true (fresh user). Flips to false once the trial has been used,
+ * so the paywall never promises a trial it can't deliver. Determined per-plan
+ * because a 7-day trial may be configured on one term and not the other.
+ */
+export interface TrialEligibility {
+  monthly: boolean;
+  annual:  boolean;
+}
+
 export interface SubscriptionContextValue {
   /** True when the user has an active Driver Pro entitlement. */
   isPro:      boolean;
   /** Still resolving entitlement state on cold start. */
   loading:    boolean;
+  /**
+   * Live store prices from the current RevenueCat offering. Both null until
+   * loaded (and in Expo Go / mock mode) — the paywall falls back to defaults.
+   */
+  pricing:    Pricing;
+  /** Per-plan free-trial eligibility (defaults to eligible). */
+  trialEligible: TrialEligibility;
   /**
    * True when isPro is driven by the local mock toggle (Expo Go or RC not
    * yet configured). The dev toggle in Settings is hidden once this is false.
@@ -60,9 +97,22 @@ const SubscriptionContext = createContext<SubscriptionContextValue>(
 // ─────────────────────────────────────────────────────────────────────────────
 // Provider
 // ─────────────────────────────────────────────────────────────────────────────
+// Pull a PlanPrice out of a RevenueCat package (shape varies; be defensive).
+function toPlanPrice(pkg: any): PlanPrice | null {
+  const product = pkg?.product;
+  if (!product) return null;
+  return {
+    priceString:  product.priceString ?? '',
+    price:        typeof product.price === 'number' ? product.price : 0,
+    currencyCode: product.currencyCode ?? 'USD',
+  };
+}
+
 export function SubscriptionProvider({ children }: { children: React.ReactNode }) {
   const [isPro,   setIsPro]   = useState(false);
   const [loading, setLoading] = useState(true);
+  const [pricing, setPricing] = useState<Pricing>({ monthly: null, annual: null });
+  const [trialEligible, setTrialEligible] = useState<TrialEligibility>({ monthly: true, annual: true });
 
   useEffect(() => {
     if (IS_EXPO_GO) {
@@ -98,6 +148,37 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
         Purchases.addCustomerInfoUpdateListener((info: any) => {
           setIsPro(info.entitlements.active[ENTITLEMENT_ID] !== undefined);
         });
+
+        // Load live, localized store prices so the paywall never hardcodes them.
+        try {
+          const offerings = await Purchases.getOfferings();
+          const cur = offerings?.current;
+          if (cur) {
+            const monthlyPkg = cur.monthly ?? cur.availablePackages?.find((p: any) => p.identifier === 'monthly');
+            const annualPkg  = cur.annual  ?? cur.availablePackages?.find((p: any) => p.identifier === 'yearly');
+            setPricing({ monthly: toPlanPrice(monthlyPkg), annual: toPlanPrice(annualPkg) });
+
+            // Check whether this user can still claim the intro trial on each plan,
+            // so we never promise "7-day free trial" to someone who already used it.
+            try {
+              const ids = [monthlyPkg, annualPkg]
+                .filter(Boolean)
+                .map((p: any) => p.product.identifier);
+              if (ids.length) {
+                const map = await Purchases.checkTrialOrIntroductoryPriceEligibility(ids);
+                const ELIGIBLE = INTRO_ELIGIBILITY_STATUS?.INTRO_ELIGIBILITY_STATUS_ELIGIBLE ?? 2;
+                const ok = (pkg: any) =>
+                  pkg ? map[pkg.product.identifier]?.status === ELIGIBLE : true;
+                setTrialEligible({ monthly: ok(monthlyPkg), annual: ok(annualPkg) });
+              }
+            } catch (e) {
+              console.warn('[TruckerNet] Trial eligibility check failed:', e);
+              // Leave defaults (eligible) — better to offer a trial than wrongly hide it.
+            }
+          }
+        } catch (e) {
+          console.warn('[TruckerNet] RevenueCat offerings load failed:', e);
+        }
       } catch (e) {
         console.error('[TruckerNet] RevenueCat init error:', e);
       } finally {
@@ -169,7 +250,7 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
 
   return (
     <SubscriptionContext.Provider
-      value={{ isPro, loading, isMock: IS_EXPO_GO, setMockPro, purchase, restore }}
+      value={{ isPro, loading, pricing, trialEligible, isMock: IS_EXPO_GO, setMockPro, purchase, restore }}
     >
       {children}
     </SubscriptionContext.Provider>

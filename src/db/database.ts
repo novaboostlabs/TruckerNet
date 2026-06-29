@@ -107,6 +107,18 @@ export function initDatabase(): void {
       date       TEXT NOT NULL,
       created_at TEXT NOT NULL
     );
+
+    -- Standalone one-off expenses NOT tied to any load (repair, parking ticket,
+    -- fine, etc.). They reduce the period (week/month) net directly. Load-attached
+    -- one-offs live in load_expenses instead (so they reduce that load's net).
+    CREATE TABLE IF NOT EXISTS general_expenses (
+      id         TEXT PRIMARY KEY,
+      label      TEXT NOT NULL,
+      category   TEXT NOT NULL DEFAULT 'other',
+      amount     REAL NOT NULL,
+      date       TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    );
   `);
 
   // ── Migrations: add new columns to existing tables safely ──
@@ -135,6 +147,20 @@ export function initDatabase(): void {
     `ALTER TABLE loads ADD COLUMN verdict TEXT`,
     `ALTER TABLE loads ADD COLUMN benchmark_fair_pay REAL`,
     `ALTER TABLE loads ADD COLUMN bol_photo_url TEXT NOT NULL DEFAULT ''`,
+    // Tracks whether this load has already contributed to the community rate pool,
+    // so re-saving/editing a completed load never double-counts (Slice 2 integrity).
+    `ALTER TABLE loads ADD COLUMN rate_contributed INTEGER NOT NULL DEFAULT 0`,
+    // Geocoded endpoint coordinates — power the personal "nearby lane" history
+    // (loads whose pickup AND delivery are within ~50 mi of the current load).
+    // Nullable: older loads + manually-typed addresses won't have them.
+    `ALTER TABLE loads ADD COLUMN pickup_lat REAL`,
+    `ALTER TABLE loads ADD COLUMN pickup_lng REAL`,
+    `ALTER TABLE loads ADD COLUMN delivery_lat REAL`,
+    `ALTER TABLE loads ADD COLUMN delivery_lng REAL`,
+    // Category-aware expense aging: tracks when each expense row was last confirmed
+    // (separate from created_at, which is overwritten by replaceUserExpenses).
+    // NULL = use created_at as the baseline (first save = first confirmation).
+    `ALTER TABLE user_expenses ADD COLUMN confirmed_at TEXT`,
   ];
 
   for (const sql of migrations) {
@@ -270,7 +296,49 @@ export function getTotalMonthlyExpenses(): number {
   return row?.total ?? 0;
 }
 
+/**
+ * Monthly mileage used for the break-even calculation.
+ *
+ * Priority order — gets more accurate automatically as the driver logs:
+ *   1. Actual miles from completed loads in the last 90 days (if ≥ 5 loads).
+ *      Rolling 90-day window so a slow month doesn't tank the estimate.
+ *   2. Actual miles from the current calendar month only (if 1–4 loads — early data).
+ *   3. Onboarding estimate (weekly_miles × 4.333) — fresh accounts / no data.
+ *
+ * The 90-day window is intentional: one slow month shouldn't crater the
+ * break-even; the rolling average is more representative of real operating pace.
+ */
 export function getMonthlyMiles(): number {
+  // ── Option 1: rolling 90-day actual miles (5+ loads — high confidence) ──
+  const ninetyDaysAgo = (() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 90);
+    return d.toISOString().split('T')[0];
+  })();
+
+  const rolling = db.getFirstSync<{ total_miles: number; load_count: number }>(
+    `SELECT COALESCE(SUM(total_miles), 0) as total_miles, COUNT(*) as load_count
+     FROM loads
+     WHERE status != 'cancelled' AND date >= ?`,
+    [ninetyDaysAgo],
+  );
+  if (rolling && rolling.load_count >= 5 && rolling.total_miles > 0) {
+    // Convert to a monthly equivalent (90 days ≈ 3 months).
+    return Math.round(rolling.total_miles / 3);
+  }
+
+  // ── Option 2: current month actual miles (1–4 loads — low confidence) ──
+  const monthData = db.getFirstSync<{ total_miles: number; load_count: number }>(
+    `SELECT COALESCE(SUM(total_miles), 0) as total_miles, COUNT(*) as load_count
+     FROM loads
+     WHERE status != 'cancelled' AND date >= ?`,
+    [monthStart()],
+  );
+  if (monthData && monthData.load_count >= 1 && monthData.total_miles > 0) {
+    return monthData.total_miles;
+  }
+
+  // ── Option 3: onboarding estimate — no load data yet ──
   const row = db.getFirstSync<{ value: string }>('SELECT value FROM settings WHERE key = "weekly_miles"');
   const weekly = parseFloat(row?.value ?? '0');
   return weekly * 4.333;
@@ -294,19 +362,24 @@ export interface UserExpenseRow {
   amount: number;
   frequency: string;
   monthly_equivalent: number;
+  // When this specific row was last confirmed accurate by the driver.
+  // Falls back to created_at when NULL (onboarding entry = first confirmation).
+  confirmed_at: string | null;
 }
 
 /** All active, non-fuel expenses — the same set the break-even engine sums. */
 export function getUserExpenses(): UserExpenseRow[] {
   return db.getAllSync<UserExpenseRow>(
-    `SELECT id, label, category, amount, frequency, monthly_equivalent
+    `SELECT id, label, category, amount, frequency, monthly_equivalent,
+            COALESCE(confirmed_at, created_at) as confirmed_at
      FROM user_expenses
      WHERE is_active = 1 AND category != 'fuel'
      ORDER BY sort_order ASC`
   );
 }
 
-/** Replace all expenses with the given set (fuel is tracked separately via fuel_entries). */
+/** Replace all expenses with the given set (fuel is tracked separately via fuel_entries).
+ *  Saving/editing an expense row counts as a confirmation — confirmed_at is set to now. */
 export function replaceUserExpenses(
   expenses: { id: string; label: string; category: string; amount: number; frequency: string; monthly_equivalent: number }[]
 ): void {
@@ -315,24 +388,50 @@ export function replaceUserExpenses(
   for (let i = 0; i < expenses.length; i++) {
     const e = expenses[i];
     db.runSync(
-      `INSERT INTO user_expenses (id, label, category, amount, frequency, monthly_equivalent, is_active, sort_order, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)`,
-      [e.id, e.label, e.category, e.amount, e.frequency, e.monthly_equivalent, i, now]
+      `INSERT INTO user_expenses (id, label, category, amount, frequency, monthly_equivalent, is_active, sort_order, created_at, confirmed_at)
+       VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, ?)`,
+      [e.id, e.label, e.category, e.amount, e.frequency, e.monthly_equivalent, i, now, now]
     );
   }
 }
 
 // ── Break-even calculation ──
 
-export function calcBreakEven(): { breakEvenRPM: number; fuelCPM: number; fixedCPM: number } {
-  const fuelCPM      = getLatestFuelCPM();
-  const totalFixed   = getTotalMonthlyExpenses();
-  const monthlyMiles = getMonthlyMiles();
+export type BreakEvenSource = 'loads_90d' | 'loads_month' | 'estimate';
 
-  if (monthlyMiles <= 0) return { breakEvenRPM: 0, fuelCPM, fixedCPM: 0 };
+export function calcBreakEven(): {
+  breakEvenRPM: number;
+  fuelCPM:      number;
+  fixedCPM:     number;
+  milesSource:  BreakEvenSource;  // lets the UI tell the driver how accurate this is
+} {
+  const fuelCPM    = getLatestFuelCPM();
+  const totalFixed = getTotalMonthlyExpenses();
+
+  // Determine source before calling getMonthlyMiles so we can tag it.
+  const ninetyDaysAgo = (() => {
+    const d = new Date(); d.setDate(d.getDate() - 90);
+    return d.toISOString().split('T')[0];
+  })();
+  const rolling = db.getFirstSync<{ load_count: number }>(
+    `SELECT COUNT(*) as load_count FROM loads WHERE status != 'cancelled' AND date >= ?`,
+    [ninetyDaysAgo],
+  );
+  const monthData = db.getFirstSync<{ load_count: number }>(
+    `SELECT COUNT(*) as load_count FROM loads WHERE status != 'cancelled' AND date >= ?`,
+    [monthStart()],
+  );
+
+  const milesSource: BreakEvenSource =
+    (rolling?.load_count ?? 0) >= 5 ? 'loads_90d' :
+    (monthData?.load_count ?? 0) >= 1 ? 'loads_month' :
+    'estimate';
+
+  const monthlyMiles = getMonthlyMiles();
+  if (monthlyMiles <= 0) return { breakEvenRPM: 0, fuelCPM, fixedCPM: 0, milesSource };
 
   const fixedCPM = totalFixed / monthlyMiles;
-  return { breakEvenRPM: fuelCPM + fixedCPM, fuelCPM, fixedCPM };
+  return { breakEvenRPM: fuelCPM + fixedCPM, fuelCPM, fixedCPM, milesSource };
 }
 
 // ── P&L / Dashboard helpers ──
@@ -351,6 +450,150 @@ function monthStart(): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
 }
 
+function yearStart(): string {
+  return `${new Date().getFullYear()}-01-01`;
+}
+
+/** Quarter start date (1-indexed). */
+function quarterStartDate(q: 1 | 2 | 3 | 4): string {
+  const year = new Date().getFullYear();
+  const month = [1, 4, 7, 10][q - 1];
+  return `${year}-${String(month).padStart(2, '0')}-01`;
+}
+
+/** Current IRS estimated-tax quarter (1–4). */
+function currentTaxQuarter(): 1 | 2 | 3 | 4 {
+  const m = new Date().getMonth() + 1; // 1-12
+  return (m <= 3 ? 1 : m <= 5 ? 2 : m <= 8 ? 3 : 4) as 1 | 2 | 3 | 4;
+}
+
+export interface TaxSetAside {
+  rate:          number;   // 0–1 (e.g. 0.25)
+  monthNet:      number;
+  quarterNet:    number;
+  ytdNet:        number;
+  monthSetAside: number;
+  quarterSetAside: number;
+  ytdSetAside:   number;
+  nextDeadline:  string;   // e.g. "Jun 16"
+  nextDeadlineDate: string; // ISO YYYY-MM-DD
+}
+
+/** IRS quarterly estimated-tax due dates (month/day, 0-indexed month). */
+const TAX_DEADLINES: [number, number][] = [
+  [3, 15],   // Q1 due Apr 15
+  [5, 16],   // Q2 due Jun 16
+  [8, 15],   // Q3 Sep 15
+  [0, 15],   // Q4 due Jan 15 (next year)
+];
+
+function nextDeadlineISO(): string {
+  const now  = new Date();
+  const year = now.getFullYear();
+  for (let i = 0; i < TAX_DEADLINES.length; i++) {
+    const [m, d] = TAX_DEADLINES[i];
+    const due = new Date(i === 3 ? year + 1 : year, m, d);
+    if (due.getTime() > now.getTime()) {
+      return due.toISOString().split('T')[0];
+    }
+  }
+  // Fallback: Jan 15 next year
+  return `${year + 1}-01-15`;
+}
+
+function periodNet(startISO: string): number {
+  const row = db.getFirstSync<{ net: number }>(
+    `SELECT COALESCE(SUM(net_pay), 0) as net
+     FROM loads WHERE status != 'cancelled' AND date >= ?`,
+    [startISO],
+  );
+  // Subtract standalone expenses for the same period
+  const exp = db.getFirstSync<{ total: number }>(
+    `SELECT COALESCE(SUM(amount), 0) as total FROM general_expenses WHERE date >= ?`,
+    [startISO],
+  );
+  return Math.max(0, (row?.net ?? 0) - (exp?.total ?? 0));
+}
+
+export function getTaxSetAside(): TaxSetAside {
+  const rateRaw = parseFloat(getSetting('tax_rate') ?? '25');
+  const rate    = Math.min(50, Math.max(5, isNaN(rateRaw) ? 25 : rateRaw)) / 100;
+
+  const q = currentTaxQuarter();
+  const monthNet   = periodNet(monthStart());
+  const quarterNet = periodNet(quarterStartDate(q));
+  const ytdNet     = periodNet(yearStart());
+
+  const deadline     = nextDeadlineISO();
+  const deadlineDate = new Date(deadline + 'T12:00:00');
+  const nextDeadline = deadlineDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+
+  return {
+    rate,
+    monthNet,
+    quarterNet,
+    ytdNet,
+    monthSetAside:   Math.round(monthNet   * rate),
+    quarterSetAside: Math.round(quarterNet * rate),
+    ytdSetAside:     Math.round(ytdNet     * rate),
+    nextDeadline,
+    nextDeadlineDate: deadline,
+  };
+}
+
+// ── Value-based conversion stats ──────────────────────────────────────────────
+
+export interface ValueMissedStats {
+  /** Completed loads in the last 90 days that had a fair-market benchmark. */
+  loadsWithBenchmark: number;
+  /** Loads where gross_pay < benchmark_fair_pay_min (confirmed lowball). */
+  lowballCount: number;
+  /**
+   * Conservative estimate of money left on the table:
+   * sum(benchmark_fair_pay_min - gross_pay) for lowball loads.
+   * Using MIN, not mid, so we never overstate.
+   */
+  estimatedLost: number;
+  periodDays: number;
+}
+
+export function getValueMissedStats(periodDays = 90): ValueMissedStats {
+  const since = (() => {
+    const d = new Date(); d.setDate(d.getDate() - periodDays);
+    return d.toISOString().split('T')[0];
+  })();
+
+  const rows = db.getAllSync<{
+    gross_pay: number;
+    benchmark_fair_pay_min: number | null;
+  }>(
+    `SELECT gross_pay, benchmark_fair_pay_min
+     FROM loads
+     WHERE status = 'completed'
+       AND date >= ?
+       AND benchmark_fair_pay_min IS NOT NULL
+       AND benchmark_fair_pay_min > 0`,
+    [since],
+  );
+
+  let lowballCount = 0;
+  let estimatedLost = 0;
+
+  for (const r of rows) {
+    if (r.benchmark_fair_pay_min != null && r.gross_pay < r.benchmark_fair_pay_min) {
+      lowballCount++;
+      estimatedLost += r.benchmark_fair_pay_min - r.gross_pay;
+    }
+  }
+
+  return {
+    loadsWithBenchmark: rows.length,
+    lowballCount,
+    estimatedLost: Math.round(estimatedLost),
+    periodDays,
+  };
+}
+
 export function getLoadCount(): number {
   const row = db.getFirstSync<{ n: number }>('SELECT COUNT(*) as n FROM loads');
   return row?.n ?? 0;
@@ -366,22 +609,123 @@ export function getLoadCountThisMonth(): number {
   return row?.n ?? 0;
 }
 
-export function getWeekPnL(): { net: number; gross: number } {
-  const row = db.getFirstSync<{ net: number; gross: number }>(
-    `SELECT COALESCE(SUM(net_pay),0) as net, COALESCE(SUM(gross_pay),0) as gross
+// How many of this driver's loads have been shared to the community rate pool.
+// Powers the "you're building the network" flywheel surface in Settings.
+export function getRateContributionCount(): number {
+  const row = db.getFirstSync<{ n: number }>(
+    'SELECT COUNT(*) as n FROM loads WHERE rate_contributed = 1'
+  );
+  return row?.n ?? 0;
+}
+
+export interface PeriodPnL { net: number; gross: number; miles: number; loads: number; }
+
+// Sum of standalone one-off expenses on/after `start` (and optionally on/before `end`).
+function sumGeneralExpenses(start: string, end?: string): number {
+  const row = end
+    ? db.getFirstSync<{ total: number }>(
+        `SELECT COALESCE(SUM(amount),0) as total FROM general_expenses WHERE date >= ? AND date <= ?`, [start, end])
+    : db.getFirstSync<{ total: number }>(
+        `SELECT COALESCE(SUM(amount),0) as total FROM general_expenses WHERE date >= ?`, [start]);
+  return row?.total ?? 0;
+}
+
+export function getWeekPnL(): PeriodPnL {
+  const row = db.getFirstSync<PeriodPnL>(
+    `SELECT COALESCE(SUM(net_pay),0)     as net,
+            COALESCE(SUM(gross_pay),0)   as gross,
+            COALESCE(SUM(total_miles),0) as miles,
+            COUNT(*)                     as loads
      FROM loads WHERE date >= ? AND status != 'cancelled'`,
     [weekStart()]
   );
-  return row ?? { net: 0, gross: 0 };
+  const base = row ?? { net: 0, gross: 0, miles: 0, loads: 0 };
+  return { ...base, net: base.net - sumGeneralExpenses(weekStart()) };
 }
 
-export function getMonthPnL(): { net: number; gross: number } {
-  const row = db.getFirstSync<{ net: number; gross: number }>(
-    `SELECT COALESCE(SUM(net_pay),0) as net, COALESCE(SUM(gross_pay),0) as gross
+export function getMonthPnL(): PeriodPnL {
+  const row = db.getFirstSync<PeriodPnL>(
+    `SELECT COALESCE(SUM(net_pay),0)     as net,
+            COALESCE(SUM(gross_pay),0)   as gross,
+            COALESCE(SUM(total_miles),0) as miles,
+            COUNT(*)                     as loads
      FROM loads WHERE date >= ? AND status != 'cancelled'`,
     [monthStart()]
   );
-  return row ?? { net: 0, gross: 0 };
+  const base = row ?? { net: 0, gross: 0, miles: 0, loads: 0 };
+  return { ...base, net: base.net - sumGeneralExpenses(monthStart()) };
+}
+
+export interface WeekTrendPoint { weekStart: string; net: number; gross: number; }
+
+export function getWeeklyNetTrend(weeks = 12): WeekTrendPoint[] {
+  // Build the Monday that is (weeks-1) full weeks ago.
+  const now = new Date();
+  const dow = now.getDay();
+  const daysToMon = dow === 0 ? 6 : dow - 1;
+  const thisMonday = new Date(now);
+  thisMonday.setDate(now.getDate() - daysToMon);
+  thisMonday.setHours(12, 0, 0, 0);
+
+  const firstMonday = new Date(thisMonday);
+  firstMonday.setDate(thisMonday.getDate() - (weeks - 1) * 7);
+  const startISO = firstMonday.toISOString().split('T')[0];
+
+  // Query: group by ISO week Monday (date(date,'weekday 0','-6 days'))
+  const rows = db.getAllSync<{ week_start: string; net: number; gross: number }>(
+    `SELECT date(date,'weekday 0','-6 days') as week_start,
+            COALESCE(SUM(net_pay),0)   as net,
+            COALESCE(SUM(gross_pay),0) as gross
+     FROM loads
+     WHERE status != 'cancelled' AND date >= ?
+     GROUP BY week_start
+     ORDER BY week_start ASC`,
+    [startISO]
+  );
+
+  // Build a map so we can fill in missing weeks with zeros.
+  const map: Record<string, { net: number; gross: number }> = {};
+  for (const r of rows) map[r.week_start] = { net: r.net, gross: r.gross };
+
+  // Standalone one-off expenses grouped into the same ISO weeks — they lower net.
+  const genRows = db.getAllSync<{ week_start: string; total: number }>(
+    `SELECT date(date,'weekday 0','-6 days') as week_start, COALESCE(SUM(amount),0) as total
+     FROM general_expenses WHERE date >= ? GROUP BY week_start`,
+    [startISO]
+  );
+  const genMap: Record<string, number> = {};
+  for (const r of genRows) genMap[r.week_start] = r.total;
+
+  const result: WeekTrendPoint[] = [];
+  for (let i = 0; i < weeks; i++) {
+    const d = new Date(firstMonday);
+    d.setDate(firstMonday.getDate() + i * 7);
+    const iso = d.toISOString().split('T')[0];
+    const wk = map[iso] ?? { net: 0, gross: 0 };
+    result.push({ weekStart: iso, net: wk.net - (genMap[iso] ?? 0), gross: wk.gross });
+  }
+  return result;
+}
+
+export interface CostBreakdown {
+  fuel: number; fixed: number; expenses: number; net: number; gross: number;
+}
+
+export function getCostBreakdown(): CostBreakdown {
+  const row = db.getFirstSync<CostBreakdown>(
+    `SELECT COALESCE(SUM(fuel_cost_for_load),0)  as fuel,
+            COALESCE(SUM(fixed_cost_for_load),0) as fixed,
+            COALESCE(SUM(additional_costs),0)    as expenses,
+            COALESCE(SUM(net_pay),0)             as net,
+            COALESCE(SUM(gross_pay),0)           as gross
+     FROM loads
+     WHERE status = 'completed' AND date >= date('now','start of month')`,
+    []
+  );
+  const base = row ?? { fuel: 0, fixed: 0, expenses: 0, net: 0, gross: 0 };
+  // Standalone one-off expenses this month move from net → the expenses slice.
+  const general = sumGeneralExpenses(monthStart());
+  return { ...base, expenses: base.expenses + general, net: base.net - general };
 }
 
 export interface LoadSummary {
@@ -406,6 +750,82 @@ export function getRecentLoads(limit = 5): LoadSummary[] {
   );
 }
 
+/** Best load this week by net pay — for the weekly summary notification. */
+export function getBestLoadThisWeek(): {
+  pickup_city: string; delivery_city: string;
+  net_rate_per_mile: number; net_pay: number;
+} | null {
+  return db.getFirstSync(
+    `SELECT pickup_city, delivery_city, net_rate_per_mile, net_pay
+     FROM loads
+     WHERE status = 'completed' AND date >= ?
+     ORDER BY net_pay DESC LIMIT 1`,
+    [weekStart()],
+  ) ?? null;
+}
+
+/**
+ * Consecutive weeks over break-even ending with this week.
+ * Returns 0 when break-even isn't set or the current week is under.
+ */
+export function consecutiveWeeksOverBreakEven(): number {
+  const { breakEvenRPM } = calcBreakEven();
+  if (breakEvenRPM <= 0) return 0;
+
+  // Walk backwards week by week (max 52).
+  const now = new Date();
+  let streak = 0;
+
+  for (let i = 0; i < 52; i++) {
+    const weekMon = new Date(now);
+    const dow = weekMon.getDay();
+    weekMon.setDate(now.getDate() - (dow === 0 ? 6 : dow - 1) - i * 7);
+    weekMon.setHours(0, 0, 0, 0);
+    const sun = new Date(weekMon);
+    sun.setDate(weekMon.getDate() + 6);
+
+    const start = weekMon.toISOString().split('T')[0];
+    const end   = sun.toISOString().split('T')[0];
+
+    const row = db.getFirstSync<{ miles: number; net: number }>(
+      `SELECT COALESCE(SUM(total_miles), 0) as miles,
+              COALESCE(SUM(net_pay), 0) as net
+       FROM loads WHERE status != 'cancelled' AND date >= ? AND date <= ?`,
+      [start, end],
+    );
+
+    if (!row || row.miles <= 0) break;  // no loads — streak ends
+    const rpm = row.net / row.miles;
+    if (rpm < breakEvenRPM) break;      // under — streak ends
+    streak++;
+  }
+
+  return streak;
+}
+
+/** Date of the most recently logged (completed or in-progress) load. */
+export function getLastLoadDate(): string | null {
+  const row = db.getFirstSync<{ date: string }>(
+    `SELECT date FROM loads
+     WHERE status != 'cancelled'
+     ORDER BY date DESC, created_at DESC LIMIT 1`,
+  );
+  return row?.date ?? null;
+}
+
+/** Average loads per week over the last 4 weeks (proxy for "regular logger"). */
+export function avgLoadsPerWeek(): number {
+  const fourWeeksAgo = (() => {
+    const d = new Date(); d.setDate(d.getDate() - 28);
+    return d.toISOString().split('T')[0];
+  })();
+  const row = db.getFirstSync<{ n: number }>(
+    `SELECT COUNT(*) as n FROM loads WHERE status != 'cancelled' AND date >= ?`,
+    [fourWeeksAgo],
+  );
+  return (row?.n ?? 0) / 4;
+}
+
 export function getActiveLoad(): LoadSummary | null {
   return db.getFirstSync<LoadSummary>(
     `SELECT id, pickup_city, pickup_state, delivery_city, delivery_state,
@@ -418,24 +838,77 @@ export function getActiveLoad(): LoadSummary | null {
 
 export interface LaneHistory {
   count:    number;
-  avgPay:   number;
+  avgPay:   number;   // average GROSS pay on this lane
   lastPay:  number;
   lastDate: string;
+  precise:  boolean;  // true = matched by nearby coords (~50 mi); false = state-level fallback
 }
 
-export function getPersonalLaneHistory(
-  originState: string,
-  destState:   string,
-  loadType:    string,
-): LaneHistory | null {
-  if (!originState || !destState) return null;
+export interface LaneHistoryQuery {
+  pickupLat?:   number | null;
+  pickupLng?:   number | null;
+  deliveryLat?: number | null;
+  deliveryLng?: number | null;
+  originState:  string;
+  destState:    string;
+  equipment:    string;
+  radiusMiles?: number;   // default 50
+}
 
+// Great-circle distance in miles.
+function haversineMiles(aLat: number, aLng: number, bLat: number, bLng: number): number {
+  const R = 3958.8;
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const dLat = toRad(bLat - aLat);
+  const dLng = toRad(bLng - aLng);
+  const s = Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(aLat)) * Math.cos(toRad(bLat)) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.min(1, Math.sqrt(s)));
+}
+
+/**
+ * The driver's own history on this lane. First tries a precise "nearby" match —
+ * past completed loads whose pickup AND delivery are both within ~50 mi of the
+ * current load (using stored coordinates). Falls back to a state-pair match for
+ * older loads / manually-typed addresses that have no coordinates.
+ */
+export function getPersonalLaneHistory(q: LaneHistoryQuery): LaneHistory | null {
+  const radius = q.radiusMiles ?? 50;
+
+  // ── 1) Precise nearby-coords match ──
+  if (q.pickupLat != null && q.pickupLng != null && q.deliveryLat != null && q.deliveryLng != null) {
+    const rows = db.getAllSync<{ gross_pay: number; date: string; pickup_lat: number; pickup_lng: number; delivery_lat: number; delivery_lng: number }>(
+      `SELECT gross_pay, date, pickup_lat, pickup_lng, delivery_lat, delivery_lng
+       FROM loads
+       WHERE equipment_type = ? AND status = 'completed'
+         AND pickup_lat IS NOT NULL AND delivery_lat IS NOT NULL`,
+      [q.equipment],
+    );
+    const matches = rows.filter(r =>
+      haversineMiles(q.pickupLat!, q.pickupLng!, r.pickup_lat, r.pickup_lng) <= radius &&
+      haversineMiles(q.deliveryLat!, q.deliveryLng!, r.delivery_lat, r.delivery_lng) <= radius,
+    );
+    if (matches.length > 0) {
+      const sorted = [...matches].sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
+      const avg = matches.reduce((s, m) => s + m.gross_pay, 0) / matches.length;
+      return {
+        count: matches.length,
+        avgPay: Math.round(avg),
+        lastPay: Math.round(sorted[0].gross_pay),
+        lastDate: sorted[0].date,
+        precise: true,
+      };
+    }
+  }
+
+  // ── 2) State-pair fallback ──
+  if (!q.originState || !q.destState) return null;
   const stats = db.getFirstSync<{ count: number; avg_pay: number }>(
     `SELECT COUNT(*) as count, AVG(gross_pay) as avg_pay
      FROM loads
      WHERE pickup_state = ? AND delivery_state = ? AND equipment_type = ?
        AND status = 'completed'`,
-    [originState, destState, loadType],
+    [q.originState, q.destState, q.equipment],
   );
   if (!stats || stats.count === 0) return null;
 
@@ -444,7 +917,7 @@ export function getPersonalLaneHistory(
      WHERE pickup_state = ? AND delivery_state = ? AND equipment_type = ?
        AND status = 'completed'
      ORDER BY date DESC, created_at DESC LIMIT 1`,
-    [originState, destState, loadType],
+    [q.originState, q.destState, q.equipment],
   );
 
   return {
@@ -452,6 +925,7 @@ export function getPersonalLaneHistory(
     avgPay:   Math.round(stats.avg_pay ?? 0),
     lastPay:  Math.round(last?.gross_pay ?? 0),
     lastDate: last?.date ?? '',
+    precise:  false,
   };
 }
 
@@ -570,7 +1044,9 @@ export function getHistoryTotals(filter: HistoryFilter): HistoryTotals {
     params
   );
   const gross = row?.gross ?? 0;
-  const net   = row?.net   ?? 0;
+  // getHistoryTotals is only used for the 'all' filter (week/month use the date-range
+  // variant), so subtract every standalone one-off expense.
+  const net   = (row?.net ?? 0) - sumGeneralExpenses('0000-01-01');
   const miles = row?.miles ?? 0;
   const count = row?.count ?? 0;
   return { gross, net, miles, rpm: miles > 0 ? net / miles : 0, count };
@@ -586,6 +1062,23 @@ export function getHistoryLoadsDateRange(start: string, end: string): HistoryLoa
   );
 }
 
+export function searchHistoryLoads(query: string): HistoryLoad[] {
+  const q = `%${query}%`;
+  return db.getAllSync<HistoryLoad>(
+    `SELECT id, date, pickup_city, pickup_state, delivery_city, delivery_state,
+            total_miles, gross_pay, net_pay, net_rate_per_mile
+     FROM loads
+     WHERE status != 'cancelled'
+       AND (pickup_city LIKE ? OR delivery_city LIKE ?
+            OR pickup_state LIKE ? OR delivery_state LIKE ?
+            OR broker_name LIKE ? OR notes LIKE ?
+            OR pickup_address LIKE ? OR delivery_address LIKE ?)
+     ORDER BY date DESC, created_at DESC
+     LIMIT 100`,
+    [q, q, q, q, q, q, q, q]
+  );
+}
+
 export function getHistoryTotalsDateRange(start: string, end: string): HistoryTotals {
   const row = db.getFirstSync<{ gross: number; net: number; miles: number; count: number }>(
     `SELECT COALESCE(SUM(gross_pay),0) as gross,
@@ -596,7 +1089,7 @@ export function getHistoryTotalsDateRange(start: string, end: string): HistoryTo
     [start, end]
   );
   const gross = row?.gross ?? 0;
-  const net   = row?.net   ?? 0;
+  const net   = (row?.net ?? 0) - sumGeneralExpenses(start, end);
   const miles = row?.miles ?? 0;
   const count = row?.count ?? 0;
   return { gross, net, miles, rpm: miles > 0 ? net / miles : 0, count };
@@ -632,6 +1125,11 @@ export interface LoadInsert {
   broker_mc?:          string;
   notes?:              string;
   additional_costs?:   number;
+  // Geocoded endpoint coordinates (when the address was picked from autocomplete).
+  pickup_lat?:         number | null;
+  pickup_lng?:         number | null;
+  delivery_lat?:       number | null;
+  delivery_lng?:       number | null;
 }
 
 export interface StateMileageInsert {
@@ -742,6 +1240,11 @@ export function updateLoad(id: string, updates: LoadUpdate): void {
   recalculateLoadFinancials(id);
 }
 
+/** Mark a load as having contributed to the community rate pool (idempotency flag). */
+export function markLoadRateContributed(id: string): void {
+  db.runSync('UPDATE loads SET rate_contributed = 1 WHERE id = ?', [id]);
+}
+
 /** Add one expense to an existing load and update its financials immediately. */
 export function addSingleLoadExpense(loadId: string, expense: LoadExpenseInsert): void {
   const now  = new Date().toISOString();
@@ -754,10 +1257,192 @@ export function addSingleLoadExpense(loadId: string, expense: LoadExpenseInsert)
   recalculateLoadFinancials(loadId);
 }
 
+// ── Standalone (one-off) general expenses ──────────────────────────────────────
+
+export interface GeneralExpense {
+  id:       string;
+  label:    string;
+  category: string;
+  amount:   number;
+  date:     string;       // YYYY-MM-DD
+}
+
+export interface GeneralExpenseInsert {
+  label:    string;
+  category: string;
+  amount:   number;
+  date:     string;       // YYYY-MM-DD
+}
+
+/** Insert a standalone one-off expense (not tied to a load). Returns its id. */
+export function addGeneralExpense(e: GeneralExpenseInsert): string {
+  const id  = uuidv4();
+  const now = new Date().toISOString();
+  db.runSync(
+    `INSERT INTO general_expenses (id, label, category, amount, date, created_at)
+     VALUES (?, ?, ?, ?, ?, ?)`,
+    [id, e.label, e.category, e.amount, e.date, now]
+  );
+  return id;
+}
+
+export function deleteGeneralExpense(id: string): void {
+  db.runSync('DELETE FROM general_expenses WHERE id = ?', [id]);
+}
+
+export function getGeneralExpensesDateRange(start: string, end: string): GeneralExpense[] {
+  return db.getAllSync<GeneralExpense>(
+    `SELECT id, label, category, amount, date FROM general_expenses
+     WHERE date >= ? AND date <= ? ORDER BY date DESC, created_at DESC`,
+    [start, end]
+  );
+}
+
+export function getAllGeneralExpenses(): GeneralExpense[] {
+  return db.getAllSync<GeneralExpense>(
+    `SELECT id, label, category, amount, date FROM general_expenses
+     ORDER BY date DESC, created_at DESC`
+  );
+}
+
+/** Replace the entire local general-expenses set (used on cloud pull). */
+export function replaceGeneralExpenses(rows: GeneralExpense[]): void {
+  db.runSync('DELETE FROM general_expenses');
+  const now = new Date().toISOString();
+  for (const r of rows) {
+    db.runSync(
+      `INSERT INTO general_expenses (id, label, category, amount, date, created_at)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [r.id, r.label, r.category, r.amount, r.date, now]
+    );
+  }
+}
+
 /** Remove one expense from an existing load and update its financials immediately. */
 export function deleteSingleLoadExpense(expenseId: string, loadId: string): void {
   db.runSync('DELETE FROM load_expenses WHERE id = ?', [expenseId]);
   recalculateLoadFinancials(loadId);
+}
+
+// ── Expense review tracking ────────────────────────────────────────────────────
+
+// ── Category-aware aging rules ─────────────────────────────────────────────────
+// How many days before each category is considered potentially stale.
+// These mirror real-world change frequencies — insurance renews annually,
+// parking can change monthly, truck payments are the most stable.
+export const CATEGORY_AGING_DAYS: Record<string, number> = {
+  insurance:   335,  // annual renewal — flag ~1 month before typical anniversary
+  truck:       180,  // semi-annual check (payoff, refinance, new payment)
+  eld:         335,  // annual subscription
+  loadboard:   335,  // annual subscription
+  maintenance: 90,   // quarterly sanity check
+  parking:     60,   // can change with loads, seasons, or moves
+  other:       90,   // catch-all: quarterly
+};
+
+/** How many days since this expense was last confirmed (or first entered). */
+function daysSinceConfirmed(confirmedAt: string | null, createdAt?: string): number {
+  const ref = confirmedAt ?? createdAt ?? new Date().toISOString();
+  const d = new Date(ref);
+  return Math.floor((Date.now() - d.getTime()) / (1000 * 60 * 60 * 24));
+}
+
+export interface StaleCategoryAlert {
+  expenseId:   string;
+  label:       string;
+  category:    string;
+  amount:      number;
+  frequency:   string;
+  daysSince:   number;   // how long since last confirmed
+  dueDays:     number;   // how many days past due (positive = overdue)
+}
+
+/**
+ * Returns expenses whose category-specific aging threshold has been exceeded.
+ * Sorted by how overdue they are (most overdue first).
+ */
+export function getStaleCategoryAlerts(): StaleCategoryAlert[] {
+  const rows = db.getAllSync<UserExpenseRow & { created_at: string }>(
+    `SELECT id, label, category, amount, frequency, monthly_equivalent,
+            COALESCE(confirmed_at, created_at) as confirmed_at,
+            created_at
+     FROM user_expenses WHERE is_active = 1 AND category != 'fuel'`
+  );
+
+  const alerts: StaleCategoryAlert[] = [];
+  for (const r of rows) {
+    const threshold = CATEGORY_AGING_DAYS[r.category] ?? 90;
+    const days = daysSinceConfirmed(r.confirmed_at);
+    if (days >= threshold) {
+      alerts.push({
+        expenseId: r.id,
+        label:     r.label,
+        category:  r.category,
+        amount:    r.amount,
+        frequency: r.frequency,
+        daysSince: days,
+        dueDays:   days - threshold,
+      });
+    }
+  }
+  return alerts.sort((a, b) => b.dueDays - a.dueDays);
+}
+
+/**
+ * Stamp a single expense row as confirmed-accurate today.
+ * Call when the driver taps "✓" on that row in the review modal.
+ */
+export function confirmExpense(id: string): void {
+  db.runSync(
+    `UPDATE user_expenses SET confirmed_at = ? WHERE id = ?`,
+    [new Date().toISOString(), id]
+  );
+}
+
+/**
+ * Stamp ALL expense rows as confirmed today (driver tapped "All accurate").
+ */
+export function confirmAllExpenses(): void {
+  db.runSync(`UPDATE user_expenses SET confirmed_at = ? WHERE is_active = 1`, [new Date().toISOString()]);
+}
+
+const REVIEW_KEY = 'last_expense_review';
+const REVIEW_INTERVAL_DAYS = 30;
+
+/**
+ * Record that the driver just reviewed their recurring expenses.
+ * Stamps today's date; resets the stale timer.
+ */
+export function markExpensesReviewed(): void {
+  setSetting(REVIEW_KEY, new Date().toISOString().split('T')[0]);
+}
+
+/**
+ * How many days since the driver last reviewed their recurring expenses.
+ * Returns null if never reviewed (onboarding completion acts as first review).
+ */
+export function daysSinceExpenseReview(): number | null {
+  const raw = getSetting(REVIEW_KEY);
+  if (!raw) return null;
+  const last = new Date(raw + 'T12:00:00');
+  const now  = new Date();
+  return Math.floor((now.getTime() - last.getTime()) / (1000 * 60 * 60 * 24));
+}
+
+/**
+ * Whether expenses should prompt a review — true when:
+ *   (a) any individual expense has exceeded its category-specific aging threshold, OR
+ *   (b) the flat 30-day global review timer has expired (safety net).
+ * Returns false when there are no recurring expenses.
+ */
+export function expensesAreStale(): boolean {
+  if (getTotalMonthlyExpenses() <= 0) return false;
+  // Category-aware check: any overdue individual expense?
+  if (getStaleCategoryAlerts().length > 0) return true;
+  // Flat safety net: hasn't been reviewed globally in 30 days?
+  const days = daysSinceExpenseReview();
+  if (days === null) return true;
+  return days >= REVIEW_INTERVAL_DAYS;
 }
 
 export function getLoadExpenses(loadId: string): LoadExpenseRow[] {
@@ -807,8 +1492,9 @@ export function saveLoad(
       fuel_cost_for_load, fixed_cost_for_load, net_pay,
       gross_rate_per_mile, net_rate_per_mile, verdict,
       weight_lbs, bol_number, bol_photo_url, broker_name, broker_mc, notes,
-      is_deadhead, created_at
-    ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      is_deadhead, created_at,
+      pickup_lat, pickup_lng, delivery_lat, delivery_lng
+    ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
     [
       id, date,
       load.pickup_address,  load.pickup_city,  load.pickup_state,
@@ -821,6 +1507,7 @@ export function saveLoad(
       load.weight_lbs ?? 0, load.bol_number ?? '', load.bol_photo_url ?? '', load.broker_name ?? '',
       load.broker_mc ?? '', load.notes ?? '',
       0, now,
+      load.pickup_lat ?? null, load.pickup_lng ?? null, load.delivery_lat ?? null, load.delivery_lng ?? null,
     ]
   );
 
@@ -878,6 +1565,10 @@ export interface LoadRow {
   net_rate_per_mile: number;
   verdict: string | null;
   created_at: string;
+  pickup_lat: number | null;
+  pickup_lng: number | null;
+  delivery_lat: number | null;
+  delivery_lng: number | null;
 }
 
 export interface StateMileageRow {
@@ -896,7 +1587,8 @@ export function getAllLoads(): LoadRow[] {
             is_deadhead, is_backhaul, status, notes,
             benchmark_fair_pay_min, benchmark_fair_pay_max,
             fuel_cost_for_load, fixed_cost_for_load, net_pay,
-            gross_rate_per_mile, net_rate_per_mile, verdict, created_at
+            gross_rate_per_mile, net_rate_per_mile, verdict, created_at,
+            pickup_lat, pickup_lng, delivery_lat, delivery_lng
      FROM loads ORDER BY date DESC, created_at DESC`
   );
 }
@@ -925,8 +1617,9 @@ export function replaceLoads(
         is_deadhead, is_backhaul, status, notes,
         benchmark_fair_pay_min, benchmark_fair_pay_max,
         fuel_cost_for_load, fixed_cost_for_load, net_pay,
-        gross_rate_per_mile, net_rate_per_mile, verdict, created_at
-      ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+        gross_rate_per_mile, net_rate_per_mile, verdict, created_at,
+        pickup_lat, pickup_lng, delivery_lat, delivery_lng
+      ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       [
         l.id, l.date, l.pickup_address, l.pickup_city, l.pickup_state,
         l.delivery_address, l.delivery_city, l.delivery_state,
@@ -936,6 +1629,7 @@ export function replaceLoads(
         l.benchmark_fair_pay_min ?? null, l.benchmark_fair_pay_max ?? null,
         l.fuel_cost_for_load, l.fixed_cost_for_load, l.net_pay,
         l.gross_rate_per_mile, l.net_rate_per_mile, l.verdict ?? null, l.created_at,
+        l.pickup_lat ?? null, l.pickup_lng ?? null, l.delivery_lat ?? null, l.delivery_lng ?? null,
       ]
     );
   }
@@ -991,7 +1685,7 @@ export function getLoadById(id: string): LoadDetail | null {
             is_backhaul, status, weight_lbs, bol_number, bol_photo_url, broker_name, broker_mc,
             notes, benchmark_fair_pay_min, benchmark_fair_pay_max,
             fuel_cost_for_load, fixed_cost_for_load, net_pay,
-            gross_rate_per_mile, net_rate_per_mile, verdict
+            gross_rate_per_mile, net_rate_per_mile, verdict, rate_contributed
      FROM loads WHERE id = ?`,
     [id]
   );
@@ -1018,13 +1712,86 @@ export function clearAllUserData(): void {
   db.runSync('DELETE FROM loads');
   db.runSync('DELETE FROM fuel_entries');
   db.runSync('DELETE FROM user_expenses');
+  db.runSync('DELETE FROM general_expenses');
   // Clear all user-specific settings.
-  // Preserved: language (device preference), onboarding_completed:* (keyed by user id — harmless).
+  // Preserved: language, walkthrough_seen (device preferences that survive sign-out).
+  // onboarding_completed:* per-user keys are preserved — they're keyed by user ID
+  // so leaking them to a different account is harmless (wrong key is never matched).
   db.runSync(
     `DELETE FROM settings WHERE key IN (
-      'weekly_miles', 'weekly_fuel_cost', 'guest_mode', 'has_real_account'
+      'weekly_miles', 'weekly_fuel_cost', 'guest_mode', 'has_real_account',
+      'income_goal_amount', 'income_goal_period',
+      'income_goal_milestones', 'income_goal_milestone_period',
+      'profile_name', 'profile_equipment_type', 'profile_truck_number', 'profile_home_base',
+      'data_owner_id'
     )`
   );
+}
+
+/**
+ * Claim local data for a signing-in account (the Uber/Partiful "one source of
+ * truth" model). Local data is owned by exactly one identity at a time:
+ *   - guest / fresh device → owner is unset (''); its data may consolidate onto
+ *     the first account that signs in (the cloud-empty push in syncXOnSignIn).
+ *   - a real account → owner is its user id.
+ *
+ * If the local data belongs to a DIFFERENT real account (e.g. a session expired
+ * without an explicit sign-out, then a second account signs in), we wipe it
+ * FIRST so it can never be pushed up into — or merged with — the new account.
+ * Returns true when a wipe occurred. Call this on every sign-in, before sync.
+ */
+export function claimDataOwnership(userId: string): boolean {
+  const prev = getSetting('data_owner_id') ?? '';
+  const mismatch = prev !== '' && prev !== userId;
+  if (mismatch) clearAllUserData();   // different account's data — never consolidate it
+  setSetting('data_owner_id', userId);
+  return mismatch;
+}
+
+// ── Income goal ───────────────────────────────────────────────────────────────
+
+export function getIncomeGoal(): { amount: number; period: 'weekly' | 'monthly' } | null {
+  const amt = parseFloat(getSetting('income_goal_amount') ?? '0');
+  if (!amt || amt <= 0) return null;
+  const period = (getSetting('income_goal_period') ?? 'weekly') as 'weekly' | 'monthly';
+  return { amount: amt, period };
+}
+
+export function setIncomeGoal(amount: number | null, period: 'weekly' | 'monthly'): void {
+  setSetting('income_goal_amount', String(amount && amount > 0 ? amount : 0));
+  setSetting('income_goal_period', period);
+  // Reset milestone tracking whenever goal changes.
+  setSetting('income_goal_milestones', '');
+  setSetting('income_goal_milestone_period', '');
+}
+
+function goalPeriodKey(period: 'weekly' | 'monthly'): string {
+  const now = new Date();
+  if (period === 'monthly') {
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  }
+  const d = new Date(now);
+  d.setUTCHours(0, 0, 0, 0);
+  d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  const week = Math.ceil(((d.getTime() - yearStart.getTime()) / 86400000 + 1) / 7);
+  return `${d.getUTCFullYear()}-W${String(week).padStart(2, '0')}`;
+}
+
+export function getGoalMilestonesHit(period: 'weekly' | 'monthly'): number[] {
+  const storedPeriod = getSetting('income_goal_milestone_period') ?? '';
+  if (storedPeriod !== goalPeriodKey(period)) return [];
+  const raw = getSetting('income_goal_milestones') ?? '';
+  return raw.split(',').map(Number).filter(Boolean);
+}
+
+export function markGoalMilestoneHit(milestone: 75 | 100, period: 'weekly' | 'monthly'): void {
+  const key = goalPeriodKey(period);
+  setSetting('income_goal_milestone_period', key);
+  const existing = getGoalMilestonesHit(period);
+  if (!existing.includes(milestone)) {
+    setSetting('income_goal_milestones', [...existing, milestone].join(','));
+  }
 }
 
 // ── Fuel stats for FuelScreen ──

@@ -1,14 +1,20 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Animated } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors, FontFamily, FontSize, Spacing, Radius, SectionLabel } from '../../theme/theme';
+import { Colors, FontFamily, FontSize, Spacing, Radius, SectionLabel, ThemeColors, sectionLabel } from '../../theme/theme';
+import { useTheme } from '../../theme/ThemeContext';
 import { calcBreakEven, getSetting, getTotalMonthlyExpenses, getMonthlyMiles } from '../../db/database';
+import { capture } from '../../lib/analytics';
+import GridBackground from '../../components/GridBackground';
+import AccentRule from '../../components/AccentRule';
 
 interface Props { onComplete: () => void; onBack: () => void; }
 
 export default function OnboardingResultScreen({ onComplete, onBack }: Props) {
+  const { colors: Colors } = useTheme();
+  const styles = useMemo(() => makeStyles(Colors), [Colors]);
   const { t } = useTranslation();
   const [result, setResult]   = useState({ breakEvenRPM: 0, fuelCPM: 0, fixedCPM: 0 });
   const [monthlyFuel, setMonthlyFuel]   = useState(0);
@@ -36,6 +42,10 @@ export default function OnboardingResultScreen({ onComplete, onBack }: Props) {
   }, []);
 
   function handleStart() {
+    capture('onboarding_result_completed', {
+      break_even_rpm: result.breakEvenRPM,
+      has_break_even: result.breakEvenRPM > 0,
+    });
     onComplete(); // RootNavigator handles setting 'onboarding_completed'
   }
 
@@ -43,6 +53,7 @@ export default function OnboardingResultScreen({ onComplete, onBack }: Props) {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+      <GridBackground />
       <View style={styles.container}>
 
         {/* Back button */}
@@ -62,6 +73,7 @@ export default function OnboardingResultScreen({ onComplete, onBack }: Props) {
         {/* Hero result */}
         <Animated.View style={[styles.heroBlock, { opacity: fadeAnim, transform: [{ scale: scaleAnim }] }]}>
           <Text style={styles.heroTitle}>{t('onboarding.result.title')}</Text>
+          <AccentRule style={{ alignSelf: 'center', marginBottom: 20 }} />
 
           <View style={styles.rateCard}>
             <Text style={styles.rateLabel}>{t('dashboard.breakEven')}</Text>
@@ -131,14 +143,14 @@ export default function OnboardingResultScreen({ onComplete, onBack }: Props) {
 
         <TouchableOpacity style={styles.button} onPress={handleStart} activeOpacity={0.85}>
           <Text style={styles.buttonText}>{t('onboarding.result.startTracking')}</Text>
-          <Ionicons name="arrow-forward" size={18} color={Colors.background} />
+          <Ionicons name="arrow-forward" size={18} color={Colors.onPrimary} />
         </TouchableOpacity>
       </View>
     </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (Colors: ThemeColors) => StyleSheet.create({
   safe:      { flex: 1, backgroundColor: Colors.background },
   container: { flex: 1, paddingHorizontal: Spacing.screenH, paddingTop: 16, paddingBottom: 24 },
 
@@ -146,43 +158,44 @@ const styles = StyleSheet.create({
   progressRow: { flexDirection: 'row', gap: 6, marginBottom: 20 },
   progressDot: { flex: 1, height: 3, borderRadius: 2, backgroundColor: Colors.surface },
   progressDotActive: { backgroundColor: Colors.primary },
-  stepLabel: { fontFamily: FontFamily.medium, fontSize: FontSize.label, color: Colors.textSecondary, marginBottom: 32 },
+  stepLabel: { fontFamily: FontFamily.monoSemiBold, fontSize: FontSize.caption, color: Colors.labelColor, letterSpacing: 1.4, textTransform: 'uppercase', marginBottom: 32 },
 
   heroBlock:  { alignItems: 'center', marginBottom: 28 },
-  heroTitle:  { fontFamily: FontFamily.bold, fontSize: FontSize.subtitle, color: Colors.textPrimary, marginBottom: 20, textAlign: 'center' },
+  heroTitle:  { fontFamily: FontFamily.monoBold, fontSize: FontSize.subtitle, color: Colors.textPrimary, marginBottom: 14, textAlign: 'center', letterSpacing: -0.4 },
 
   rateCard: {
     backgroundColor: Colors.surface, borderWidth: 2, borderColor: Colors.primary,
-    borderRadius: Radius.xl, paddingVertical: 28, paddingHorizontal: 48,
+    borderRadius: Radius.md, paddingVertical: 28, paddingHorizontal: 48,
     alignItems: 'center', marginBottom: 16, width: '100%',
+    shadowColor: Colors.primary, shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.25, shadowRadius: 16, elevation: 10,
   },
-  rateLabel:  { ...SectionLabel, marginBottom: 8 },
-  rateNumber: { fontFamily: FontFamily.bold, fontSize: 56, color: Colors.primary, lineHeight: 64, letterSpacing: -2 },
-  rateUnit:   { fontFamily: FontFamily.regular, fontSize: FontSize.body, color: Colors.textSecondary, marginTop: 4 },
+  rateLabel:  { ...sectionLabel(Colors), fontFamily: FontFamily.monoSemiBold, marginBottom: 8 },
+  rateNumber: { fontFamily: FontFamily.monoBold, fontSize: 56, color: Colors.primary, lineHeight: 64, letterSpacing: -2 },
+  rateUnit:   { fontFamily: FontFamily.monoRegular, fontSize: FontSize.body, color: Colors.textSecondary, marginTop: 4 },
 
   subtitle: { fontFamily: FontFamily.regular, fontSize: FontSize.body, color: Colors.textSecondary, textAlign: 'center', lineHeight: 22 },
 
   formulaCard: {
     backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border,
-    borderRadius: Radius.lg, padding: Spacing.cardPad, marginBottom: 16,
+    borderRadius: Radius.md, padding: Spacing.cardPad, marginBottom: 16,
   },
-  formulaTitle: { fontFamily: FontFamily.semiBold, fontSize: FontSize.label, color: Colors.textSecondary, marginBottom: 16 },
+  formulaTitle: { fontFamily: FontFamily.monoSemiBold, fontSize: FontSize.caption, color: Colors.labelColor, letterSpacing: 1.2, textTransform: 'uppercase', marginBottom: 16 },
   formulaRow:   { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16 },
   formulaItem:  { flex: 1, alignItems: 'center' },
-  formulaItemLabel: { ...SectionLabel, fontSize: 9, marginBottom: 4 },
-  formulaItemValue: { fontFamily: FontFamily.bold, fontSize: FontSize.label, color: Colors.textPrimary },
-  formulaPlus: { fontFamily: FontFamily.bold, fontSize: FontSize.subtitle, color: Colors.textSecondary },
+  formulaItemLabel: { ...sectionLabel(Colors), fontFamily: FontFamily.monoSemiBold, fontSize: 9, marginBottom: 4 },
+  formulaItemValue: { fontFamily: FontFamily.monoBold, fontSize: FontSize.label, color: Colors.textPrimary },
+  formulaPlus: { fontFamily: FontFamily.monoBold, fontSize: FontSize.subtitle, color: Colors.textSecondary },
 
   cpmRow:  { flexDirection: 'row', paddingTop: 12, borderTopWidth: 1, borderTopColor: Colors.borderSubtle },
   cpmCell: { flex: 1 },
   cpmSep:  { width: 1, backgroundColor: Colors.border, marginHorizontal: 12 },
-  cpmLabel: { ...SectionLabel, fontSize: 9, marginBottom: 4 },
-  cpmValue: { fontFamily: FontFamily.semiBold, fontSize: FontSize.label, color: Colors.textPrimary },
+  cpmLabel: { ...sectionLabel(Colors), fontFamily: FontFamily.monoSemiBold, fontSize: 9, marginBottom: 4 },
+  cpmValue: { fontFamily: FontFamily.monoSemiBold, fontSize: FontSize.label, color: Colors.textPrimary },
 
   nudgeCard: {
     flexDirection: 'row', gap: 10, alignItems: 'flex-start',
-    backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border,
-    borderRadius: Radius.lg, padding: Spacing.cardPad,
+    backgroundColor: Colors.secondaryDim, borderWidth: 1, borderColor: Colors.secondary + '40',
+    borderRadius: Radius.md, padding: Spacing.cardPad,
   },
   nudgeText: { flex: 1, fontFamily: FontFamily.regular, fontSize: FontSize.label, color: Colors.textSecondary, lineHeight: 20 },
 
@@ -191,6 +204,7 @@ const styles = StyleSheet.create({
   button: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
     backgroundColor: Colors.primary, borderRadius: Radius.md, paddingVertical: 17,
+    shadowColor: Colors.primary, shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.4, shadowRadius: 12, elevation: 12,
   },
-  buttonText: { fontFamily: FontFamily.semiBold, fontSize: FontSize.body, color: Colors.background },
+  buttonText: { fontFamily: FontFamily.semiBold, fontSize: FontSize.body, color: Colors.onPrimary },
 });

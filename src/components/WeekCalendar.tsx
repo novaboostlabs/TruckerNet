@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import { Colors, FontFamily, FontSize, Radius } from '../theme/theme';
+import { Colors, FontFamily, FontSize, Radius, ThemeColors, sectionLabel } from '../theme/theme';
+import { useTheme } from '../theme/ThemeContext';
 
 const DAY_LABELS = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'];
 
@@ -13,6 +14,8 @@ interface Props {
 }
 
 export default function WeekCalendar({ weekDates, loadsByDate, selectedDay, onSelectDay, today }: Props) {
+  const { colors: Colors } = useTheme();
+  const styles = useMemo(() => makeStyles(Colors), [Colors]);
   return (
     <View style={styles.row}>
       {weekDates.map((iso, i) => {
@@ -70,7 +73,7 @@ export default function WeekCalendar({ weekDates, loadsByDate, selectedDay, onSe
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (Colors: ThemeColors) => StyleSheet.create({
   row: {
     flexDirection: 'row',
     paddingVertical: 10,
@@ -114,11 +117,11 @@ const styles = StyleSheet.create({
   },
   dayNumSelected: {
     color:      Colors.background,
-    fontFamily: FontFamily.bold,
+    fontFamily: FontFamily.monoBold,
   },
   dayNumToday: {
     color:      Colors.primary,
-    fontFamily: FontFamily.semiBold,
+    fontFamily: FontFamily.monoSemiBold,
   },
   dayNumDim: {
     color: Colors.textTertiary,
@@ -140,12 +143,12 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.background,
   },
   countText: {
-    fontFamily: FontFamily.bold,
+    fontFamily: FontFamily.monoBold,
     fontSize:   8,
     color:      Colors.primary,
     lineHeight: 10,
   },
   countTextSelected: {
-    color: Colors.background,
+    color: Colors.onPrimary,
   },
 });

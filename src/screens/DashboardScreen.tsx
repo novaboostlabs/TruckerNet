@@ -1,19 +1,37 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState, useMemo, useRef } from 'react';
 import {
-  View, Text, StyleSheet, TouchableOpacity, ScrollView, StatusBar, Modal,
+  View, Text, StyleSheet, TouchableOpacity, ScrollView, StatusBar, Modal, Animated, Pressable,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
-import { Colors, FontFamily, FontSize, Spacing, Radius, SectionLabel } from '../theme/theme';
+import { Colors, FontFamily, FontSize, Spacing, Radius, SectionLabel, ThemeColors, sectionLabel } from '../theme/theme';
+import { useTheme } from '../theme/ThemeContext';
 import {
-  calcBreakEven, getLoadCount, getWeekPnL, getMonthPnL,
-  getRecentLoads, getActiveLoad, LoadSummary,
+  calcBreakEven, BreakEvenSource, getLoadCount, getWeekPnL, getMonthPnL,
+  expensesAreStale, daysSinceExpenseReview, getStaleCategoryAlerts, StaleCategoryAlert,
+  getTaxSetAside, TaxSetAside,
+  getRecentLoads, getActiveLoad, LoadSummary, getIncomeGoal,
+  getWeeklyNetTrend, getCostBreakdown, WeekTrendPoint, CostBreakdown,
+  getSetting,
 } from '../db/database';
+import GoalProgressCard from '../components/GoalProgressCard';
+import AnalyticsSection from '../components/AnalyticsSection';
+import FreeUsageMeter from '../components/FreeUsageMeter';
+import FirstLoadCelebration from '../components/FirstLoadCelebration';
+import GridBackground from '../components/GridBackground';
+import AccentRule from '../components/AccentRule';
+import ExpenseReviewBanner from '../components/ExpenseReviewBanner';
+import ExpenseReviewModal from '../components/ExpenseReviewModal';
+import TaxSetAsideCard from '../components/TaxSetAsideCard';
+import { useSubscription } from '../contexts/SubscriptionContext';
+import { usePaywall } from '../contexts/PaywallContext';
 import { useNavigation } from '@react-navigation/native';
 import { useAuth } from '../contexts/AuthContext';
 import CheckLoadScreen from './CheckLoadScreen';
 import AddLoadScreen, { AddLoadPrefill } from './AddLoadScreen';
+import FuelEntryScreen from './FuelEntryScreen';
+import AddExpenseScreen from './AddExpenseScreen';
 import SettingsScreen from './SettingsScreen';
 
 
@@ -24,11 +42,15 @@ interface LoadRow {
 
 interface DashData {
   breakEvenRPM: number; fuelCPM: number; fixedCPM: number;
-  weekNet: number; weekGross: number;
-  monthNet: number; monthGross: number;
+  milesSource: BreakEvenSource;
+  weekNet: number; weekGross: number; weekMiles: number; weekLoads: number;
+  monthNet: number; monthGross: number; monthMiles: number; monthLoads: number;
   loads: LoadRow[];
   activeLoad: LoadSummary | null;
   hasRealLoads: boolean;
+  incomeGoal: { amount: number; period: 'weekly' | 'monthly' } | null;
+  driverName: string;
+  tax: TaxSetAside;
 }
 
 function loadFromSummary(s: LoadSummary): LoadRow {
@@ -45,20 +67,24 @@ function loadFromSummary(s: LoadSummary): LoadRow {
 }
 
 function readDashData(): DashData {
-  const { breakEvenRPM, fuelCPM, fixedCPM } = calcBreakEven();
+  const { breakEvenRPM, fuelCPM, fixedCPM, milesSource } = calcBreakEven();
   const count = getLoadCount();
-  const week   = count > 0 ? getWeekPnL()        : { net: 0, gross: 0 };
-  const month  = count > 0 ? getMonthPnL()       : { net: 0, gross: 0 };
+  const empty  = { net: 0, gross: 0, miles: 0, loads: 0 };
+  const week   = count > 0 ? getWeekPnL()        : empty;
+  const month  = count > 0 ? getMonthPnL()       : empty;
   const recent = count > 0 ? getRecentLoads(5).map(loadFromSummary) : [];
   const active = count > 0 ? getActiveLoad()     : null;
 
   return {
-    breakEvenRPM, fuelCPM, fixedCPM,
-    weekNet:   week.net,  weekGross:  week.gross,
-    monthNet:  month.net, monthGross: month.gross,
+    breakEvenRPM, fuelCPM, fixedCPM, milesSource,
+    weekNet:   week.net,  weekGross:  week.gross,  weekMiles:  week.miles,  weekLoads:  week.loads,
+    monthNet:  month.net, monthGross: month.gross, monthMiles: month.miles, monthLoads: month.loads,
     loads:     recent,
     activeLoad: active,
     hasRealLoads: count > 0,
+    incomeGoal: getIncomeGoal(),
+    tax: getTaxSetAside(),
+    driverName: (getSetting('profile_name') ?? '').trim(),
   };
 }
 
@@ -67,16 +93,56 @@ function fmt(n: number, decimals = 0): string {
 }
 
 export default function DashboardScreen() {
+  const { colors: Colors } = useTheme();
+  const styles = useMemo(() => makeStyles(Colors), [Colors]);
   const { t } = useTranslation();
   const { user } = useAuth();
+  const { isPro } = useSubscription();
+  const { present: presentPaywall } = usePaywall();
   const navigation = useNavigation<any>();
   const [data,          setData]          = useState<DashData>(() => readDashData());
+  const [trend,         setTrend]         = useState<WeekTrendPoint[]>([]);
+  const [breakdown,     setBreakdown]     = useState<CostBreakdown>({ fuel: 0, fixed: 0, expenses: 0, net: 0, gross: 0 });
   const [showCheckLoad, setShowCheckLoad] = useState(false);
   const [showAddLoad,   setShowAddLoad]   = useState(false);
-  const [showSettings,  setShowSettings]  = useState(false);
+  const [showFuelEntry,  setShowFuelEntry]  = useState(false);
+  const [showAddExpense, setShowAddExpense] = useState(false);
+  const [showSettings,   setShowSettings]   = useState(false);
+  const [showReview,     setShowReview]     = useState(false);
+  const [expensesStale,  setExpensesStale]  = useState(() => expensesAreStale());
+  const [daysSinceReview, setDaysSinceReview] = useState(() => daysSinceExpenseReview());
+  const [staleAlerts,    setStaleAlerts]    = useState<StaleCategoryAlert[]>(() => getStaleCategoryAlerts());
   const [addLoadPrefill, setAddLoadPrefill] = useState<AddLoadPrefill | undefined>();
+  const [firstLoadNet,  setFirstLoadNet]  = useState<number | null>(null);
 
-  const refresh = useCallback(() => setData(readDashData()), []);
+  // Speed-dial FAB
+  const [fabOpen, setFabOpen] = useState(false);
+  const fabAnim = useRef(new Animated.Value(0)).current;
+
+  const toggleFab = useCallback((open: boolean) => {
+    setFabOpen(open);
+    Animated.spring(fabAnim, {
+      toValue: open ? 1 : 0,
+      useNativeDriver: true,
+      friction: 7,
+      tension: 80,
+    }).start();
+  }, [fabAnim]);
+
+  // Run a FAB action: close the dial first, then fire it next frame.
+  const runFabAction = useCallback((fn: () => void) => {
+    toggleFab(false);
+    setTimeout(fn, 120);
+  }, [toggleFab]);
+
+  const refresh = useCallback(() => {
+    setData(readDashData());
+    setTrend(getWeeklyNetTrend(12));
+    setBreakdown(getCostBreakdown());
+    setExpensesStale(expensesAreStale());
+    setDaysSinceReview(daysSinceExpenseReview());
+    setStaleAlerts(getStaleCategoryAlerts());
+  }, []);
 
   // Refresh whenever the screen mounts (catches navigating back from other tabs)
   useEffect(() => { refresh(); }, [refresh]);
@@ -89,9 +155,14 @@ export default function DashboardScreen() {
   const d = data;
   const signedNet = (n: number) => (n >= 0 ? `+$${fmt(n)}` : `-$${fmt(Math.abs(n))}`);
 
+  // Weekly avg gross RPM vs break-even — powers the fallback hero's verdict line.
+  const weekGrossRpm = d.weekMiles > 0 ? d.weekGross / d.weekMiles : 0;
+  const vsBreakEven  = weekGrossRpm - d.breakEvenRPM;
+
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <StatusBar barStyle="light-content" />
+      <GridBackground />
 
       <Modal visible={showSettings} animationType="slide" presentationStyle="pageSheet">
         <SettingsScreen
@@ -117,17 +188,58 @@ export default function DashboardScreen() {
         <AddLoadScreen
           onClose={() => setShowAddLoad(false)}
           onSaved={() => { setShowAddLoad(false); refresh(); }}
+          onFirstLoad={(net) => {
+            // Let the Add Load sheet finish its dismiss animation before the
+            // celebration appears, so iOS doesn't swallow the second modal.
+            setTimeout(() => setFirstLoadNet(net), 400);
+          }}
           prefill={addLoadPrefill}
         />
       </Modal>
 
+      <Modal visible={showFuelEntry} animationType="slide" presentationStyle="pageSheet">
+        <FuelEntryScreen
+          onSaved={() => { setShowFuelEntry(false); refresh(); }}
+          onCancel={() => setShowFuelEntry(false)}
+        />
+      </Modal>
+
+      <Modal visible={showAddExpense} animationType="slide" presentationStyle="pageSheet">
+        <AddExpenseScreen
+          onClose={() => setShowAddExpense(false)}
+          onSaved={() => { setShowAddExpense(false); refresh(); }}
+        />
+      </Modal>
+
+      <ExpenseReviewModal
+        visible={showReview}
+        onClose={() => { setShowReview(false); refresh(); }}
+        onGoToExpenses={() => { setShowReview(false); navigation.navigate('Expenses'); }}
+      />
+
+      <FirstLoadCelebration
+        visible={firstLoadNet !== null}
+        netPay={firstLoadNet ?? 0}
+        onDismiss={() => setFirstLoadNet(null)}
+      />
+
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+
+        {/* ── Terminal wordmark ── */}
+        <View style={styles.terminalBar}>
+          <Text style={styles.terminalMark}>TRUCKERNET // OPS</Text>
+        </View>
 
         {/* ── Header ── */}
         <View style={styles.header}>
           <View>
-            <Text style={styles.headerEyebrow}>{t('dashboard.eyebrow')}</Text>
-            <Text style={styles.headerTitle}>{t('dashboard.title')}</Text>
+            <Text style={styles.headerEyebrow}>
+              {d.driverName ? t('dashboard.welcomeBack') : t('dashboard.eyebrow')}
+            </Text>
+            <Text style={styles.headerTitle}>
+              {d.driverName ? d.driverName.split(' ')[0] : t('dashboard.title')}
+            </Text>
+            <AccentRule style={{ marginTop: 8 }} />
           </View>
           <TouchableOpacity style={styles.settingsBtn} onPress={() => setShowSettings(true)}>
             <Ionicons name="settings-outline" size={19} color={Colors.textSecondary} />
@@ -152,75 +264,100 @@ export default function DashboardScreen() {
           </View>
         )}
 
-        {/* ── Break-even hero ── */}
-        <View style={styles.heroCard}>
-          <View style={styles.heroTopRow}>
-            <Text style={styles.heroEyebrow}>{t('dashboard.breakEven')}</Text>
-            <View style={styles.livePill}>
-              <View style={styles.liveDot} />
-              <Text style={styles.liveText}>{t('dashboard.live')}</Text>
+        {/* ── ZONE 1: Hero — the single most important number ── */}
+        {d.incomeGoal ? (
+          <GoalProgressCard
+            variant="hero"
+            net={d.incomeGoal.period === 'weekly' ? d.weekNet : d.monthNet}
+            goal={d.incomeGoal.amount}
+            period={d.incomeGoal.period}
+          />
+        ) : (
+          <View style={styles.weekHero}>
+            <View style={styles.heroTopRow}>
+              <Text style={styles.heroEyebrow}>{t('dashboard.thisWeek')}</Text>
+              <View style={styles.livePill}>
+                <View style={styles.liveDot} />
+                <Text style={styles.liveText}>{t('dashboard.live')}</Text>
+              </View>
             </View>
-          </View>
 
-          <Text style={styles.heroNumber}>
-            {d.breakEvenRPM > 0 ? `$${d.breakEvenRPM.toFixed(3)}` : '—'}
-          </Text>
-          <Text style={styles.heroUnit}>{t('dashboard.breakEvenUnit')}</Text>
-
-          <View style={styles.heroDivider} />
-
-          <View style={styles.cpmRow}>
-            <View style={styles.cpmCell}>
-              <Text style={styles.cpmEyebrow}>{t('dashboard.fuelCPM')}</Text>
-              <Text style={styles.cpmValue}>
-                {d.fuelCPM > 0 ? `$${d.fuelCPM.toFixed(3)}` : '—'}
-              </Text>
-            </View>
-            <View style={styles.cpmSep} />
-            <View style={styles.cpmCell}>
-              <Text style={styles.cpmEyebrow}>{t('dashboard.fixedCPM')}</Text>
-              <Text style={styles.cpmValue}>
-                {d.fixedCPM > 0 ? `$${d.fixedCPM.toFixed(3)}` : '—'}
-              </Text>
-            </View>
-          </View>
-        </View>
-
-        {/* ── Period cards ── */}
-        <View style={styles.periodRow}>
-          <TouchableOpacity
-            style={[styles.periodCard, { flex: 1 }]}
-            onPress={() => navigation.navigate('History', { filter: 'week' })}
-            activeOpacity={0.75}
-          >
-            <Text style={styles.periodEyebrow}>{t('dashboard.thisWeek')}</Text>
-            <Text style={[styles.periodNet, { color: d.weekNet >= 0 ? Colors.primary : Colors.danger }]}>
+            <Text style={[styles.weekHeroNet, { color: d.weekNet >= 0 ? Colors.primary : Colors.danger }]}>
               {signedNet(d.weekNet)}
             </Text>
-            <Text style={styles.periodGross}>{t('dashboard.ofGross', { amount: `$${fmt(d.weekGross)}` })}</Text>
-          </TouchableOpacity>
+            <Text style={styles.weekHeroUnit}>{t('dashboard.netPay')}</Text>
 
-          <TouchableOpacity
-            style={[styles.periodCard, { flex: 1 }]}
-            onPress={() => navigation.navigate('History', { filter: 'month' })}
-            activeOpacity={0.75}
-          >
-            <Text style={styles.periodEyebrow}>{t('dashboard.thisMonth')}</Text>
-            <Text style={[styles.periodNet, { color: d.monthNet >= 0 ? Colors.primary : Colors.danger }]}>
-              {signedNet(d.monthNet)}
-            </Text>
-            <Text style={styles.periodGross}>{t('dashboard.ofGross', { amount: `$${fmt(d.monthGross)}` })}</Text>
-          </TouchableOpacity>
-        </View>
+            {d.weekLoads === 0 ? (
+              <Text style={styles.weekHeroEmpty}>{t('dashboard.weekEmpty')}</Text>
+            ) : (
+              <>
+                <View style={styles.heroDivider} />
+                <View style={styles.weekMetaRow}>
+                  <Text style={styles.weekRpm}>${weekGrossRpm.toFixed(2)}/mi</Text>
+                  <Text style={[styles.weekVs, { color: vsBreakEven >= 0 ? Colors.primary : Colors.danger }]}>
+                    {vsBreakEven >= 0 ? '+' : '-'}${Math.abs(vsBreakEven).toFixed(2)}{' '}
+                    {vsBreakEven >= 0 ? t('dashboard.aboveBreakEven') : t('dashboard.belowBreakEven')}
+                  </Text>
+                </View>
+                <Text style={styles.weekSubMeta}>
+                  {d.weekLoads} {d.weekLoads === 1 ? t('common.load') : t('common.loads')} · {fmt(d.weekMiles)} {t('common.miles')} · ${fmt(d.weekGross)} {t('common.gross')}
+                </Text>
 
-        {/* ── Check Load CTA ── */}
+                {/* ── Month secondary inside the hero — eliminates the duplicate period cards ── */}
+                <View style={styles.heroDivider} />
+                <View style={styles.heroMonthRow}>
+                  <Text style={styles.heroMonthLabel}>{t('dashboard.thisMonth')}</Text>
+                  <Text style={[styles.heroMonthNet, { color: d.monthNet >= 0 ? Colors.primary : Colors.danger }]}>
+                    {signedNet(d.monthNet)}
+                  </Text>
+                  <Text style={styles.heroMonthGross}>{t('dashboard.ofGross', { amount: `$${fmt(d.monthGross)}` })}</Text>
+                </View>
+              </>
+            )}
+          </View>
+        )}
+
+        {/* ── ZONE 2: Daily action — the primary CTA, right after the numbers ── */}
         <TouchableOpacity style={styles.evalButton} activeOpacity={0.8} onPress={() => setShowCheckLoad(true)}>
-          <Ionicons name="flash" size={15} color={Colors.background} />
+          <Ionicons name="flash" size={15} color={Colors.onPrimary} />
           <Text style={styles.evalText}>{t('dashboard.checkLoadBtn')}</Text>
-          <Ionicons name="chevron-forward" size={15} color={Colors.background} />
+          <Ionicons name="chevron-forward" size={15} color={Colors.onPrimary} />
         </TouchableOpacity>
 
-        {/* ── Recent Loads ── */}
+        {/* ── ZONE 3: Reference — break-even strip ── */}
+        <TouchableOpacity
+          style={styles.beStrip}
+          activeOpacity={0.7}
+          onPress={() => navigation.navigate('Expenses')}
+        >
+          <View style={styles.beIcon}>
+            <Ionicons name="speedometer-outline" size={18} color={Colors.textSecondary} />
+          </View>
+          <View style={styles.beTextWrap}>
+            <Text style={styles.beTopLine}>
+              <Text style={styles.beLabel}>{t('dashboard.breakEven')}  </Text>
+              <Text style={styles.beValue}>
+                {d.breakEvenRPM > 0 ? `$${d.breakEvenRPM.toFixed(3)}/mi` : '—'}
+              </Text>
+            </Text>
+            <Text style={styles.beSub}>
+              {t('dashboard.fuelCPM')} ${d.fuelCPM.toFixed(2)} · {t('dashboard.fixedCPM')} ${d.fixedCPM.toFixed(2)}
+              {' · '}{t(`dashboard.milesSource_${d.milesSource}`)}
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={16} color={Colors.textTertiary} />
+        </TouchableOpacity>
+
+        {/* ── ZONE 4: Recent loads (universally useful — before the Pro-gated charts) ── */}
+        {/* Expense review banner sits here so it's seen but doesn't interrupt hero */}
+        {expensesStale && (
+          <ExpenseReviewBanner
+            alerts={staleAlerts}
+            daysSince={daysSinceReview}
+            onPress={() => setShowReview(true)}
+          />
+        )}
+
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionLabel}>{t('dashboard.recentLoads')}</Text>
@@ -261,29 +398,89 @@ export default function DashboardScreen() {
           )}
         </View>
 
+        {/* ── ZONE 5: Analytics + supporting cards (Pro-gated, below the fold) ── */}
+        <AnalyticsSection
+          trend={trend}
+          breakdown={breakdown}
+          isPro={isPro}
+          onUpgrade={() => presentPaywall('analytics')}
+        />
+
+        {/* Free-tier usage meter (renders nothing for Pro) */}
+        <FreeUsageMeter refreshKey={d.monthLoads} />
+
+        {/* Tax set-aside (shown when there's net income to set aside) */}
+        {d.tax.ytdNet > 0 && (
+          <TaxSetAsideCard
+            data={d.tax}
+            onSettings={() => setShowSettings(true)}
+          />
+        )}
+
       </ScrollView>
 
-      {/* ── FAB ── */}
-      <TouchableOpacity style={styles.fab} activeOpacity={0.85} onPress={() => openAddLoad()}>
-        <Ionicons name="add" size={26} color={Colors.background} />
-      </TouchableOpacity>
+      {/* ── Speed-dial FAB ── */}
+      {fabOpen && (
+        <Pressable style={styles.fabBackdrop} onPress={() => toggleFab(false)} />
+      )}
+      <View style={styles.fabWrap} pointerEvents="box-none">
+        {[
+          { key: 'load',    icon: 'cube-outline' as const,    label: t('dashboard.fabAddLoad'),    onPress: () => runFabAction(() => openAddLoad()) },
+          { key: 'fuel',    icon: 'flash-outline' as const,   label: t('dashboard.fabAddFuel'),    onPress: () => runFabAction(() => setShowFuelEntry(true)) },
+          { key: 'expense', icon: 'wallet-outline' as const,  label: t('dashboard.fabAddExpense'), onPress: () => runFabAction(() => setShowAddExpense(true)) },
+        ].map((action, i) => (
+          <Animated.View
+            key={action.key}
+            pointerEvents={fabOpen ? 'auto' : 'none'}
+            style={[
+              styles.fabActionRow,
+              {
+                opacity: fabAnim,
+                transform: [
+                  { translateY: fabAnim.interpolate({ inputRange: [0, 1], outputRange: [20 + i * 8, 0] }) },
+                  { scale: fabAnim.interpolate({ inputRange: [0, 1], outputRange: [0.85, 1] }) },
+                ],
+              },
+            ]}
+          >
+            <View style={styles.fabActionLabel}>
+              <Text style={styles.fabActionLabelText}>{action.label}</Text>
+            </View>
+            <TouchableOpacity style={styles.fabActionBtn} activeOpacity={0.85} onPress={action.onPress}>
+              <Ionicons name={action.icon} size={20} color={Colors.primary} />
+            </TouchableOpacity>
+          </Animated.View>
+        ))}
+
+        <TouchableOpacity style={styles.fab} activeOpacity={0.85} onPress={() => toggleFab(!fabOpen)}>
+          <Animated.View style={{ transform: [{ rotate: fabAnim.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '45deg'] }) }] }}>
+            <Ionicons name="add" size={26} color={Colors.onPrimary} />
+          </Animated.View>
+        </TouchableOpacity>
+      </View>
     </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (Colors: ThemeColors) => StyleSheet.create({
   safe:    { flex: 1, backgroundColor: Colors.background },
   scroll:  { flex: 1 },
   content: { paddingHorizontal: Spacing.screenH, paddingBottom: 120 },
 
+  terminalBar: {
+    borderBottomWidth: 1, borderBottomColor: Colors.borderSubtle,
+    paddingTop: 14, paddingBottom: 12,
+  },
+  terminalMark: { fontFamily: FontFamily.monoSemiBold, fontSize: 11, color: Colors.labelColor, letterSpacing: 1.8 },
+
   header: {
     flexDirection: 'row', justifyContent: 'space-between',
-    alignItems: 'flex-end', paddingTop: 16, paddingBottom: 24,
+    alignItems: 'flex-end', paddingTop: 18, paddingBottom: 24,
   },
-  headerEyebrow: { ...SectionLabel, marginBottom: 4 },
-  headerTitle:   { fontFamily: FontFamily.bold, fontSize: FontSize.title, color: Colors.textPrimary },
+  headerEyebrow: { ...sectionLabel(Colors), fontFamily: FontFamily.monoSemiBold, marginBottom: 4 },
+  headerTitle:   { fontFamily: FontFamily.monoBold, fontSize: FontSize.title, color: Colors.textPrimary, letterSpacing: -0.6 },
   settingsBtn: {
-    width: 38, height: 38, borderRadius: Radius.pill,
+    width: 38, height: 38, borderRadius: Radius.sm,
     backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border,
     alignItems: 'center', justifyContent: 'center',
   },
@@ -291,7 +488,7 @@ const styles = StyleSheet.create({
   // Active load
   activeCard: {
     backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.primaryMid,
-    borderRadius: Radius.xl, padding: Spacing.cardPad, marginBottom: 14,
+    borderRadius: Radius.md, padding: Spacing.cardPad, marginBottom: 14,
   },
   activeTopRow:    { marginBottom: 10 },
   activePill: {
@@ -301,17 +498,18 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: Colors.primaryMid,
   },
   activeDot:      { width: 6, height: 6, borderRadius: 3, backgroundColor: Colors.primary },
-  activePillText: { fontFamily: FontFamily.semiBold, fontSize: FontSize.caption, color: Colors.primary },
-  activeRoute:    { fontFamily: FontFamily.bold, fontSize: FontSize.subtitle, color: Colors.textPrimary, marginBottom: 4 },
-  activeMeta:     { fontFamily: FontFamily.regular, fontSize: FontSize.label, color: Colors.textSecondary },
+  activePillText: { fontFamily: FontFamily.monoSemiBold, fontSize: FontSize.caption, color: Colors.primary, letterSpacing: 0.5 },
+  activeRoute:    { fontFamily: FontFamily.monoBold, fontSize: FontSize.subtitle, color: Colors.textPrimary, marginBottom: 4, letterSpacing: -0.4 },
+  activeMeta:     { fontFamily: FontFamily.monoRegular, fontSize: FontSize.label, color: Colors.textSecondary },
 
-  // Hero card
-  heroCard: {
-    backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border,
-    borderRadius: Radius.xl, padding: Spacing.cardPad, marginBottom: 14,
+  // Weekly-net fallback hero
+  weekHero: {
+    backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.primaryMid,
+    borderRadius: Radius.md, padding: Spacing.cardPad, marginBottom: 14,
+    shadowColor: Colors.primary, shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.18, shadowRadius: 16, elevation: 8,
   },
   heroTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
-  heroEyebrow: { ...SectionLabel, marginBottom: 0 },
+  heroEyebrow: { ...sectionLabel(Colors), fontFamily: FontFamily.monoSemiBold, marginBottom: 0 },
   livePill: {
     flexDirection: 'row', alignItems: 'center', gap: 5,
     backgroundColor: Colors.primaryDim, borderRadius: Radius.pill,
@@ -319,77 +517,113 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: Colors.primaryMid,
   },
   liveDot:  { width: 6, height: 6, borderRadius: 3, backgroundColor: Colors.primary },
-  liveText: { fontFamily: FontFamily.semiBold, fontSize: FontSize.caption, color: Colors.primary },
-  heroNumber: {
-    fontFamily: FontFamily.bold, fontSize: FontSize.heroLarge,
-    color: Colors.primary, lineHeight: 60, letterSpacing: -1.5,
+  liveText: { fontFamily: FontFamily.monoSemiBold, fontSize: FontSize.caption, color: Colors.primary, letterSpacing: 0.5 },
+  weekHeroNet: {
+    fontFamily: FontFamily.monoBold, fontSize: FontSize.heroLarge,
+    lineHeight: 60, letterSpacing: -2, marginTop: 4,
   },
-  heroUnit: {
-    fontFamily: FontFamily.regular, fontSize: FontSize.label,
-    color: Colors.textSecondary, marginBottom: 20, lineHeight: 20,
-  },
-  heroDivider: { height: 1, backgroundColor: Colors.borderSubtle, marginBottom: 18 },
-  cpmRow:      { flexDirection: 'row', alignItems: 'center' },
-  cpmCell:     { flex: 1 },
-  cpmSep:      { width: 1, height: 30, backgroundColor: Colors.border, marginHorizontal: 16 },
-  cpmEyebrow:  { ...SectionLabel, fontSize: 10, marginBottom: 4 },
-  cpmValue:    { fontFamily: FontFamily.semiBold, fontSize: FontSize.label, color: Colors.textPrimary },
+  weekHeroUnit:  { fontFamily: FontFamily.monoRegular, fontSize: FontSize.label, color: Colors.textSecondary, marginBottom: 18, letterSpacing: 0.5 },
+  weekHeroEmpty: { fontFamily: FontFamily.regular, fontSize: FontSize.label, color: Colors.textSecondary, marginTop: 6, lineHeight: 20 },
+  heroDivider:   { height: 1, backgroundColor: Colors.borderSubtle, marginBottom: 14 },
+  weekMetaRow:   { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 6 },
+  weekRpm:       { fontFamily: FontFamily.monoBold, fontSize: FontSize.subtitle, color: Colors.textPrimary, letterSpacing: -0.5 },
+  weekVs:        { fontFamily: FontFamily.monoSemiBold, fontSize: FontSize.label },
+  weekSubMeta:   { fontFamily: FontFamily.monoRegular, fontSize: FontSize.caption, color: Colors.textSecondary },
 
-  // Period cards
-  periodRow: { flexDirection: 'row', gap: 12, marginBottom: 14 },
-  periodCard: {
-    backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border,
-    borderRadius: Radius.lg, padding: Spacing.cardPad,
+  // Month secondary row — collapsed into the hero card
+  heroMonthRow: {
+    flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', paddingTop: 2,
   },
-  periodEyebrow: { ...SectionLabel, fontSize: 10, marginBottom: 8 },
-  periodNet:     { fontFamily: FontFamily.bold, fontSize: FontSize.cardNumber, lineHeight: 36, letterSpacing: -0.5 },
-  periodGross:   { fontFamily: FontFamily.regular, fontSize: FontSize.caption, color: Colors.textSecondary, marginTop: 3 },
+  heroMonthLabel: { fontFamily: FontFamily.monoSemiBold, fontSize: FontSize.micro, color: Colors.labelColor, letterSpacing: 1.4, flex: 1 },
+  heroMonthNet:   { fontFamily: FontFamily.monoBold, fontSize: FontSize.subtitle, letterSpacing: -0.5, marginHorizontal: 12 },
+  heroMonthGross: { fontFamily: FontFamily.monoRegular, fontSize: FontSize.caption, color: Colors.textSecondary },
+
+  // Break-even reference strip
+  beStrip: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border,
+    borderRadius: Radius.md, paddingVertical: 12, paddingHorizontal: 14, marginBottom: 14,
+  },
+  beIcon: {
+    width: 36, height: 36, borderRadius: Radius.sm,
+    backgroundColor: Colors.surfaceHigh, alignItems: 'center', justifyContent: 'center',
+  },
+  beTextWrap: { flex: 1 },
+  beTopLine:  { },
+  beLabel:    { fontFamily: FontFamily.monoSemiBold, fontSize: FontSize.micro, color: Colors.labelColor, letterSpacing: 1.2 },
+  beValue:    { fontFamily: FontFamily.monoBold, fontSize: FontSize.body, color: Colors.textPrimary },
+  beSub:      { fontFamily: FontFamily.monoRegular, fontSize: FontSize.caption, color: Colors.textSecondary, marginTop: 2 },
 
   // Check Load CTA
   evalButton: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
     backgroundColor: Colors.primary, borderRadius: Radius.md,
     paddingVertical: 14, marginBottom: 28,
+    shadowColor: Colors.primary, shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.4, shadowRadius: 12, elevation: 12,
   },
-  evalText: { fontFamily: FontFamily.semiBold, fontSize: FontSize.label, color: Colors.background, flex: 1, textAlign: 'center' },
+  evalText: { fontFamily: FontFamily.semiBold, fontSize: FontSize.label, color: Colors.onPrimary, flex: 1, textAlign: 'center' },
 
   // Section
   section:       { marginBottom: 24 },
   sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
-  sectionLabel:  { ...SectionLabel, marginBottom: 0 },
+  sectionLabel:  { ...sectionLabel(Colors), fontFamily: FontFamily.monoSemiBold, marginBottom: 0 },
   sectionAction: { fontFamily: FontFamily.medium, fontSize: FontSize.label, color: Colors.primary },
 
   // Empty state
   emptyCard: {
     backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border,
-    borderRadius: Radius.lg, padding: 32, alignItems: 'center',
+    borderRadius: Radius.md, padding: 32, alignItems: 'center',
   },
-  emptyTitle: { fontFamily: FontFamily.semiBold, fontSize: FontSize.body, color: Colors.textPrimary, marginBottom: 6 },
+  emptyTitle: { fontFamily: FontFamily.monoSemiBold, fontSize: FontSize.body, color: Colors.textPrimary, marginBottom: 6, letterSpacing: -0.3 },
   emptyHint:  { fontFamily: FontFamily.regular, fontSize: FontSize.label, color: Colors.textSecondary, textAlign: 'center', lineHeight: 20 },
 
   // Loads card
   loadsCard: {
     backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border,
-    borderRadius: Radius.lg, overflow: 'hidden',
+    borderRadius: Radius.md, overflow: 'hidden',
   },
   loadRow: {
     flexDirection: 'row', alignItems: 'center',
     paddingVertical: 14, paddingHorizontal: Spacing.cardPad,
   },
   loadLeft:    { flex: 1, marginRight: 12 },
-  loadRoute:   { fontFamily: FontFamily.semiBold, fontSize: FontSize.body, color: Colors.textPrimary, marginBottom: 3 },
-  loadMeta:    { fontFamily: FontFamily.regular, fontSize: FontSize.caption, color: Colors.textSecondary },
+  loadRoute:   { fontFamily: FontFamily.monoSemiBold, fontSize: FontSize.body, color: Colors.textPrimary, marginBottom: 3, letterSpacing: -0.3 },
+  loadMeta:    { fontFamily: FontFamily.monoRegular, fontSize: FontSize.caption, color: Colors.textSecondary },
   loadRight:   { alignItems: 'flex-end' },
-  loadNet:     { fontFamily: FontFamily.bold, fontSize: FontSize.body, marginBottom: 2 },
-  loadGross:   { fontFamily: FontFamily.regular, fontSize: FontSize.caption, color: Colors.textSecondary },
+  loadNet:     { fontFamily: FontFamily.monoBold, fontSize: FontSize.body, marginBottom: 2 },
+  loadGross:   { fontFamily: FontFamily.monoRegular, fontSize: FontSize.caption, color: Colors.textSecondary },
   loadDivider: { height: 1, backgroundColor: Colors.borderSubtle, marginHorizontal: Spacing.cardPad },
 
-  // FAB
-  fab: {
+  // Speed-dial FAB
+  fabBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.35)',
+  },
+  fabWrap: {
     position: 'absolute', bottom: 28, right: Spacing.screenH,
+    alignItems: 'flex-end',
+  },
+  fab: {
     width: 56, height: 56, borderRadius: 28,
     backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center',
     shadowColor: Colors.primary, shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.45, shadowRadius: 14, elevation: 10,
+  },
+  fabActionRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 14,
+  },
+  fabActionLabel: {
+    backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border,
+    borderRadius: Radius.sm, paddingHorizontal: 12, paddingVertical: 7,
+  },
+  fabActionLabelText: {
+    fontFamily: FontFamily.monoSemiBold, fontSize: FontSize.label, color: Colors.textPrimary, letterSpacing: 0.2,
+  },
+  fabActionBtn: {
+    width: 46, height: 46, borderRadius: 23,
+    backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.primaryMid,
+    alignItems: 'center', justifyContent: 'center',
+    shadowColor: '#000', shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25, shadowRadius: 8, elevation: 6,
   },
 });

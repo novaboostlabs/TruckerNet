@@ -1,10 +1,12 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useMemo } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, Keyboard,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors, FontFamily, FontSize, Radius } from '../theme/theme';
+import { Colors, FontFamily, FontSize, Radius, ThemeColors, sectionLabel } from '../theme/theme';
+import { useTheme } from '../theme/ThemeContext';
 import { searchAddress, isMapboxConfigured, AddressSuggestion } from '../lib/mapbox';
+import * as haptics from '../lib/haptics';
 
 type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
 
@@ -24,6 +26,8 @@ const DEBOUNCE_MS = 300;
 export default function AddressAutocomplete({
   value, onChangeText, onSelect, placeholder, icon, iconColor,
 }: Props) {
+  const { colors: Colors } = useTheme();
+  const styles = useMemo(() => makeStyles(Colors), [Colors]);
   const [suggestions, setSuggestions] = useState<AddressSuggestion[]>([]);
   const [loading, setLoading] = useState(false);
   const [focused, setFocused] = useState(false);
@@ -69,6 +73,7 @@ export default function AddressAutocomplete({
     setSuggestions([]);
     setFocused(false);
     Keyboard.dismiss();
+    haptics.tapMedium();
     onSelect(s);
   }
 
@@ -116,11 +121,11 @@ export default function AddressAutocomplete({
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (Colors: ThemeColors) => StyleSheet.create({
   inputCard: {
     flexDirection: 'row', alignItems: 'center',
     backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border,
-    borderRadius: Radius.lg, paddingHorizontal: 18, paddingVertical: 14,
+    borderRadius: Radius.md, paddingHorizontal: 18, paddingVertical: 14,
   },
   inputCardOpen: { borderBottomLeftRadius: 0, borderBottomRightRadius: 0, borderBottomColor: Colors.border },
   icon:  { marginRight: 10 },
@@ -128,7 +133,7 @@ const styles = StyleSheet.create({
 
   dropdown: {
     backgroundColor: Colors.surface, borderWidth: 1, borderTopWidth: 0, borderColor: Colors.border,
-    borderBottomLeftRadius: Radius.lg, borderBottomRightRadius: Radius.lg, overflow: 'hidden',
+    borderBottomLeftRadius: Radius.md, borderBottomRightRadius: Radius.md, overflow: 'hidden',
   },
   option: {
     flexDirection: 'row', alignItems: 'center',

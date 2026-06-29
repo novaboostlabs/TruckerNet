@@ -4,8 +4,10 @@ import { createContext } from 'react';
 // onboarding flow to review or redo their setup. Provided by RootNavigator.
 export interface AppFlow {
   replayOnboarding: () => void;
+  replayWalkthrough: () => void;
 }
 
 export const AppFlowContext = createContext<AppFlow>({
   replayOnboarding: () => {},
+  replayWalkthrough: () => {},
 });

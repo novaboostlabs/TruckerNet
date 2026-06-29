@@ -1,4 +1,4 @@
-import React, { useCallback, useContext, useRef, useState } from 'react';
+import React, { useCallback, useContext, useEffect, useRef, useState, useMemo } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView,
   Alert, TextInput, KeyboardAvoidingView, Platform, Linking, Switch,
@@ -7,14 +7,19 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import {
-  Colors, FontFamily, FontSize, Spacing, Radius, SectionLabel,
+  FontFamily, FontSize, Spacing, Radius, ThemeColors, sectionLabel,
 } from '../theme/theme';
 import { AppFlowContext } from '../contexts/AppFlowContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useSubscription } from '../contexts/SubscriptionContext';
 import { usePaywall } from '../contexts/PaywallContext';
-import { getWeeklyMiles, getSetting, setSetting } from '../db/database';
+import { getWeeklyMiles, getSetting, setSetting, getIncomeGoal, setIncomeGoal, getRateContributionCount } from '../db/database';
+import { getNetworkReportCount } from '../lib/rateReports';
 import { setupNotifications, cancelAllNotifications } from '../lib/notifications';
+import { capture } from '../lib/analytics';
+import * as haptics from '../lib/haptics';
+import GridBackground from '../components/GridBackground';
+import { useTheme, ThemeMode } from '../theme/ThemeContext';
 
 // ── Constants ──────────────────────────────────────────────────────────────
 
@@ -32,10 +37,14 @@ const LANGUAGES = [
 // ── Sub-components ──────────────────────────────────────────────────────────
 
 function SectionHeader({ label }: { label: string }) {
+  const { colors: Colors } = useTheme();
+  const styles = useMemo(() => makeStyles(Colors), [Colors]);
   return <Text style={styles.sectionHeader}>{label}</Text>;
 }
 
 function RowDivider() {
+  const { colors: Colors } = useTheme();
+  const styles = useMemo(() => makeStyles(Colors), [Colors]);
   return <View style={styles.rowDivider} />;
 }
 
@@ -57,6 +66,8 @@ function Row({
   icon, iconBg, iconColor, label, sublabel,
   rightLabel, chevron = true, onPress, disabled, danger, rightElement,
 }: RowProps) {
+  const { colors: Colors } = useTheme();
+  const styles = useMemo(() => makeStyles(Colors), [Colors]);
   return (
     <TouchableOpacity
       style={[styles.row, disabled && styles.rowDisabled]}
@@ -101,7 +112,15 @@ export default function SettingsScreen({ onClose, onNavigateToExpenses }: Props)
   const { user, signOut } = useAuth();
   const { isPro, isMock, setMockPro, restore } = useSubscription();
   const { present: presentPaywall } = usePaywall();
-  const { replayOnboarding } = useContext(AppFlowContext);
+  const { replayOnboarding, replayWalkthrough } = useContext(AppFlowContext);
+  const { mode: themeMode, setMode: setThemeMode, colors: Colors } = useTheme();
+  const styles = useMemo(() => makeStyles(Colors), [Colors]);
+
+  const THEME_OPTIONS: { value: ThemeMode; icon: React.ComponentProps<typeof Ionicons>['name'] }[] = [
+    { value: 'system', icon: 'phone-portrait-outline' },
+    { value: 'light',  icon: 'sunny-outline' },
+    { value: 'dark',   icon: 'moon-outline' },
+  ];
 
   // Manage subscription → deep-link to the store's subscription settings.
   function handleManageSub() {
@@ -123,9 +142,69 @@ export default function SettingsScreen({ onClose, onNavigateToExpenses }: Props)
   const [weeklyMiles,  setWeeklyMilesLocal] = useState(() => getWeeklyMiles());
   const [editingMiles, setEditingMiles]     = useState(false);
   const [milesInput,   setMilesInput]       = useState('');
-  const [shareData, setShareData] = useState(() => getSetting('share_rate_data') !== 'false');
-  const [notifsEnabled, setNotifsEnabled] = useState(() => getSetting('notifications_enabled') !== 'false');
   const milesRef = useRef<TextInput>(null);
+
+  // Tax rate inline edit
+  const [taxRateInput,   setTaxRateInput]   = useState('');
+  const [editingTaxRate, setEditingTaxRate] = useState(false);
+  const [taxRate,        setTaxRateLocal]   = useState<number>(() => {
+    const v = parseFloat(getSetting('tax_rate') ?? '25');
+    return isNaN(v) ? 25 : Math.min(50, Math.max(5, v));
+  });
+  const taxRateRef = useRef<TextInput>(null);
+
+  const startEditTaxRate = useCallback(() => {
+    setTaxRateInput(String(taxRate));
+    setEditingTaxRate(true);
+    setTimeout(() => taxRateRef.current?.focus(), 50);
+  }, [taxRate]);
+
+  const saveTaxRate = useCallback(() => {
+    const n = parseFloat(taxRateInput);
+    const clamped = !isNaN(n) && n >= 5 && n <= 50 ? Math.round(n) : taxRate;
+    setSetting('tax_rate', String(clamped));
+    setTaxRateLocal(clamped);
+    haptics.tapMedium();
+    setEditingTaxRate(false);
+  }, [taxRateInput, taxRate]);
+
+  // Income goal inline edit
+  const [incomeGoal,    setIncomeGoalLocal] = useState(() => getIncomeGoal());
+  const [editingGoal,   setEditingGoal]     = useState(false);
+  const [goalInput,     setGoalInput]       = useState('');
+  const [goalPeriod,    setGoalPeriod]      = useState<'weekly' | 'monthly'>('weekly');
+  const goalRef = useRef<TextInput>(null);
+
+  const startEditGoal = useCallback(() => {
+    const current = getIncomeGoal();
+    setGoalInput(current ? String(Math.round(current.amount)) : '');
+    setGoalPeriod(current?.period ?? 'weekly');
+    setEditingGoal(true);
+    setTimeout(() => goalRef.current?.focus(), 50);
+  }, []);
+
+  const saveGoal = useCallback(() => {
+    const n = parseFloat(goalInput);
+    const amount = n > 0 && n <= 999999 ? n : null;
+    setIncomeGoal(amount, goalPeriod);
+    setIncomeGoalLocal(getIncomeGoal());
+    setEditingGoal(false);
+    haptics.tapMedium();
+    if (amount) capture('income_goal_set', { period: goalPeriod, amount });
+  }, [goalInput, goalPeriod]);
+
+  const cancelGoal = useCallback(() => setEditingGoal(false), []);
+
+  const [shareData, setShareData] = useState(() => getSetting('share_rate_data') !== 'false');
+  const [contribCount] = useState(() => getRateContributionCount());
+  const [networkCount, setNetworkCount] = useState<number | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    getNetworkReportCount().then((n) => { if (active) setNetworkCount(n); });
+    return () => { active = false; };
+  }, []);
+  const [notifsEnabled, setNotifsEnabled] = useState(() => getSetting('notifications_enabled') !== 'false');
 
   const startEditMiles = useCallback(() => {
     setMilesInput(weeklyMiles > 0 ? String(Math.round(weeklyMiles)) : '');
@@ -138,6 +217,7 @@ export default function SettingsScreen({ onClose, onNavigateToExpenses }: Props)
     if (n > 0 && n <= 15000) {
       setSetting('weekly_miles', String(n));
       setWeeklyMilesLocal(n);
+      haptics.tapMedium();
     }
     setEditingMiles(false);
   }, [milesInput]);
@@ -199,12 +279,19 @@ export default function SettingsScreen({ onClose, onNavigateToExpenses }: Props)
     );
   }
 
+  // Replay the intro walkthrough (review mode)
+  function handleReplayWalkthrough() {
+    onClose();
+    replayWalkthrough();
+  }
+
   // Profile avatar
   const initials  = user?.email?.[0]?.toUpperCase() ?? '?';
   const isGuest   = !user;
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+      <GridBackground />
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -359,7 +446,7 @@ export default function SettingsScreen({ onClose, onNavigateToExpenses }: Props)
                   />
                   <Text style={styles.milesUnit}>{t('settings.milesUnit')}</Text>
                   <TouchableOpacity onPress={saveMiles} style={styles.milesSaveBtn} activeOpacity={0.7}>
-                    <Ionicons name="checkmark" size={17} color={Colors.background} />
+                    <Ionicons name="checkmark" size={17} color={Colors.onPrimary} />
                   </TouchableOpacity>
                   <TouchableOpacity onPress={cancelMiles} style={styles.milesCancelBtn} activeOpacity={0.7}>
                     <Ionicons name="close" size={17} color={Colors.textSecondary} />
@@ -387,6 +474,155 @@ export default function SettingsScreen({ onClose, onNavigateToExpenses }: Props)
               sublabel={t('settings.replaySetupSub')}
               onPress={handleReplaySetup}
             />
+
+            <RowDivider />
+
+            <Row
+              icon="play-circle-outline"
+              iconBg={Colors.primaryDim}
+              iconColor={Colors.primary}
+              label={t('settings.replayWalkthrough')}
+              sublabel={t('settings.replayWalkthroughSub')}
+              onPress={handleReplayWalkthrough}
+            />
+          </View>
+
+          {/* ── Tax Set-Aside Rate ── */}
+          <SectionHeader label={t('settings.taxSection')} />
+          <View style={styles.card}>
+            <TouchableOpacity
+              style={styles.row}
+              onPress={startEditTaxRate}
+              activeOpacity={0.6}
+              disabled={editingTaxRate}
+            >
+              <View style={[styles.iconBox, { backgroundColor: Colors.secondaryDim }]}>
+                <Ionicons name="receipt-outline" size={17} color={Colors.secondary} />
+              </View>
+              <View style={styles.rowContent}>
+                <Text style={styles.rowLabel}>{t('settings.taxRate')}</Text>
+                <Text style={styles.rowSublabel}>{t('settings.taxRateSub')}</Text>
+              </View>
+              {editingTaxRate ? (
+                <View style={styles.milesEditRow}>
+                  <TextInput
+                    ref={taxRateRef}
+                    style={styles.milesInput}
+                    value={taxRateInput}
+                    onChangeText={setTaxRateInput}
+                    keyboardType="decimal-pad"
+                    returnKeyType="done"
+                    onSubmitEditing={saveTaxRate}
+                    onBlur={saveTaxRate}
+                    selectTextOnFocus
+                  />
+                  <Text style={styles.milesUnit}>%</Text>
+                  <TouchableOpacity onPress={saveTaxRate} style={styles.milesSaveBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                    <Ionicons name="checkmark-circle" size={22} color={Colors.primary} />
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <Text style={styles.rowRightLabel}>{taxRate}%</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+
+          {/* ── Income Goal ── */}
+          <SectionHeader label={t('settings.goalSection')} />
+          <View style={styles.card}>
+            <TouchableOpacity
+              style={styles.row}
+              onPress={startEditGoal}
+              activeOpacity={0.6}
+              disabled={editingGoal}
+            >
+              <View style={[styles.iconBox, { backgroundColor: Colors.secondaryDim }]}>
+                <Ionicons name="trophy-outline" size={17} color={Colors.secondary} />
+              </View>
+              <View style={styles.rowContent}>
+                <Text style={styles.rowLabel}>{t('settings.goalLabel')}</Text>
+                <Text style={styles.rowSublabel}>{t('settings.goalSub')}</Text>
+              </View>
+              {editingGoal ? (
+                <View style={{ flex: 1 }}>
+                  {/* Period toggle */}
+                  <View style={styles.goalPeriodRow}>
+                    <TouchableOpacity
+                      style={[styles.goalPeriodBtn, goalPeriod === 'weekly' && styles.goalPeriodBtnActive]}
+                      onPress={() => setGoalPeriod('weekly')}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={[styles.goalPeriodText, goalPeriod === 'weekly' && styles.goalPeriodTextActive]}>
+                        {t('settings.goalWeekly')}
+                      </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.goalPeriodBtn, goalPeriod === 'monthly' && styles.goalPeriodBtnActive]}
+                      onPress={() => setGoalPeriod('monthly')}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={[styles.goalPeriodText, goalPeriod === 'monthly' && styles.goalPeriodTextActive]}>
+                        {t('settings.goalMonthly')}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                  {/* Amount input */}
+                  <View style={styles.milesEditRow}>
+                    <Text style={styles.milesUnit}>$</Text>
+                    <TextInput
+                      ref={goalRef}
+                      value={goalInput}
+                      onChangeText={setGoalInput}
+                      keyboardType="number-pad"
+                      style={[styles.milesInput, { flex: 1 }]}
+                      maxLength={7}
+                      selectTextOnFocus
+                      onSubmitEditing={saveGoal}
+                    />
+                    <TouchableOpacity onPress={saveGoal} style={styles.milesSaveBtn} activeOpacity={0.7}>
+                      <Ionicons name="checkmark" size={17} color={Colors.onPrimary} />
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={cancelGoal} style={styles.milesCancelBtn} activeOpacity={0.7}>
+                      <Ionicons name="close" size={17} color={Colors.textSecondary} />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              ) : (
+                <View style={styles.rowRight}>
+                  <Text style={styles.rowRightLabel}>
+                    {incomeGoal
+                      ? `$${Math.round(incomeGoal.amount).toLocaleString()} / ${incomeGoal.period === 'weekly' ? t('settings.goalWeekly') : t('settings.goalMonthly')}`
+                      : t('settings.notSet')}
+                  </Text>
+                  <Ionicons name="pencil-outline" size={14} color={Colors.textTertiary} />
+                </View>
+              )}
+            </TouchableOpacity>
+          </View>
+
+          {/* ── Appearance ── */}
+          <SectionHeader label={t('settings.appearance')} />
+          <View style={styles.segRow}>
+            {THEME_OPTIONS.map((opt) => {
+              const active = themeMode === opt.value;
+              return (
+                <TouchableOpacity
+                  key={opt.value}
+                  style={[styles.segChip, active && styles.segChipActive]}
+                  onPress={() => setThemeMode(opt.value)}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons
+                    name={opt.icon}
+                    size={17}
+                    color={active ? Colors.primary : Colors.textSecondary}
+                  />
+                  <Text style={[styles.segText, active && styles.segTextActive]}>
+                    {t(`settings.appearance_${opt.value}`)}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
           </View>
 
           {/* ── Language ── */}
@@ -449,6 +685,37 @@ export default function SettingsScreen({ onClose, onNavigateToExpenses }: Props)
 
           {/* ── Data & Privacy ── */}
           <SectionHeader label={t('settings.dataPrivacy')} />
+
+          {/* Rate Network flywheel — show the driver they're building something */}
+          <View style={styles.netCard}>
+            <View style={styles.netHeaderRow}>
+              <View style={styles.netIcon}>
+                <Ionicons name="git-network-outline" size={18} color={Colors.primary} />
+              </View>
+              <Text style={styles.netTitle}>{t('settings.rateNetworkTitle')}</Text>
+            </View>
+
+            <View style={styles.netStatsRow}>
+              <View style={styles.netStat}>
+                <Text style={styles.netStatNum}>{contribCount.toLocaleString()}</Text>
+                <Text style={styles.netStatLabel}>{t('settings.rateNetworkYou')}</Text>
+              </View>
+              {networkCount != null && networkCount > 0 && (
+                <>
+                  <View style={styles.netStatSep} />
+                  <View style={styles.netStat}>
+                    <Text style={styles.netStatNum}>{networkCount.toLocaleString()}</Text>
+                    <Text style={styles.netStatLabel}>{t('settings.rateNetworkPool')}</Text>
+                  </View>
+                </>
+              )}
+            </View>
+
+            <Text style={styles.netBlurb}>
+              {shareData ? t('settings.rateNetworkBlurbOn') : t('settings.rateNetworkBlurbOff')}
+            </Text>
+          </View>
+
           <View style={styles.card}>
             <Row
               icon="shield-checkmark-outline"
@@ -523,7 +790,7 @@ export default function SettingsScreen({ onClose, onNavigateToExpenses }: Props)
 
 // ── Styles ──────────────────────────────────────────────────────────────────
 
-const styles = StyleSheet.create({
+const makeStyles = (Colors: ThemeColors) => StyleSheet.create({
   safe:  { flex: 1, backgroundColor: Colors.background },
   flex:  { flex: 1 },
 
@@ -537,7 +804,7 @@ const styles = StyleSheet.create({
     paddingBottom:  8,
   },
   headerTitle: {
-    fontFamily: FontFamily.bold,
+    fontFamily: FontFamily.monoBold,
     fontSize:   FontSize.subtitle,
     color:      Colors.textPrimary,
   },
@@ -558,7 +825,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surface,
     borderWidth:     1,
     borderColor:     Colors.border,
-    borderRadius:    Radius.xl,
+    borderRadius:    Radius.md,
     padding:         Spacing.cardPad,
     marginBottom:    32,
     gap:             16,
@@ -575,13 +842,13 @@ const styles = StyleSheet.create({
     flexShrink:      0,
   },
   avatarInitial: {
-    fontFamily: FontFamily.bold,
+    fontFamily: FontFamily.monoBold,
     fontSize:   FontSize.subtitle,
     color:      Colors.primary,
   },
   profileInfo:  { flex: 1 },
   profileEmail: {
-    fontFamily: FontFamily.semiBold,
+    fontFamily: FontFamily.monoSemiBold,
     fontSize:   FontSize.body,
     color:      Colors.textPrimary,
     marginBottom: 5,
@@ -620,7 +887,7 @@ const styles = StyleSheet.create({
 
   // Section header
   sectionHeader: {
-    ...SectionLabel,
+    ...sectionLabel(Colors),
     marginBottom:  10,
     marginTop:     0,
     paddingLeft:   4,
@@ -631,10 +898,32 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surface,
     borderWidth:     1,
     borderColor:     Colors.border,
-    borderRadius:    Radius.lg,
+    borderRadius:    Radius.md,
     marginBottom:    28,
     overflow:        'hidden',
   },
+
+  // Rate Network flywheel card
+  netCard: {
+    backgroundColor: Colors.surface,
+    borderWidth:     1,
+    borderColor:     Colors.primaryMid,
+    borderRadius:    Radius.md,
+    padding:         Spacing.cardPad,
+    marginBottom:    12,
+  },
+  netHeaderRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 16 },
+  netIcon: {
+    width: 32, height: 32, borderRadius: Radius.sm,
+    backgroundColor: Colors.primaryDim, alignItems: 'center', justifyContent: 'center',
+  },
+  netTitle: { fontFamily: FontFamily.monoSemiBold, fontSize: FontSize.body, color: Colors.textPrimary },
+  netStatsRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 14 },
+  netStat: { flex: 1, alignItems: 'center' },
+  netStatNum: { fontFamily: FontFamily.monoBold, fontSize: FontSize.cardNumber, color: Colors.primary, letterSpacing: -0.5 },
+  netStatLabel: { fontFamily: FontFamily.regular, fontSize: FontSize.caption, color: Colors.textSecondary, marginTop: 2, textAlign: 'center' },
+  netStatSep: { width: 1, height: 36, backgroundColor: Colors.border, marginHorizontal: 12 },
+  netBlurb: { fontFamily: FontFamily.regular, fontSize: FontSize.label, color: Colors.textSecondary, lineHeight: 20, textAlign: 'center' },
 
   // Row
   row: {
@@ -693,7 +982,7 @@ const styles = StyleSheet.create({
     gap:           6,
   },
   milesInput: {
-    fontFamily:      FontFamily.bold,
+    fontFamily:      FontFamily.monoBold,
     fontSize:        FontSize.body,
     color:           Colors.primary,
     borderBottomWidth: 1,
@@ -724,6 +1013,44 @@ const styles = StyleSheet.create({
     alignItems:      'center',
     justifyContent:  'center',
   },
+
+  // Goal period toggle
+  goalPeriodRow: {
+    flexDirection:  'row',
+    gap:            6,
+    marginBottom:   6,
+    justifyContent: 'flex-end',
+  },
+  goalPeriodBtn: {
+    paddingHorizontal: 10,
+    paddingVertical:    4,
+    borderRadius:      Radius.sm,
+    borderWidth:       1,
+    borderColor:       Colors.border,
+  },
+  goalPeriodBtnActive: {
+    backgroundColor: Colors.secondary,
+    borderColor:     Colors.secondary,
+  },
+  goalPeriodText: {
+    fontFamily: FontFamily.medium,
+    fontSize:   FontSize.caption,
+    color:      Colors.textSecondary,
+  },
+  goalPeriodTextActive: {
+    color: Colors.onPrimary,
+  },
+
+  // Appearance segmented control
+  segRow: { flexDirection: 'row', gap: 10, marginBottom: 8 },
+  segChip: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7,
+    backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border,
+    borderRadius: Radius.md, paddingVertical: 13,
+  },
+  segChipActive: { borderColor: Colors.primary, backgroundColor: Colors.primaryDim },
+  segText: { fontFamily: FontFamily.monoSemiBold, fontSize: FontSize.caption, color: Colors.textSecondary, letterSpacing: 0.3 },
+  segTextActive: { color: Colors.primary },
 
   // Language rows
   langRow: {
@@ -772,7 +1099,7 @@ const styles = StyleSheet.create({
     marginBottom:   12,
   },
   signOutText: {
-    fontFamily: FontFamily.semiBold,
+    fontFamily: FontFamily.monoSemiBold,
     fontSize:   FontSize.body,
     color:      Colors.secondary,
   },

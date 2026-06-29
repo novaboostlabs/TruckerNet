@@ -1,21 +1,27 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import { useNavigation, useRoute } from '@react-navigation/native';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Modal } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Modal, TextInput, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
-import { Colors, FontFamily, FontSize, Spacing, Radius, SectionLabel } from '../theme/theme';
+import { Colors, FontFamily, FontSize, Spacing, Radius, SectionLabel, ThemeColors, sectionLabel } from '../theme/theme';
+import { useTheme } from '../theme/ThemeContext';
 import { getDateLocale } from '../lib/i18n';
 import { useSubscription } from '../contexts/SubscriptionContext';
 import { usePaywall } from '../contexts/PaywallContext';
 import {
   getHistoryLoads, getHistoryTotals, getHistoryLoadsDateRange, getHistoryTotalsDateRange,
-  HistoryFilter, HistoryLoad, HistoryTotals,
+  searchHistoryLoads, getGeneralExpensesDateRange, getAllGeneralExpenses, deleteGeneralExpense,
+  HistoryFilter, HistoryLoad, HistoryTotals, GeneralExpense,
 } from '../db/database';
+import { useAuth } from '../contexts/AuthContext';
+import { pushGeneralExpenses } from '../lib/sync/generalExpensesSync';
 import MonthCalendar from '../components/MonthCalendar';
 import WeekCalendar  from '../components/WeekCalendar';
 import LoadDetailScreen from './LoadDetailScreen';
+import GridBackground from '../components/GridBackground';
+import AccentRule from '../components/AccentRule';
 
 // ── Date helpers ─────────────────────────────────────────────────────────────
 
@@ -82,23 +88,36 @@ function toRow(l: HistoryLoad): LoadRow {
 
 const EMPTY_TOTALS: HistoryTotals = { gross: 0, net: 0, miles: 0, rpm: 0, count: 0 };
 
+const EXP_ICONS: Record<string, React.ComponentProps<typeof Ionicons>['name']> = {
+  repair: 'construct-outline', parking: 'car-outline', fine: 'alert-circle-outline',
+  maintenance: 'build-outline', supplies: 'cube-outline', other: 'ellipsis-horizontal-outline',
+};
+
 function loadDataForPeriod(filter: HistoryFilter, date: Date) {
   if (filter === 'all') {
-    return { loads: getHistoryLoads('all').map(toRow), totals: getHistoryTotals('all') };
+    return {
+      loads: getHistoryLoads('all').map(toRow),
+      totals: getHistoryTotals('all'),
+      expenses: getAllGeneralExpenses(),
+    };
   }
   const { start, end } = filter === 'week' ? getWeekBounds(date) : getMonthBounds(date);
   return {
     loads:  getHistoryLoadsDateRange(start, end).map(toRow),
     totals: getHistoryTotalsDateRange(start, end),
+    expenses: getGeneralExpensesDateRange(start, end),
   };
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export default function HistoryScreen() {
+  const { colors: Colors } = useTheme();
+  const styles = useMemo(() => makeStyles(Colors), [Colors]);
   const { t } = useTranslation();
   const { isPro } = useSubscription();
   const { present: presentPaywall } = usePaywall();
+  const { user } = useAuth();
   const navigation = useNavigation<any>();
   const route      = useRoute<any>();
 
@@ -112,14 +131,53 @@ export default function HistoryScreen() {
     const { start, end } = getMonthBounds(new Date());
     return getHistoryTotalsDateRange(start, end);
   });
+  const [genExpenses,   setGenExpenses]    = useState<GeneralExpense[]>(() => {
+    const { start, end } = getMonthBounds(new Date());
+    return getGeneralExpensesDateRange(start, end);
+  });
   const [selectedDay,   setSelectedDay]   = useState<string | null>(null);
   const [selectedLoadId, setSelectedLoadId] = useState<string | null>(null);
+
+  // ── Search ────────────────────────────────────────────────────────────────────
+  const [searchActive,  setSearchActive]  = useState(false);
+  const [searchQuery,   setSearchQuery]   = useState('');
+  const searchRef = useRef<TextInput>(null);
+
+  const searchResults = useMemo<LoadRow[]>(() => {
+    if (!searchActive || searchQuery.trim().length < 2) return [];
+    return searchHistoryLoads(searchQuery.trim()).map(toRow);
+  }, [searchActive, searchQuery]);
+
+  function openSearch() {
+    setSearchActive(true);
+    setTimeout(() => searchRef.current?.focus(), 50);
+  }
+
+  function closeSearch() {
+    setSearchActive(false);
+    setSearchQuery('');
+  }
 
   const refresh = useCallback((f: HistoryFilter, d: Date) => {
     const result = loadDataForPeriod(f, d);
     setLoads(result.loads);
     setTotals(result.totals);
+    setGenExpenses(result.expenses);
   }, []);
+
+  function handleDeleteExpense(id: string) {
+    Alert.alert(t('history.deleteExpenseTitle'), t('history.deleteExpenseBody'), [
+      { text: t('common.cancel'), style: 'cancel' },
+      {
+        text: t('common.delete'), style: 'destructive',
+        onPress: () => {
+          deleteGeneralExpense(id);
+          if (user) pushGeneralExpenses(user.id);
+          refresh(filter, periodDate);
+        },
+      },
+    ]);
+  }
 
   useEffect(() => { refresh(filter, periodDate); }, [filter, periodDate, refresh]);
   useFocusEffect(useCallback(() => { refresh(filter, periodDate); }, [filter, periodDate, refresh]));
@@ -158,14 +216,31 @@ export default function HistoryScreen() {
     return dates;
   }, [filter, bounds]);
 
-  // Loads filtered by selected day (or all if none selected)
+  // Loads + one-off expenses filtered by selected day (or all if none selected)
   const visibleLoads = useMemo(() => (
     selectedDay ? loads.filter(l => l.rawDate === selectedDay) : loads
   ), [loads, selectedDay]);
 
+  const visibleExpenses = useMemo(() => (
+    selectedDay ? genExpenses.filter(e => e.date === selectedDay) : genExpenses
+  ), [genExpenses, selectedDay]);
+
+  // Merged, date-sorted timeline of loads + one-off expenses.
+  type TimelineItem =
+    | { kind: 'load'; date: string; key: string; load: LoadRow }
+    | { kind: 'expense'; date: string; key: string; exp: GeneralExpense };
+  const timeline = useMemo<TimelineItem[]>(() => {
+    const items: TimelineItem[] = [
+      ...visibleLoads.map((l): TimelineItem => ({ kind: 'load', date: l.rawDate, key: 'l_' + l.id, load: l })),
+      ...visibleExpenses.map((e): TimelineItem => ({ kind: 'expense', date: e.date, key: 'e_' + e.id, exp: e })),
+    ];
+    items.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
+    return items;
+  }, [visibleLoads, visibleExpenses]);
+
   const visibleTotals: HistoryTotals = useMemo(() => {
     if (!selectedDay) return totals;
-    return visibleLoads.reduce(
+    const base = visibleLoads.reduce(
       (acc, l) => ({
         gross: acc.gross + l.gross,
         net:   acc.net   + l.net,
@@ -175,7 +250,10 @@ export default function HistoryScreen() {
       }),
       { ...EMPTY_TOTALS }
     );
-  }, [selectedDay, visibleLoads, totals]);
+    // One-off expenses on the selected day reduce that day's net too.
+    const expSum = visibleExpenses.reduce((s, e) => s + e.amount, 0);
+    return { ...base, net: base.net - expSum };
+  }, [selectedDay, visibleLoads, visibleExpenses, totals]);
 
   function changeFilter(f: HistoryFilter) {
     setFilter(f);
@@ -209,6 +287,7 @@ export default function HistoryScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
+      <GridBackground />
 
       {/* Load detail modal */}
       <Modal visible={!!selectedLoadId} animationType="slide" presentationStyle="pageSheet">
@@ -223,14 +302,38 @@ export default function HistoryScreen() {
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
 
         {/* Header */}
-        <View style={styles.header}>
-          <View>
-            <Text style={styles.eyebrow}>{t('history.eyebrow')}</Text>
-            <Text style={styles.title}>{t('history.title')}</Text>
+        {searchActive ? (
+          <View style={styles.searchBar}>
+            <Ionicons name="search-outline" size={16} color={Colors.textSecondary} style={{ marginRight: 8 }} />
+            <TextInput
+              ref={searchRef}
+              style={styles.searchInput}
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              placeholder={t('history.searchPlaceholder')}
+              placeholderTextColor={Colors.textTertiary}
+              autoCorrect={false}
+              returnKeyType="search"
+            />
+            <TouchableOpacity onPress={closeSearch} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+              <Ionicons name="close-circle" size={18} color={Colors.textSecondary} />
+            </TouchableOpacity>
           </View>
-        </View>
+        ) : (
+          <View style={styles.header}>
+            <View>
+              <Text style={styles.eyebrow}>{t('history.eyebrow')}</Text>
+              <Text style={styles.title}>{t('history.title')}</Text>
+              <AccentRule style={{ marginTop: 8 }} />
+            </View>
+            <TouchableOpacity onPress={openSearch} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+              <Ionicons name="search-outline" size={22} color={Colors.textSecondary} />
+            </TouchableOpacity>
+          </View>
+        )}
 
-        {/* Filter chips */}
+        {/* Filter chips — hidden during search */}
+        {!searchActive && (
         <View style={styles.filterRow}>
           {(['week', 'month', 'all'] as HistoryFilter[]).map((key) => (
             <TouchableOpacity
@@ -245,9 +348,10 @@ export default function HistoryScreen() {
             </TouchableOpacity>
           ))}
         </View>
+        )}
 
         {/* Period navigator */}
-        {filter !== 'all' && (
+        {!searchActive && filter !== 'all' && (
           <View style={styles.periodNav}>
             <TouchableOpacity
               style={styles.periodArrow}
@@ -270,7 +374,7 @@ export default function HistoryScreen() {
         )}
 
         {/* Monthly calendar */}
-        {filter === 'month' && (
+        {!searchActive && filter === 'month' && (
           <View style={styles.calendarCard}>
             <MonthCalendar
               year={periodDate.getFullYear()}
@@ -290,7 +394,7 @@ export default function HistoryScreen() {
         )}
 
         {/* Weekly calendar */}
-        {filter === 'week' && weekDates.length === 7 && (
+        {!searchActive && filter === 'week' && weekDates.length === 7 && (
           <View style={styles.calendarCard}>
             <WeekCalendar
               weekDates={weekDates}
@@ -308,8 +412,8 @@ export default function HistoryScreen() {
           </View>
         )}
 
-        {/* Summary totals */}
-        <View style={styles.totalsCard}>
+        {/* Summary totals — hidden during search */}
+        {!searchActive && <View style={styles.totalsCard}>
           {[
             { label: t('history.gross'),  value: fmtMoney(visibleTotals.gross) },
             { label: t('history.net'),    value: fmtMoney(visibleTotals.net), isNet: true },
@@ -324,13 +428,63 @@ export default function HistoryScreen() {
               {i < arr.length - 1 && <View style={styles.totalDivider} />}
             </React.Fragment>
           ))}
-        </View>
+        </View>}
 
-        {/* Load list */}
+        {/* Search results */}
+        {searchActive && (
+          <View style={styles.section}>
+            {searchQuery.trim().length < 2 ? null : (
+              <>
+                <Text style={styles.sectionLabel}>
+                  {t('history.searchResultsCount', { count: searchResults.length })}
+                </Text>
+                {searchResults.length === 0 ? (
+                  <View style={styles.emptyCard}>
+                    <Ionicons name="search-outline" size={32} color={Colors.textTertiary} style={{ marginBottom: 10 }} />
+                    <Text style={styles.emptyTitle}>{t('history.searchNoResults', { query: searchQuery.trim() })}</Text>
+                    <Text style={styles.emptyHint}>{t('history.searchNoResultsHint')}</Text>
+                  </View>
+                ) : (
+                  <View style={styles.loadsCard}>
+                    {searchResults.map((load, i) => (
+                      <React.Fragment key={load.id}>
+                        <TouchableOpacity
+                          style={styles.loadRow}
+                          activeOpacity={0.7}
+                          onPress={() => setSelectedLoadId(load.id)}
+                        >
+                          <View style={styles.loadLeft}>
+                            <Text style={styles.loadRoute} numberOfLines={1}>
+                              {load.from.split(',')[0]} → {load.to.split(',')[0]}
+                            </Text>
+                            <Text style={styles.loadMeta}>
+                              {load.date} · {Math.round(load.miles).toLocaleString()} mi · ${load.rpm.toFixed(2)}/mi
+                            </Text>
+                          </View>
+                          <View style={styles.loadRight}>
+                            <Text style={[styles.loadNet, { color: load.positive ? Colors.primary : Colors.danger }]}>
+                              {load.positive ? '+' : '-'}${Math.abs(load.net).toLocaleString()}
+                            </Text>
+                            <Text style={styles.loadGross}>${load.gross.toLocaleString()} {t('common.gross')}</Text>
+                          </View>
+                          <Ionicons name="chevron-forward" size={14} color={Colors.textTertiary} style={{ marginLeft: 8 }} />
+                        </TouchableOpacity>
+                        {i < searchResults.length - 1 && <View style={styles.loadDivider} />}
+                      </React.Fragment>
+                    ))}
+                  </View>
+                )}
+              </>
+            )}
+          </View>
+        )}
+
+        {/* Load list — hidden during search */}
+        {!searchActive && (
         <View style={styles.section}>
           <Text style={styles.sectionLabel}>{loadsLabel}</Text>
 
-          {visibleLoads.length === 0 ? (
+          {timeline.length === 0 ? (
             <View style={styles.emptyCard}>
               <Ionicons name="time-outline" size={32} color={Colors.textTertiary} style={{ marginBottom: 10 }} />
               <Text style={styles.emptyTitle}>
@@ -346,35 +500,57 @@ export default function HistoryScreen() {
             </View>
           ) : (
             <View style={styles.loadsCard}>
-              {visibleLoads.map((load, i) => (
-                <React.Fragment key={load.id}>
-                  <TouchableOpacity
-                    style={styles.loadRow}
-                    activeOpacity={0.7}
-                    onPress={() => setSelectedLoadId(load.id)}
-                  >
-                    <View style={styles.loadLeft}>
-                      <Text style={styles.loadRoute} numberOfLines={1}>
-                        {load.from.split(',')[0]} → {load.to.split(',')[0]}
+              {timeline.map((item, i) => (
+                <React.Fragment key={item.key}>
+                  {item.kind === 'load' ? (
+                    <TouchableOpacity
+                      style={styles.loadRow}
+                      activeOpacity={0.7}
+                      onPress={() => setSelectedLoadId(item.load.id)}
+                    >
+                      <View style={styles.loadLeft}>
+                        <Text style={styles.loadRoute} numberOfLines={1}>
+                          {item.load.from.split(',')[0]} → {item.load.to.split(',')[0]}
+                        </Text>
+                        <Text style={styles.loadMeta}>
+                          {item.load.date} · {Math.round(item.load.miles).toLocaleString()} mi · ${item.load.rpm.toFixed(2)}/mi
+                        </Text>
+                      </View>
+                      <View style={styles.loadRight}>
+                        <Text style={[styles.loadNet, { color: item.load.positive ? Colors.primary : Colors.danger }]}>
+                          {item.load.positive ? '+' : '-'}${Math.abs(item.load.net).toLocaleString()}
+                        </Text>
+                        <Text style={styles.loadGross}>${item.load.gross.toLocaleString()} {t('common.gross')}</Text>
+                      </View>
+                      <Ionicons name="chevron-forward" size={14} color={Colors.textTertiary} style={{ marginLeft: 8 }} />
+                    </TouchableOpacity>
+                  ) : (
+                    <TouchableOpacity
+                      style={styles.loadRow}
+                      activeOpacity={0.7}
+                      onPress={() => handleDeleteExpense(item.exp.id)}
+                    >
+                      <View style={styles.expIcon}>
+                        <Ionicons name={EXP_ICONS[item.exp.category] ?? 'wallet-outline'} size={16} color={Colors.secondary} />
+                      </View>
+                      <View style={styles.loadLeft}>
+                        <Text style={styles.loadRoute} numberOfLines={1}>{item.exp.label}</Text>
+                        <Text style={styles.loadMeta}>
+                          {formatDate(item.exp.date)} · {t('history.expenseTag')}
+                        </Text>
+                      </View>
+                      <Text style={[styles.loadNet, { color: Colors.danger }]}>
+                        -${Math.abs(item.exp.amount).toLocaleString()}
                       </Text>
-                      <Text style={styles.loadMeta}>
-                        {load.date} · {Math.round(load.miles).toLocaleString()} mi · ${load.rpm.toFixed(2)}/mi
-                      </Text>
-                    </View>
-                    <View style={styles.loadRight}>
-                      <Text style={[styles.loadNet, { color: load.positive ? Colors.primary : Colors.danger }]}>
-                        {load.positive ? '+' : '-'}${Math.abs(load.net).toLocaleString()}
-                      </Text>
-                      <Text style={styles.loadGross}>${load.gross.toLocaleString()} {t('common.gross')}</Text>
-                    </View>
-                    <Ionicons name="chevron-forward" size={14} color={Colors.textTertiary} style={{ marginLeft: 8 }} />
-                  </TouchableOpacity>
-                  {i < visibleLoads.length - 1 && <View style={styles.loadDivider} />}
+                    </TouchableOpacity>
+                  )}
+                  {i < timeline.length - 1 && <View style={styles.loadDivider} />}
                 </React.Fragment>
               ))}
             </View>
           )}
         </View>
+        )}
 
       </ScrollView>
     </SafeAreaView>
@@ -383,32 +559,42 @@ export default function HistoryScreen() {
 
 // ── Styles ────────────────────────────────────────────────────────────────────
 
-const styles = StyleSheet.create({
+const makeStyles = (Colors: ThemeColors) => StyleSheet.create({
   safe:    { flex: 1, backgroundColor: Colors.background },
   scroll:  { flex: 1 },
   content: { paddingHorizontal: Spacing.screenH, paddingBottom: 40 },
 
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', paddingTop: 16, paddingBottom: 24 },
-  eyebrow: { ...SectionLabel, marginBottom: 4 },
-  title:   { fontFamily: FontFamily.bold, fontSize: FontSize.title, color: Colors.textPrimary },
+  searchBar: {
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border,
+    borderRadius: Radius.md, paddingHorizontal: 14, paddingVertical: 10,
+    marginTop: 16, marginBottom: 16,
+  },
+  searchInput: {
+    flex: 1, fontFamily: FontFamily.regular, fontSize: FontSize.body,
+    color: Colors.textPrimary,
+  },
+  eyebrow: { ...sectionLabel(Colors), marginBottom: 4 },
+  title:   { fontFamily: FontFamily.monoBold, fontSize: FontSize.title, color: Colors.textPrimary },
 
   filterRow:            { flexDirection: 'row', gap: 8, marginBottom: 14 },
   filterChip:           { paddingVertical: 9, paddingHorizontal: 18, borderRadius: Radius.pill, borderWidth: 1, borderColor: Colors.border, backgroundColor: Colors.surface },
   filterChipActive:     { borderColor: Colors.primary, backgroundColor: Colors.primaryDim },
   filterChipText:       { fontFamily: FontFamily.medium, fontSize: FontSize.label, color: Colors.textSecondary },
-  filterChipTextActive: { color: Colors.primary, fontFamily: FontFamily.semiBold },
+  filterChipTextActive: { color: Colors.primary, fontFamily: FontFamily.monoSemiBold },
 
   periodNav: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border,
-    borderRadius: Radius.lg, paddingVertical: 10, paddingHorizontal: 6, marginBottom: 16,
+    borderRadius: Radius.md, paddingVertical: 10, paddingHorizontal: 6, marginBottom: 16,
   },
   periodArrow: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center', borderRadius: Radius.sm },
-  periodLabel: { fontFamily: FontFamily.semiBold, fontSize: FontSize.body, color: Colors.textPrimary, flex: 1, textAlign: 'center' },
+  periodLabel: { fontFamily: FontFamily.monoSemiBold, fontSize: FontSize.body, color: Colors.textPrimary, flex: 1, textAlign: 'center' },
 
   calendarCard: {
     backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border,
-    borderRadius: Radius.lg, paddingHorizontal: 8, paddingTop: 4, paddingBottom: 12,
+    borderRadius: Radius.md, paddingHorizontal: 8, paddingTop: 4, paddingBottom: 12,
     marginBottom: 16,
   },
   clearDayBtn: {
@@ -420,31 +606,36 @@ const styles = StyleSheet.create({
 
   totalsCard: {
     backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border,
-    borderRadius: Radius.lg, flexDirection: 'row',
+    borderRadius: Radius.md, flexDirection: 'row',
     paddingVertical: 18, paddingHorizontal: 16, marginBottom: 24,
   },
   totalCell:    { flex: 1, alignItems: 'center', gap: 5 },
-  totalLabel:   { ...SectionLabel, fontSize: 9, marginBottom: 0 },
-  totalValue:   { fontFamily: FontFamily.bold, fontSize: FontSize.body, color: Colors.textPrimary },
+  totalLabel:   { ...sectionLabel(Colors), fontSize: 9, marginBottom: 0 },
+  totalValue:   { fontFamily: FontFamily.monoBold, fontSize: FontSize.body, color: Colors.textPrimary },
   totalDivider: { width: 1, backgroundColor: Colors.border },
 
   section:      { marginBottom: 24 },
-  sectionLabel: { ...SectionLabel, marginBottom: 12 },
+  sectionLabel: { ...sectionLabel(Colors), marginBottom: 12 },
 
   emptyCard: {
     backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border,
-    borderRadius: Radius.lg, padding: 32, alignItems: 'center',
+    borderRadius: Radius.md, padding: 32, alignItems: 'center',
   },
-  emptyTitle: { fontFamily: FontFamily.semiBold, fontSize: FontSize.body, color: Colors.textPrimary, marginBottom: 6 },
+  emptyTitle: { fontFamily: FontFamily.monoSemiBold, fontSize: FontSize.body, color: Colors.textPrimary, marginBottom: 6 },
   emptyHint:  { fontFamily: FontFamily.regular, fontSize: FontSize.label, color: Colors.textSecondary, textAlign: 'center', lineHeight: 20 },
 
-  loadsCard:   { backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border, borderRadius: Radius.lg, overflow: 'hidden' },
+  loadsCard:   { backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border, borderRadius: Radius.md, overflow: 'hidden' },
   loadRow:     { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, paddingHorizontal: Spacing.cardPad },
   loadLeft:    { flex: 1, marginRight: 12 },
-  loadRoute:   { fontFamily: FontFamily.semiBold, fontSize: FontSize.body, color: Colors.textPrimary, marginBottom: 3 },
+  loadRoute:   { fontFamily: FontFamily.monoSemiBold, fontSize: FontSize.body, color: Colors.textPrimary, marginBottom: 3 },
   loadMeta:    { fontFamily: FontFamily.regular, fontSize: FontSize.caption, color: Colors.textSecondary },
   loadRight:   { alignItems: 'flex-end' },
-  loadNet:     { fontFamily: FontFamily.bold, fontSize: FontSize.body, marginBottom: 2 },
+  loadNet:     { fontFamily: FontFamily.monoBold, fontSize: FontSize.body, marginBottom: 2 },
   loadGross:   { fontFamily: FontFamily.regular, fontSize: FontSize.caption, color: Colors.textSecondary },
   loadDivider: { height: 1, backgroundColor: Colors.borderSubtle, marginHorizontal: Spacing.cardPad },
+  expIcon: {
+    width: 32, height: 32, borderRadius: Radius.sm, marginRight: 12,
+    backgroundColor: Colors.secondaryDim, borderWidth: 1, borderColor: Colors.secondary + '30',
+    alignItems: 'center', justifyContent: 'center',
+  },
 });

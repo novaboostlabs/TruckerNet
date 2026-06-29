@@ -6,12 +6,16 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { getDateLocale } from '../lib/i18n';
-import { Colors, FontFamily, FontSize, Spacing, Radius, SectionLabel } from '../theme/theme';
+import { FontFamily, FontSize, Spacing, Radius, ThemeColors, sectionLabel } from '../theme/theme';
+import { useTheme } from '../theme/ThemeContext';
 import {
   getLoadById, LoadDetail, addSingleLoadExpense, deleteSingleLoadExpense, updateLoad,
 } from '../db/database';
 import { useAuth } from '../contexts/AuthContext';
 import { pushLoads } from '../lib/sync/loadsSync';
+import { maybeContributeLoadRate } from '../lib/rateReports';
+import GridBackground from '../components/GridBackground';
+import AccentRule from '../components/AccentRule';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -33,18 +37,18 @@ const STATUS_I18N: Record<string, string> = {
   cancelled:   'cancelled',
 };
 
-const STATUS_COLORS: Record<string, string> = {
-  completed:   Colors.primary,
-  upcoming:    Colors.secondary,
-  in_progress: Colors.secondary,
-  cancelled:   Colors.danger,
-};
+const statusColorMap = (c: ThemeColors): Record<string, string> => ({
+  completed:   c.primary,
+  upcoming:    c.secondary,
+  in_progress: c.secondary,
+  cancelled:   c.danger,
+});
 
-const VERDICT_COLORS: Record<string, string> = {
-  green: Colors.primary,
-  amber: Colors.secondary,
-  red:   Colors.danger,
-};
+const verdictColorMap = (c: ThemeColors): Record<string, string> => ({
+  green: c.primary,
+  amber: c.secondary,
+  red:   c.danger,
+});
 
 function fmt(iso: string): string {
   const d = new Date(iso + 'T12:00:00');
@@ -58,6 +62,8 @@ function money(n: number): string {
 // ── Sub-components ────────────────────────────────────────────────────────────
 
 function DetailRow({ label, value, valueColor }: { label: string; value: string; valueColor?: string }) {
+  const { colors: Colors } = useTheme();
+  const styles = useMemo(() => makeStyles(Colors), [Colors]);
   return (
     <View style={styles.detailRow}>
       <Text style={styles.detailLabel}>{label}</Text>
@@ -69,6 +75,8 @@ function DetailRow({ label, value, valueColor }: { label: string; value: string;
 }
 
 function Divider() {
+  const { colors: Colors } = useTheme();
+  const styles = useMemo(() => makeStyles(Colors), [Colors]);
   return <View style={styles.rowDivider} />;
 }
 
@@ -90,6 +98,10 @@ const EXPENSE_CATS = [
 
 export default function LoadDetailScreen({ loadId, onClose }: Props) {
   const { t } = useTranslation();
+  const { colors: Colors } = useTheme();
+  const styles = useMemo(() => makeStyles(Colors), [Colors]);
+  const STATUS_COLORS = useMemo(() => statusColorMap(Colors), [Colors]);
+  const VERDICT_COLORS = useMemo(() => verdictColorMap(Colors), [Colors]);
   const { user } = useAuth();
   const [load,      setLoad]      = useState<LoadDetail | null>(null);
   const [photoOpen, setPhotoOpen] = useState(false);
@@ -178,6 +190,9 @@ export default function LoadDetailScreen({ loadId, onClose }: Props) {
       broker_mc:      editBrokerMC.trim(),
       notes:          editNotes.trim(),
     });
+    // Contribute to the community rate pool if this edit just completed the load.
+    // Idempotent — no-op if it already contributed.
+    maybeContributeLoadRate(loadId);
     refreshLoad();
     setSaving(false);
     setEditingLoad(false);
@@ -204,6 +219,7 @@ export default function LoadDetailScreen({ loadId, onClose }: Props) {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+      <GridBackground />
 
       {/* Header — edit mode swaps close+edit for cancel+save */}
       <View style={styles.header}>
@@ -229,6 +245,7 @@ export default function LoadDetailScreen({ loadId, onClose }: Props) {
               <Text style={styles.headerTitle} numberOfLines={1}>
                 {load.pickup_city} → {load.delivery_city}
               </Text>
+              <AccentRule style={{ marginTop: 7 }} />
             </View>
             <TouchableOpacity style={styles.editIconBtn} onPress={startEditLoad} activeOpacity={0.7}>
               <Ionicons name="pencil-outline" size={18} color={Colors.textSecondary} />
@@ -386,7 +403,7 @@ export default function LoadDetailScreen({ loadId, onClose }: Props) {
                     />
                   </View>
                   <TouchableOpacity onPress={handleConfirmExpense} style={styles.expConfirmBtn}>
-                    <Ionicons name="checkmark" size={16} color={Colors.background} />
+                    <Ionicons name="checkmark" size={16} color={Colors.onPrimary} />
                   </TouchableOpacity>
                   <TouchableOpacity
                     onPress={() => setPending(null)}
@@ -633,7 +650,7 @@ export default function LoadDetailScreen({ loadId, onClose }: Props) {
 
 // ── Styles ────────────────────────────────────────────────────────────────────
 
-const styles = StyleSheet.create({
+const makeStyles = (Colors: ThemeColors) => StyleSheet.create({
   safe:        { flex: 1, backgroundColor: Colors.background },
   loadingWrap: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   loadingText: { fontFamily: FontFamily.regular, fontSize: FontSize.body, color: Colors.textSecondary },
@@ -643,8 +660,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.screenH, paddingTop: 20, paddingBottom: 12,
     gap: 12,
   },
-  headerEyebrow: { ...SectionLabel, marginBottom: 3 },
-  headerTitle:   { fontFamily: FontFamily.bold, fontSize: FontSize.subtitle, color: Colors.textPrimary },
+  headerEyebrow: { ...sectionLabel(Colors), marginBottom: 3 },
+  headerTitle:   { fontFamily: FontFamily.monoBold, fontSize: FontSize.subtitle, color: Colors.textPrimary },
   closeBtn: {
     width: 36, height: 36, borderRadius: Radius.pill,
     backgroundColor: Colors.surfaceHigh, borderWidth: 1, borderColor: Colors.border,
@@ -653,7 +670,7 @@ const styles = StyleSheet.create({
 
   bolPhoto: {
     width: '100%', height: 200,
-    borderRadius: Radius.lg,
+    borderRadius: Radius.md,
     borderWidth: 1, borderColor: Colors.border,
     marginBottom: 24,
     backgroundColor: Colors.surface,
@@ -676,46 +693,46 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderRadius: Radius.pill,
     paddingHorizontal: 10, paddingVertical: 4,
   },
-  badgeText: { fontFamily: FontFamily.semiBold, fontSize: FontSize.caption },
+  badgeText: { fontFamily: FontFamily.monoSemiBold, fontSize: FontSize.caption },
 
   routeCard: {
     backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border,
-    borderRadius: Radius.lg, padding: Spacing.cardPad, marginBottom: 24,
+    borderRadius: Radius.md, padding: Spacing.cardPad, marginBottom: 24,
   },
   routeEndpoint: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
   routeDot: { width: 10, height: 10, borderRadius: 5, marginTop: 4, flexShrink: 0 },
-  routeCity: { fontFamily: FontFamily.semiBold, fontSize: FontSize.body, color: Colors.textPrimary, marginBottom: 2 },
+  routeCity: { fontFamily: FontFamily.monoSemiBold, fontSize: FontSize.body, color: Colors.textPrimary, marginBottom: 2 },
   routeAddress: { fontFamily: FontFamily.regular, fontSize: FontSize.caption, color: Colors.textSecondary },
   routeLineWrap: { flexDirection: 'row', alignItems: 'center', marginLeft: 16, paddingVertical: 6, gap: 10 },
   routeLine: { width: 2, height: 28, backgroundColor: Colors.border, borderRadius: 1 },
   routeMiles: { fontFamily: FontFamily.regular, fontSize: FontSize.caption, color: Colors.textSecondary },
 
-  sectionHeader: { ...SectionLabel, marginBottom: 10, paddingLeft: 4 },
+  sectionHeader: { ...sectionLabel(Colors), marginBottom: 10, paddingLeft: 4 },
 
   card: {
     backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border,
-    borderRadius: Radius.lg, marginBottom: 24, overflow: 'hidden',
+    borderRadius: Radius.md, marginBottom: 24, overflow: 'hidden',
   },
 
   plHero: { flexDirection: 'row', alignItems: 'center', padding: Spacing.cardPad },
   plHeroLeft:   { flex: 1 },
   plHeroRight:  { flex: 1, alignItems: 'flex-end' },
   plHeroDivider: { width: 1, height: 40, backgroundColor: Colors.border, marginHorizontal: 16 },
-  plHeroLabel:  { ...SectionLabel, fontSize: 9, marginBottom: 6 },
-  plHeroValue:  { fontFamily: FontFamily.bold, fontSize: FontSize.cardNumber, letterSpacing: -0.5 },
-  plHeroGross:  { fontFamily: FontFamily.semiBold, fontSize: FontSize.subtitle, color: Colors.textPrimary },
+  plHeroLabel:  { ...sectionLabel(Colors), fontSize: 9, marginBottom: 6 },
+  plHeroValue:  { fontFamily: FontFamily.monoBold, fontSize: FontSize.cardNumber, letterSpacing: -0.5 },
+  plHeroGross:  { fontFamily: FontFamily.monoSemiBold, fontSize: FontSize.subtitle, color: Colors.textPrimary },
 
   rowDivider:  { height: 1, backgroundColor: Colors.borderSubtle, marginHorizontal: Spacing.cardPad },
 
   detailRow:   { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 13, paddingHorizontal: Spacing.cardPad },
   detailLabel: { fontFamily: FontFamily.regular, fontSize: FontSize.body, color: Colors.textSecondary },
-  detailValue: { fontFamily: FontFamily.semiBold, fontSize: FontSize.body, color: Colors.textPrimary, textAlign: 'right', flex: 1, marginLeft: 16 },
+  detailValue: { fontFamily: FontFamily.monoSemiBold, fontSize: FontSize.body, color: Colors.textPrimary, textAlign: 'right', flex: 1, marginLeft: 16 },
 
   // Header edit mode buttons
   editCancelBtn: { paddingHorizontal: 4, paddingVertical: 6 },
   editCancelText: { fontFamily: FontFamily.medium, fontSize: FontSize.body, color: Colors.textSecondary },
   editSaveBtn: { paddingHorizontal: 4, paddingVertical: 6 },
-  editSaveText: { fontFamily: FontFamily.bold, fontSize: FontSize.body, color: Colors.primary },
+  editSaveText: { fontFamily: FontFamily.monoBold, fontSize: FontSize.body, color: Colors.primary },
   editIconBtn: {
     width: 34, height: 34, borderRadius: Radius.pill,
     backgroundColor: Colors.surfaceHigh, borderWidth: 1, borderColor: Colors.border,
@@ -724,9 +741,9 @@ const styles = StyleSheet.create({
 
   // Gross pay edit in hero
   editGrossWrap: { flexDirection: 'row', alignItems: 'center' },
-  editGrossDollar: { fontFamily: FontFamily.bold, fontSize: FontSize.subtitle, color: Colors.textSecondary, marginRight: 2 },
+  editGrossDollar: { fontFamily: FontFamily.monoBold, fontSize: FontSize.subtitle, color: Colors.textSecondary, marginRight: 2 },
   editGrossInput: {
-    fontFamily: FontFamily.bold, fontSize: FontSize.subtitle, color: Colors.textPrimary,
+    fontFamily: FontFamily.monoBold, fontSize: FontSize.subtitle, color: Colors.textPrimary,
     borderBottomWidth: 1.5, borderBottomColor: Colors.primary, minWidth: 80,
     padding: 0, textAlign: 'right',
   },
@@ -738,7 +755,7 @@ const styles = StyleSheet.create({
   },
   editPickerLabel: { fontFamily: FontFamily.regular, fontSize: FontSize.body, color: Colors.textSecondary },
   editPickerRight: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  editPickerValue: { fontFamily: FontFamily.semiBold, fontSize: FontSize.body, color: Colors.textPrimary },
+  editPickerValue: { fontFamily: FontFamily.monoSemiBold, fontSize: FontSize.body, color: Colors.textPrimary },
   editToggleRow: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingVertical: 10, paddingHorizontal: Spacing.cardPad,
@@ -749,18 +766,18 @@ const styles = StyleSheet.create({
   },
   editFieldLabel: { fontFamily: FontFamily.regular, fontSize: FontSize.body, color: Colors.textSecondary, width: 80 },
   editFieldInput: {
-    flex: 1, fontFamily: FontFamily.semiBold, fontSize: FontSize.body, color: Colors.textPrimary,
+    flex: 1, fontFamily: FontFamily.monoSemiBold, fontSize: FontSize.body, color: Colors.textPrimary,
     borderBottomWidth: 1, borderBottomColor: Colors.border, padding: 0, paddingBottom: 4,
   },
 
   // Picker modals (status + equipment)
   pickerBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
   pickerSheet: {
-    backgroundColor: Colors.surface, borderTopLeftRadius: Radius.xl, borderTopRightRadius: Radius.xl,
+    backgroundColor: Colors.surface, borderTopLeftRadius: Radius.md, borderTopRightRadius: Radius.md,
     paddingBottom: 32, paddingHorizontal: Spacing.screenH,
   },
   pickerHandle: { width: 36, height: 4, borderRadius: 2, backgroundColor: Colors.border, alignSelf: 'center', marginTop: 12, marginBottom: 8 },
-  pickerTitle: { fontFamily: FontFamily.bold, fontSize: FontSize.subtitle, color: Colors.textPrimary, paddingVertical: 14 },
+  pickerTitle: { fontFamily: FontFamily.monoBold, fontSize: FontSize.subtitle, color: Colors.textPrimary, paddingVertical: 14 },
   pickerOption: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 14, borderTopWidth: 1, borderTopColor: Colors.borderSubtle },
   pickerOptionActive: { },
   pickerOptionText: { fontFamily: FontFamily.medium, fontSize: FontSize.body, color: Colors.textPrimary },
@@ -772,14 +789,14 @@ const styles = StyleSheet.create({
     paddingVertical: 10, paddingHorizontal: Spacing.cardPad,
   },
   expEditLabel: { fontFamily: FontFamily.medium, fontSize: FontSize.caption, color: Colors.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5 },
-  expEditToggle: { fontFamily: FontFamily.semiBold, fontSize: FontSize.label, color: Colors.primary },
+  expEditToggle: { fontFamily: FontFamily.monoSemiBold, fontSize: FontSize.label, color: Colors.primary },
   expRow: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
     paddingVertical: 10, paddingHorizontal: Spacing.cardPad,
     borderTopWidth: 1, borderTopColor: Colors.borderSubtle,
   },
   expRowLabel: { flex: 1, fontFamily: FontFamily.regular, fontSize: FontSize.body, color: Colors.textSecondary },
-  expRowAmount: { fontFamily: FontFamily.semiBold, fontSize: FontSize.body, color: Colors.danger },
+  expRowAmount: { fontFamily: FontFamily.monoSemiBold, fontSize: FontSize.body, color: Colors.danger },
   expPendingRow: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
     paddingVertical: 8, paddingHorizontal: Spacing.cardPad,
@@ -793,7 +810,7 @@ const styles = StyleSheet.create({
   expPendingAmtWrap: { flexDirection: 'row', alignItems: 'center', gap: 3 },
   expPendingDollar: { fontFamily: FontFamily.medium, fontSize: FontSize.label, color: Colors.textSecondary },
   expPendingAmt: {
-    width: 70, fontFamily: FontFamily.semiBold, fontSize: FontSize.label,
+    width: 70, fontFamily: FontFamily.monoSemiBold, fontSize: FontSize.label,
     color: Colors.textPrimary, textAlign: 'right', padding: 0,
   },
   expConfirmBtn: {

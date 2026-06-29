@@ -9,23 +9,34 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
 import 'react-native-get-random-values';
-import { Colors, FontFamily, FontSize, Spacing, Radius, SectionLabel } from '../theme/theme';
+import { Colors, FontFamily, FontSize, Spacing, Radius, SectionLabel, ThemeColors, sectionLabel } from '../theme/theme';
+import { useTheme } from '../theme/ThemeContext';
 import { getDateLocale } from '../lib/i18n';
-import { calcBreakEven, saveLoad, getPersonalLaneHistory, LaneHistory, LoadExpenseInsert } from '../db/database';
+import {
+  calcBreakEven, saveLoad, getPersonalLaneHistory, LaneHistory, LoadExpenseInsert,
+  getIncomeGoal, getWeekPnL, getMonthPnL, getSetting, setSetting, getLoadCount,
+} from '../db/database';
 import { useAuth } from '../contexts/AuthContext';
 import { useSubscription } from '../contexts/SubscriptionContext';
 import { usePaywall } from '../contexts/PaywallContext';
 import { canLogLoadFree } from '../lib/gating';
+import * as haptics from '../lib/haptics';
+import FreeUsageMeter from '../components/FreeUsageMeter';
 import { pushLoads } from '../lib/sync/loadsSync';
 import { uploadBolPhoto } from '../lib/storage';
 import { ocrBOL, pickImage } from '../lib/ocr';
 import { getFairMarketRate, LoadType } from '../utils/marketRates';
 import AddressAutocomplete from '../components/AddressAutocomplete';
 import FairMarketLock from '../components/FairMarketLock';
+import GridBackground from '../components/GridBackground';
+import AccentRule from '../components/AccentRule';
 import { getRouteData, geocodeAddress, AddressSuggestion } from '../lib/mapbox';
 import { splitRouteByState } from '../lib/stateSplit';
-import { contributeRateReport, getCommunityRate, CommunityRate } from '../lib/rateReports';
-import { scheduleLoadReminder, cancelLoadReminder } from '../lib/notifications';
+import { maybeContributeLoadRate, getCommunityRate, CommunityRate, CommunityTier } from '../lib/rateReports';
+import { getBrokerScorecard, BrokerScorecard } from '../lib/brokerScorecard';
+import BrokerScorecardCard from '../components/BrokerScorecardCard';
+import { scheduleLoadReminder, cancelLoadReminder, checkAndNotifyGoalMilestone, checkAndNotifyStreak, scheduleIdleNudge } from '../lib/notifications';
+import { capture } from '../lib/analytics';
 
 export interface AddLoadPrefill {
   grossPay?:    string;
@@ -59,6 +70,9 @@ interface StateMileRow { state: string; miles: string; }
 interface Props {
   onClose: () => void;
   onSaved?: () => void;
+  // Fired once, the first time this driver ever logs a load — lets the parent
+  // surface the "your first true net pay" celebration. Passes the load's net pay.
+  onFirstLoad?: (netPay: number) => void;
   prefill?: AddLoadPrefill;
 }
 
@@ -87,7 +101,34 @@ function cap(raw: string, max: number): string {
   return (!isNaN(n) && n > max) ? String(max) : raw;
 }
 
-export default function AddLoadScreen({ onClose, onSaved, prefill }: Props) {
+// Maps a community-data confidence tier to its i18n label key.
+function tierKey(tier: CommunityTier): string {
+  return tier === 'exact'    ? 'rateInsights.tierExact'
+       : tier === 'corridor' ? 'rateInsights.tierCorridor'
+       :                        'rateInsights.tierNational';
+}
+
+// Maps the driver's saved profile equipment (ProfileSetupScreen values) to a
+// LoadType, so Add Load defaults to the rig they actually run.
+const PROFILE_EQUIP_TO_LOADTYPE: Record<string, LoadType> = {
+  dryVan:     'dry_van',
+  flatbed:    'flatbed',
+  reefer:     'reefer',
+  boxTruck:   'dry_van',       // closest fair-market analogue
+  stepDeck:   'step_deck',
+  tanker:     'tanker',
+  intermodal: 'intermodal',
+  carHauler:  'auto_transport',
+};
+
+function defaultLoadTypeFromProfile(): LoadType {
+  const eq = getSetting('profile_equipment_type') ?? '';
+  return PROFILE_EQUIP_TO_LOADTYPE[eq] ?? 'dry_van';
+}
+
+export default function AddLoadScreen({ onClose, onSaved, onFirstLoad, prefill }: Props) {
+  const { colors: Colors } = useTheme();
+  const styles = useMemo(() => makeStyles(Colors), [Colors]);
   const { t } = useTranslation();
   const { user } = useAuth();
   const { isPro } = useSubscription();
@@ -124,7 +165,7 @@ export default function AddLoadScreen({ onClose, onSaved, prefill }: Props) {
 
   // ── Load details ──
   const [grossPay, setGrossPay] = useState(prefill?.grossPay ?? '');
-  const [loadType, setLoadType] = useState<LoadType>(prefill?.loadType ?? 'dry_van');
+  const [loadType, setLoadType] = useState<LoadType>(prefill?.loadType ?? defaultLoadTypeFromProfile());
   const [status,   setStatus]   = useState<LoadStatus | null>(null);
   const [backhaul, setBackhaul] = useState(prefill?.backhaul ?? false);
 
@@ -160,6 +201,23 @@ export default function AddLoadScreen({ onClose, onSaved, prefill }: Props) {
   const [brokerMC,    setBrokerMC]    = useState('');
   const [notes,       setNotes]       = useState('');
   const [showOptional, setShowOptional] = useState(false);
+
+  // ── Broker scorecard ──
+  const [brokerScorecard,   setBrokerScorecard]   = useState<BrokerScorecard | null>(null);
+  const [brokerSCLoading,   setBrokerSCLoading]   = useState(false);
+
+  useEffect(() => {
+    const name = brokerName.trim();
+    const mc   = brokerMC.trim();
+    if (name.length < 2 && mc.length < 2) { setBrokerScorecard(null); return; }
+    const timer = setTimeout(async () => {
+      setBrokerSCLoading(true);
+      try { setBrokerScorecard(await getBrokerScorecard(name, mc)); }
+      catch { setBrokerScorecard(null); }
+      finally { setBrokerSCLoading(false); }
+    }, 600);
+    return () => clearTimeout(timer);
+  }, [brokerName, brokerMC]);
 
   // ── Modal open state ──
   const [typeOpen,   setTypeOpen]   = useState(false);
@@ -231,11 +289,13 @@ export default function AddLoadScreen({ onClose, onSaved, prefill }: Props) {
 
   const personalHistory = useMemo<LaneHistory | null>(() => {
     if (!pickupSel || !deliverySel) return null;
-    return getPersonalLaneHistory(
-      extractState(pickupSel.label),
-      extractState(deliverySel.label),
-      loadType,
-    );
+    return getPersonalLaneHistory({
+      pickupLat: pickupSel.lat, pickupLng: pickupSel.lng,
+      deliveryLat: deliverySel.lat, deliveryLng: deliverySel.lng,
+      originState: extractState(pickupSel.label),
+      destState:   extractState(deliverySel.label),
+      equipment:   loadType,
+    });
   }, [pickupSel, deliverySel, loadType]);
 
   useEffect(() => {
@@ -262,7 +322,10 @@ export default function AddLoadScreen({ onClose, onSaved, prefill }: Props) {
   const netRPM    = loadMi > 0 ? netPay / loadMi  : 0;
   const grossRPM  = loadMi > 0 ? gross  / loadMi  : 0;
 
-  const fair = hasInputs ? getFairMarketRate(loadMi, loadType, gross) : null;
+  // Origin/dest states feed regional market strength into the fair estimate.
+  const fairOrigin = pickupSel   ? extractState(pickupSel.label)   : undefined;
+  const fairDest   = deliverySel ? extractState(deliverySel.label) : undefined;
+  const fair = hasInputs ? getFairMarketRate(loadMi, loadType, gross, fairOrigin, fairDest) : null;
 
   const verdictColor =
     !breakEvenRPM         ? Colors.textSecondary :
@@ -336,6 +399,16 @@ export default function AddLoadScreen({ onClose, onSaved, prefill }: Props) {
       if (pickupAddress)   { setPickup(pSug?.label ?? pickupAddress);     if (pSug) setPickupSel(pSug); }
       if (deliveryAddress) { setDelivery(dSug?.label ?? deliveryAddress); if (dSug) setDeliverySel(dSug); }
 
+      capture('bol_scan_used', {
+        source,
+        fields_extracted: [
+          pickupAddress ? 'pickup' : null,
+          deliveryAddress ? 'delivery' : null,
+          weightLbs != null ? 'weight' : null,
+          bolNumber ? 'bol_number' : null,
+          brokerName ? 'broker' : null,
+        ].filter(Boolean),
+      });
       setBolScanned(true);
     } catch {
       Alert.alert(t('addLoad.scanBol.failedTitle'), t('addLoad.scanBol.failedMsg'));
@@ -393,11 +466,17 @@ export default function AddLoadScreen({ onClose, onSaved, prefill }: Props) {
     }
     // Free tier caps at 15 loads/month — the 16th opens the paywall instead.
     if (!isPro && !canLogLoadFree()) {
+      capture('load_limit_hit');
       presentPaywall('loadLimit');
       return;
     }
     setSaving(true);
     try {
+      // First load this driver has ever logged — the "aha" moment. Capture it
+      // before the save so the count is still 0; gate with a once-ever flag.
+      const isFirstEver =
+        getLoadCount() === 0 && getSetting('first_load_celebrated') !== 'true';
+
       const pLabel = pickupSel?.label  ?? pickup;
       const dLabel = deliverySel?.label ?? delivery;
 
@@ -432,6 +511,11 @@ export default function AddLoadScreen({ onClose, onSaved, prefill }: Props) {
           delivery_address: dLabel,
           delivery_city:   extractCity(dLabel),
           delivery_state:  extractState(dLabel),
+          // Coordinates (when picked from autocomplete) power the nearby-lane history.
+          pickup_lat:      pickupSel?.lat ?? null,
+          pickup_lng:      pickupSel?.lng ?? null,
+          delivery_lat:    deliverySel?.lat ?? null,
+          delivery_lng:    deliverySel?.lng ?? null,
           equipment_type:  loadType,
           total_miles:     loadMi,
           gross_pay:       gross,
@@ -457,6 +541,18 @@ export default function AddLoadScreen({ onClose, onSaved, prefill }: Props) {
         validExpenses,
       );
 
+      capture('load_added', {
+        status,
+        load_type:    loadType,
+        miles:        loadMi,
+        gross_pay:    gross,
+        net_pay:      netPay,
+        is_backhaul:  backhaul,
+        has_expenses: validExpenses.length > 0,
+        has_bol_photo: !!bolPhotoUri,
+        verdict,
+      });
+
       // Schedule/cancel load reminder notification based on status.
       if (status === 'in_progress') {
         scheduleLoadReminder(savedLoadId).catch(() => {});
@@ -464,18 +560,38 @@ export default function AddLoadScreen({ onClose, onSaved, prefill }: Props) {
         cancelLoadReminder(savedLoadId).catch(() => {});
       }
 
-      // Anonymously contribute rate data to the community pool (completed loads only).
+      // Anonymously contribute rate data to the community pool — idempotent, fires
+      // once when a load first becomes completed (never double-counts on re-save).
+      maybeContributeLoadRate(savedLoadId);
+
       if (status === 'completed') {
-        const orig = extractState(pLabel);
-        const dest = extractState(dLabel);
-        contributeRateReport({ originState: orig, destState: dest, loadType, miles: loadMi, totalPay: gross }).catch(() => {});
+        // Check if this load pushed the driver past a goal milestone.
+        const goal = getIncomeGoal();
+        if (goal) {
+          const pnl = goal.period === 'weekly' ? getWeekPnL() : getMonthPnL();
+          checkAndNotifyGoalMilestone(pnl.net, goal).catch(() => {});
+        }
       }
 
       // Back up to the cloud (local-first; no-op for guests).
       if (user) pushLoads(user.id);
+
+      // Fire the one-time first-load celebration after a successful save.
+      if (isFirstEver) {
+        setSetting('first_load_celebrated', 'true');
+        onFirstLoad?.(netPay);
+      }
+
+      haptics.success();
+      // Check streak milestone and reschedule idle nudge after every completed load.
+      if (status === 'completed') {
+        checkAndNotifyStreak().catch(() => {});
+      }
+      scheduleIdleNudge().catch(() => {});
       onSaved?.();
       onClose();
     } catch {
+      haptics.error();
       Alert.alert(t('addLoad.saveErrorTitle'), t('addLoad.saveError'));
     } finally {
       setSaving(false);
@@ -484,6 +600,7 @@ export default function AddLoadScreen({ onClose, onSaved, prefill }: Props) {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+      <GridBackground />
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
 
         {/* Header */}
@@ -491,6 +608,7 @@ export default function AddLoadScreen({ onClose, onSaved, prefill }: Props) {
           <View>
             <Text style={styles.eyebrow}>{t('addLoad.eyebrow')}</Text>
             <Text style={styles.title}>{t('addLoad.title')}</Text>
+            <AccentRule style={{ marginTop: 8 }} />
           </View>
           <TouchableOpacity style={styles.closeBtn} onPress={onClose} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
             <Ionicons name="close" size={22} color={Colors.textSecondary} />
@@ -498,6 +616,9 @@ export default function AddLoadScreen({ onClose, onSaved, prefill }: Props) {
         </View>
 
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="always" showsVerticalScrollIndicator={false}>
+
+          {/* ── Free-tier usage (renders nothing for Pro) ── */}
+          <FreeUsageMeter compact />
 
           {/* ── Scan BOL to autofill ── */}
           <TouchableOpacity
@@ -671,12 +792,23 @@ export default function AddLoadScreen({ onClose, onSaved, prefill }: Props) {
 
           {fair && (
             isPro ? (
-              <View style={styles.fairRow}>
-                <Text style={styles.fairLabel}>{t('addLoad.fairMarket')}</Text>
-                <Text style={styles.fairValue}>
-                  {t('addLoad.fairMarketRange', { min: money(fair.minTotal), max: money(fair.maxTotal) })}
-                </Text>
-              </View>
+              <>
+                <View style={styles.fairRow}>
+                  <Text style={styles.fairLabel}>{t('addLoad.fairMarket')}</Text>
+                  {/* Real driver data leads when available; model becomes the estimate. */}
+                  <Text style={styles.fairValue}>
+                    {communityRate
+                      ? t('addLoad.fairMarketRange', { min: money(communityRate.lowPay), max: money(communityRate.highPay) })
+                      : t('addLoad.fairMarketRange', { min: money(fair.minTotal), max: money(fair.maxTotal) })}
+                    {!communityRate && !communityLoading ? ` ${t(fair.confidence === 'low' ? 'rateInsights.estRough' : 'rateInsights.estTag')}` : ''}
+                  </Text>
+                </View>
+                {communityRate && (
+                  <Text style={styles.fairEstLine}>
+                    {t(fair.confidence === 'low' ? 'rateInsights.estRough' : 'rateInsights.estTag')} {t('addLoad.fairMarketRange', { min: money(fair.minTotal), max: money(fair.maxTotal) })}
+                  </Text>
+                )}
+              </>
             ) : (
               <View style={styles.fairLockWrap}>
                 <FairMarketLock onUpgrade={() => presentPaywall('fairMarket')} />
@@ -697,7 +829,7 @@ export default function AddLoadScreen({ onClose, onSaved, prefill }: Props) {
                     <ActivityIndicator size="small" color={Colors.textTertiary} style={styles.insightLoader} />
                   ) : communityRate ? (
                     <Text style={styles.insightValue}>
-                      {t('rateInsights.communityCount', { count: communityRate.count })} · ${money(communityRate.lowPay)}–${money(communityRate.highPay)}
+                      {t(tierKey(communityRate.tier), { count: communityRate.count })} · ${money(communityRate.lowPay)}–${money(communityRate.highPay)}
                     </Text>
                   ) : null}
                 </View>
@@ -713,6 +845,18 @@ export default function AddLoadScreen({ onClose, onSaved, prefill }: Props) {
                       ? t('rateInsights.historyOne', { pay: money(personalHistory.lastPay), date: personalHistory.lastDate })
                       : t('rateInsights.historyMulti', { count: personalHistory.count, avg: money(personalHistory.avgPay), last: money(personalHistory.lastPay) })}
                   </Text>
+                  {personalHistory.count >= 2 && gross > 0 && Math.abs(gross - personalHistory.avgPay) >= 1 && (
+                    <View style={[styles.usualPill, { backgroundColor: gross >= personalHistory.avgPay ? Colors.primaryDim : Colors.secondaryDim }]}>
+                      <Ionicons
+                        name={gross >= personalHistory.avgPay ? 'trending-up' : 'trending-down'}
+                        size={13}
+                        color={gross >= personalHistory.avgPay ? Colors.primary : Colors.secondary}
+                      />
+                      <Text style={[styles.usualPillText, { color: gross >= personalHistory.avgPay ? Colors.primary : Colors.secondary }]}>
+                        {t(gross >= personalHistory.avgPay ? 'rateInsights.aboveUsual' : 'rateInsights.belowUsual', { amount: `$${money(Math.abs(gross - personalHistory.avgPay))}` })}
+                      </Text>
+                    </View>
+                  )}
                 </View>
               )}
             </>
@@ -899,6 +1043,11 @@ export default function AddLoadScreen({ onClose, onSaved, prefill }: Props) {
                 placeholderTextColor={Colors.textTertiary}
               />
 
+              {/* Broker scorecard — appears when broker info is entered */}
+              {(brokerScorecard || brokerSCLoading) && (
+                <BrokerScorecardCard scorecard={brokerScorecard} loading={brokerSCLoading} />
+              )}
+
               <Text style={[styles.fieldLabel, { marginTop: 18 }]}>{t('addLoad.notes')}</Text>
               <TextInput
                 style={[styles.textField, styles.textArea]}
@@ -945,7 +1094,7 @@ export default function AddLoadScreen({ onClose, onSaved, prefill }: Props) {
             activeOpacity={0.85}
           >
             {saving ? (
-              <ActivityIndicator color={Colors.background} />
+              <ActivityIndicator color={Colors.onPrimary} />
             ) : (
               <>
                 <Ionicons name="checkmark" size={20} color={hasInputs ? Colors.background : Colors.textTertiary} />
@@ -1017,7 +1166,7 @@ export default function AddLoadScreen({ onClose, onSaved, prefill }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (Colors: ThemeColors) => StyleSheet.create({
   safe: { flex: 1, backgroundColor: Colors.background },
   flex: { flex: 1 },
 
@@ -1025,8 +1174,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start',
     paddingHorizontal: Spacing.screenH, paddingTop: 12, paddingBottom: 16,
   },
-  eyebrow: { ...SectionLabel, marginBottom: 4 },
-  title:   { fontFamily: FontFamily.bold, fontSize: FontSize.subtitle, color: Colors.textPrimary },
+  eyebrow: { ...sectionLabel(Colors), marginBottom: 4 },
+  title:   { fontFamily: FontFamily.monoBold, fontSize: FontSize.subtitle, color: Colors.textPrimary },
   closeBtn: {
     width: 38, height: 38, borderRadius: Radius.pill,
     backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border,
@@ -1035,7 +1184,7 @@ const styles = StyleSheet.create({
 
   content: { paddingHorizontal: Spacing.screenH, paddingBottom: 20 },
 
-  fieldLabel: { ...SectionLabel, marginBottom: 10 },
+  fieldLabel: { ...sectionLabel(Colors), marginBottom: 10 },
   addrHint:   { fontFamily: FontFamily.regular, fontSize: FontSize.caption, color: Colors.textSecondary, marginTop: 8 },
 
   milesLabelRow:  { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 18 },
@@ -1048,16 +1197,16 @@ const styles = StyleSheet.create({
   inputCard: {
     flexDirection: 'row', alignItems: 'center',
     backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border,
-    borderRadius: Radius.lg, paddingHorizontal: 18, paddingVertical: 14,
+    borderRadius: Radius.md, paddingHorizontal: 18, paddingVertical: 14,
   },
-  dollarSign:  { fontFamily: FontFamily.semiBold, fontSize: FontSize.subtitle, color: Colors.textSecondary, marginRight: 6 },
-  bigInput:    { flex: 1, fontFamily: FontFamily.bold, fontSize: 28, color: Colors.textPrimary, padding: 0 },
+  dollarSign:  { fontFamily: FontFamily.monoSemiBold, fontSize: FontSize.subtitle, color: Colors.textSecondary, marginRight: 6 },
+  bigInput:    { flex: 1, fontFamily: FontFamily.monoBold, fontSize: 28, color: Colors.textPrimary, padding: 0 },
   inputSuffix: { fontFamily: FontFamily.medium, fontSize: FontSize.body, color: Colors.textSecondary },
 
   inputCardSm: {
     flexDirection: 'row', alignItems: 'center',
     backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border,
-    borderRadius: Radius.lg, paddingHorizontal: 18, paddingVertical: 14,
+    borderRadius: Radius.md, paddingHorizontal: 18, paddingVertical: 14,
   },
   inputSm: { flex: 1, fontFamily: FontFamily.medium, fontSize: FontSize.body, color: Colors.textPrimary, padding: 0 },
 
@@ -1069,7 +1218,7 @@ const styles = StyleSheet.create({
   stateInput: {
     width: 54, backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border,
     borderRadius: Radius.md, paddingHorizontal: 10, paddingVertical: 12,
-    fontFamily: FontFamily.semiBold, fontSize: FontSize.body, color: Colors.textPrimary,
+    fontFamily: FontFamily.monoSemiBold, fontSize: FontSize.body, color: Colors.textPrimary,
     textAlign: 'center',
   },
   stateMilesInput: {
@@ -1086,7 +1235,7 @@ const styles = StyleSheet.create({
   stateTotalPill: { borderRadius: Radius.pill, paddingHorizontal: 12, paddingVertical: 5 },
   stateTotalOk:   { backgroundColor: Colors.primaryDim },
   stateTotalWarn: { backgroundColor: Colors.secondaryDim },
-  stateTotalText: { fontFamily: FontFamily.semiBold, fontSize: FontSize.caption },
+  stateTotalText: { fontFamily: FontFamily.monoSemiBold, fontSize: FontSize.caption },
 
   // State mileage gate card (free users) — standard card, no absolute positioning
   stateMileageGate: {
@@ -1107,7 +1256,7 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   stateMileageGateTitle: {
-    fontFamily: FontFamily.bold, fontSize: FontSize.body,
+    fontFamily: FontFamily.monoBold, fontSize: FontSize.body,
     color: Colors.textPrimary, marginBottom: 4, textAlign: 'center',
   },
   stateMileageGateSub: {
@@ -1120,7 +1269,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18, paddingVertical: 9,
   },
   stateMileageGateCtaText: {
-    fontFamily: FontFamily.bold, fontSize: FontSize.label, color: Colors.background,
+    fontFamily: FontFamily.monoBold, fontSize: FontSize.label, color: Colors.onPrimary,
   },
 
   fairLockWrap: { marginTop: 10 },
@@ -1133,7 +1282,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   scanBolBtnDisabled: { opacity: 0.6 },
-  scanBolText: { fontFamily: FontFamily.semiBold, fontSize: FontSize.body, color: Colors.primary },
+  scanBolText: { fontFamily: FontFamily.monoSemiBold, fontSize: FontSize.body, color: Colors.primary },
   scanBolHint: {
     flexDirection: 'row', alignItems: 'center', gap: 7,
     marginTop: -8, marginBottom: 18, paddingHorizontal: 2,
@@ -1165,7 +1314,8 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: Colors.border,
   },
   fairLabel: { fontFamily: FontFamily.regular, fontSize: FontSize.label, color: Colors.textSecondary },
-  fairValue: { fontFamily: FontFamily.semiBold, fontSize: FontSize.label, color: Colors.textPrimary },
+  fairValue: { fontFamily: FontFamily.monoSemiBold, fontSize: FontSize.label, color: Colors.textPrimary },
+  fairEstLine: { fontFamily: FontFamily.regular, fontSize: FontSize.caption, color: Colors.textTertiary, textAlign: 'right', marginTop: 3 },
 
   // Load expense styles
   expenseChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 10 },
@@ -1189,7 +1339,7 @@ const styles = StyleSheet.create({
   expenseAmountWrap: { flexDirection: 'row', alignItems: 'center', gap: 3 },
   expenseDollar: { fontFamily: FontFamily.medium, fontSize: FontSize.label, color: Colors.textSecondary },
   expenseAmountInput: {
-    width: 70, fontFamily: FontFamily.semiBold, fontSize: FontSize.label,
+    width: 70, fontFamily: FontFamily.monoSemiBold, fontSize: FontSize.label,
     color: Colors.textPrimary, textAlign: 'right', padding: 0,
   },
   expenseTotalRow: {
@@ -1197,7 +1347,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8, paddingHorizontal: 4, marginBottom: 4,
   },
   expenseTotalLabel: { fontFamily: FontFamily.medium, fontSize: FontSize.label, color: Colors.textSecondary },
-  expenseTotalValue: { fontFamily: FontFamily.bold, fontSize: FontSize.label, color: Colors.danger },
+  expenseTotalValue: { fontFamily: FontFamily.monoBold, fontSize: FontSize.label, color: Colors.danger },
 
   insightCard: {
     marginTop: 8, padding: 12, backgroundColor: Colors.surface,
@@ -1206,15 +1356,20 @@ const styles = StyleSheet.create({
   insightHeader: { flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 4 },
   insightTitle: { fontFamily: FontFamily.medium, fontSize: 11, color: Colors.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5 },
   insightValue: { fontFamily: FontFamily.regular, fontSize: FontSize.label, color: Colors.textPrimary },
+  usualPill: {
+    flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start',
+    borderRadius: Radius.pill, paddingHorizontal: 10, paddingVertical: 6, marginTop: 8,
+  },
+  usualPillText: { fontFamily: FontFamily.monoSemiBold, fontSize: FontSize.caption, letterSpacing: 0.2 },
   insightLoader: { alignSelf: 'flex-start', marginTop: 2 },
 
   netPreview: {
-    backgroundColor: Colors.surface, borderWidth: 2, borderRadius: Radius.lg,
+    backgroundColor: Colors.surface, borderWidth: 2, borderRadius: Radius.md,
     padding: Spacing.cardPad, marginTop: 14, alignItems: 'center',
   },
-  netPreviewLabel: { ...SectionLabel, marginBottom: 8 },
+  netPreviewLabel: { ...sectionLabel(Colors), marginBottom: 8 },
   netPreviewValue: {
-    fontFamily: FontFamily.bold, fontSize: FontSize.cardNumber,
+    fontFamily: FontFamily.monoBold, fontSize: FontSize.cardNumber,
     lineHeight: 40, letterSpacing: -0.5, marginBottom: 4,
   },
   netPreviewSub: { fontFamily: FontFamily.regular, fontSize: FontSize.caption, color: Colors.textSecondary },
@@ -1222,19 +1377,19 @@ const styles = StyleSheet.create({
   dropdown: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border,
-    borderRadius: Radius.lg, paddingHorizontal: 18, paddingVertical: 16,
+    borderRadius: Radius.md, paddingHorizontal: 18, paddingVertical: 16,
   },
-  dropdownText: { fontFamily: FontFamily.semiBold, fontSize: FontSize.body, color: Colors.textPrimary },
+  dropdownText: { fontFamily: FontFamily.monoSemiBold, fontSize: FontSize.body, color: Colors.textPrimary },
   dropdownPlaceholder: { borderColor: Colors.border },
   dropdownPlaceholderText: { fontFamily: FontFamily.regular, color: Colors.textTertiary },
 
   toggleCard: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border,
-    borderRadius: Radius.lg, paddingHorizontal: 16, paddingVertical: 14, marginTop: 18,
+    borderRadius: Radius.md, paddingHorizontal: 16, paddingVertical: 14, marginTop: 18,
   },
   toggleText:  { flex: 1, marginRight: 12 },
-  toggleLabel: { fontFamily: FontFamily.semiBold, fontSize: FontSize.body, color: Colors.textPrimary, marginBottom: 2 },
+  toggleLabel: { fontFamily: FontFamily.monoSemiBold, fontSize: FontSize.body, color: Colors.textPrimary, marginBottom: 2 },
   toggleHint:  { fontFamily: FontFamily.regular, fontSize: FontSize.caption, color: Colors.textSecondary },
 
   optionalToggle: {
@@ -1245,7 +1400,7 @@ const styles = StyleSheet.create({
 
   textField: {
     backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border,
-    borderRadius: Radius.lg, paddingHorizontal: 16, paddingVertical: 14,
+    borderRadius: Radius.md, paddingHorizontal: 16, paddingVertical: 14,
     fontFamily: FontFamily.regular, fontSize: FontSize.body, color: Colors.textPrimary,
   },
   textArea: { minHeight: 80, paddingTop: 14 },
@@ -1253,30 +1408,31 @@ const styles = StyleSheet.create({
   dateRow: {
     flexDirection: 'row', alignItems: 'center',
     backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border,
-    borderRadius: Radius.lg, paddingVertical: 10, paddingHorizontal: 6,
+    borderRadius: Radius.md, paddingVertical: 10, paddingHorizontal: 6,
   },
   dateArrow:  { width: 36, height: 36, alignItems: 'center', justifyContent: 'center', borderRadius: Radius.sm },
   dateCenter: { flex: 1, alignItems: 'center', gap: 3 },
-  dateText:   { fontFamily: FontFamily.semiBold, fontSize: FontSize.body, color: Colors.textPrimary },
+  dateText:   { fontFamily: FontFamily.monoSemiBold, fontSize: FontSize.body, color: Colors.textPrimary },
   dateTodayBadge: {
     backgroundColor: Colors.primaryDim, borderWidth: 1, borderColor: Colors.primaryMid,
     borderRadius: Radius.pill, paddingHorizontal: 8, paddingVertical: 2,
   },
-  dateTodayBadgeText: { fontFamily: FontFamily.semiBold, fontSize: FontSize.caption, color: Colors.primary },
+  dateTodayBadgeText: { fontFamily: FontFamily.monoSemiBold, fontSize: FontSize.caption, color: Colors.primary },
   dateTodayLink:      { fontFamily: FontFamily.regular, fontSize: FontSize.caption, color: Colors.primary },
 
   saveBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
     backgroundColor: Colors.primary, borderRadius: Radius.md, paddingVertical: 17, marginTop: 28,
+    shadowColor: Colors.primary, shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.4, shadowRadius: 12, elevation: 12,
   },
-  saveBtnDisabled:     { backgroundColor: Colors.surfaceHigh },
-  saveBtnText:         { fontFamily: FontFamily.semiBold, fontSize: FontSize.body, color: Colors.background },
+  saveBtnDisabled:     { backgroundColor: Colors.surfaceHigh, shadowOpacity: 0, elevation: 0 },
+  saveBtnText:         { fontFamily: FontFamily.monoSemiBold, fontSize: FontSize.body, color: Colors.onPrimary },
   saveBtnTextDisabled: { color: Colors.textTertiary },
 
   modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
   modalSheet: {
     backgroundColor: Colors.surface,
-    borderTopLeftRadius: Radius.xl, borderTopRightRadius: Radius.xl,
+    borderTopLeftRadius: Radius.md, borderTopRightRadius: Radius.md,
     borderWidth: 1, borderColor: Colors.border,
     paddingHorizontal: Spacing.screenH, paddingTop: 10, paddingBottom: 36,
   },
@@ -1284,7 +1440,7 @@ const styles = StyleSheet.create({
     alignSelf: 'center', width: 40, height: 4, borderRadius: 2,
     backgroundColor: Colors.border, marginBottom: 14,
   },
-  modalTitle:  { fontFamily: FontFamily.bold, fontSize: FontSize.subtitle, color: Colors.textPrimary, marginBottom: 12 },
+  modalTitle:  { fontFamily: FontFamily.monoBold, fontSize: FontSize.subtitle, color: Colors.textPrimary, marginBottom: 12 },
   modalScroll: { maxHeight: 380 },
   typeOption: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
@@ -1293,5 +1449,5 @@ const styles = StyleSheet.create({
   },
   typeOptionActive:     { backgroundColor: Colors.primaryDim, borderColor: Colors.primaryMid },
   typeOptionText:       { fontFamily: FontFamily.medium, fontSize: FontSize.body, color: Colors.textPrimary },
-  typeOptionTextActive: { fontFamily: FontFamily.semiBold, color: Colors.primary },
+  typeOptionTextActive: { fontFamily: FontFamily.monoSemiBold, color: Colors.primary },
 });

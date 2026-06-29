@@ -1,72 +1,117 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
-  View, Text, TouchableOpacity, StyleSheet, ActivityIndicator,
+  View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Modal, Pressable,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { LANGUAGES, SupportedLanguage, saveLanguage } from '../lib/i18n';
 import i18n from '../lib/i18n';
-import { Colors, FontFamily, FontSize, Spacing, Radius } from '../theme/theme';
+import { FontFamily, FontSize, Spacing, Radius, ThemeColors } from '../theme/theme';
+import { useTheme, ThemeMode } from '../theme/ThemeContext';
+import { capture } from '../lib/analytics';
+
+const THEME_OPTIONS: { value: ThemeMode; icon: React.ComponentProps<typeof Ionicons>['name'] }[] = [
+  { value: 'system', icon: 'phone-portrait-outline' },
+  { value: 'light',  icon: 'sunny-outline' },
+  { value: 'dark',   icon: 'moon-outline' },
+];
+import GridBackground from '../components/GridBackground';
+import AccentRule from '../components/AccentRule';
 
 interface Props {
   onLanguageSelected: (lang: SupportedLanguage) => void;
 }
 
 export default function LanguagePickerScreen({ onLanguageSelected }: Props) {
+  const { t } = useTranslation();
+  const { colors: Colors, mode, setMode } = useTheme();
+  const styles = useMemo(() => makeStyles(Colors), [Colors]);
   const [selected, setSelected] = useState<SupportedLanguage>('en');
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [themeOpen,  setThemeOpen]  = useState(false);
   const [saving,   setSaving]   = useState(false);
+
+  const current = LANGUAGES.find((l) => l.code === selected) ?? LANGUAGES[0];
+  const currentTheme = THEME_OPTIONS.find((o) => o.value === mode) ?? THEME_OPTIONS[0];
+
+  function pickTheme(value: ThemeMode) {
+    setMode(value);
+    setThemeOpen(false);
+  }
+
+  // Switch the whole app's language the instant a choice is made, so this page
+  // (and everything after it) renders in the chosen language immediately.
+  function pick(lang: SupportedLanguage) {
+    setSelected(lang);
+    i18n.changeLanguage(lang);
+    setPickerOpen(false);
+  }
 
   async function handleContinue() {
     setSaving(true);
     await saveLanguage(selected);
     await i18n.changeLanguage(selected);
+    capture('welcome_completed', { language: selected, theme: mode });
     onLanguageSelected(selected);
   }
 
   return (
     <SafeAreaView style={styles.safe}>
+      <GridBackground />
+
       <View style={styles.container}>
 
-        {/* Brand mark */}
-        <View style={styles.brandRow}>
-          <View style={styles.logoMark}>
-            <Text style={styles.logoChar}>T</Text>
-          </View>
-          <Text style={styles.brandName}>TruckerNet</Text>
+        {/* Freight Terminal header */}
+        <View style={styles.header}>
+          <Text style={styles.headerLabel}>TRUCKERNET // WELCOME</Text>
         </View>
 
-        {/* Heading */}
-        <View style={styles.headingBlock}>
-          <Text style={styles.heading}>Select your language</Text>
-          <Text style={styles.subheading}>Selecciona tu idioma · ਆਪਣੀ ਭਾਸ਼ਾ ਚੁਣੋ · 选择语言</Text>
+        {/* Welcome hero — Freight Terminal mono style */}
+        <View style={styles.hero}>
+          <Text style={styles.heading}>{t('welcome.title')}</Text>
+          <AccentRule width={84} height={6} style={{ marginTop: 8, marginBottom: 18 }} />
+          <Text style={styles.slogan}>{t('welcome.slogan')}</Text>
         </View>
 
-        {/* Language options */}
-        <View style={styles.optionList}>
-          {LANGUAGES.map((lang) => {
-            const isSelected = selected === lang.code;
-            return (
-              <TouchableOpacity
-                key={lang.code}
-                style={[styles.option, isSelected && styles.optionSelected]}
-                onPress={() => setSelected(lang.code)}
-                activeOpacity={0.8}
-              >
-                <Text style={styles.flag}>{lang.flag}</Text>
-                <View style={styles.optionText}>
-                  <Text style={[styles.nativeName, isSelected && styles.nativeNameSelected]}>
-                    {lang.nativeName}
-                  </Text>
-                  <Text style={styles.englishName}>{lang.englishName}</Text>
-                </View>
-                <View style={[styles.radio, isSelected && styles.radioSelected]}>
-                  {isSelected && <View style={styles.radioDot} />}
-                </View>
-              </TouchableOpacity>
-            );
-          })}
+        {/* Language dropdown */}
+        <View style={styles.dropdownBlock}>
+          <Text style={styles.dropdownLabel}>{t('welcome.languageLabel')}</Text>
+          <TouchableOpacity
+            style={styles.dropdown}
+            onPress={() => setPickerOpen(true)}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.dropdownFlag}>{current.flag}</Text>
+            <View style={styles.dropdownText}>
+              <Text style={styles.dropdownNative}>{current.nativeName}</Text>
+              <Text style={styles.dropdownEnglish}>{current.englishName}</Text>
+            </View>
+            <Ionicons name="chevron-down" size={20} color={Colors.primary} />
+          </TouchableOpacity>
         </View>
 
-        {/* CTA */}
+        {/* Theme dropdown */}
+        <View style={styles.themeBlock}>
+          <Text style={styles.dropdownLabel}>{t('welcome.themeLabel')}</Text>
+          <TouchableOpacity
+            style={styles.dropdown}
+            onPress={() => setThemeOpen(true)}
+            activeOpacity={0.8}
+          >
+            <View style={styles.themeIconWrap}>
+              <Ionicons name={currentTheme.icon} size={18} color={Colors.primary} />
+            </View>
+            <View style={styles.dropdownText}>
+              <Text style={styles.dropdownNative}>{t(`settings.appearance_${currentTheme.value}`)}</Text>
+            </View>
+            <Ionicons name="chevron-down" size={20} color={Colors.primary} />
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.spacer} />
+
+        {/* CTA — teal with glow */}
         <TouchableOpacity
           style={[styles.button, saving && styles.buttonLoading]}
           onPress={handleContinue}
@@ -74,40 +119,151 @@ export default function LanguagePickerScreen({ onLanguageSelected }: Props) {
           activeOpacity={0.85}
         >
           {saving
-            ? <ActivityIndicator color={Colors.background} />
-            : <Text style={styles.buttonText}>Continue</Text>
+            ? <ActivityIndicator color={Colors.onPrimary} />
+            : <>
+                <Text style={styles.buttonText}>{t('common.next')}</Text>
+                <Ionicons name="arrow-forward" size={18} color={Colors.onPrimary} />
+              </>
           }
         </TouchableOpacity>
 
-        <Text style={styles.changeHint}>You can change this anytime in Settings</Text>
+        <Text style={styles.changeHint}>{t('welcome.changeHint')}</Text>
       </View>
+
+      {/* Language picker sheet */}
+      <Modal
+        visible={pickerOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setPickerOpen(false)}
+      >
+        <Pressable style={styles.backdrop} onPress={() => setPickerOpen(false)}>
+          <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()}>
+            <Text style={styles.sheetTitle}>{t('welcome.languageLabel')}</Text>
+            {LANGUAGES.map((lang) => {
+              const isSelected = selected === lang.code;
+              return (
+                <TouchableOpacity
+                  key={lang.code}
+                  style={[styles.option, isSelected && styles.optionSelected]}
+                  onPress={() => pick(lang.code)}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.flag}>{lang.flag}</Text>
+                  <View style={styles.optionText}>
+                    <Text style={[styles.nativeName, isSelected && styles.nativeNameSelected]}>
+                      {lang.nativeName}
+                    </Text>
+                    <Text style={styles.englishName}>{lang.englishName}</Text>
+                  </View>
+                  {isSelected && (
+                    <Ionicons name="checkmark-circle" size={22} color={Colors.primary} />
+                  )}
+                </TouchableOpacity>
+              );
+            })}
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* Theme picker sheet */}
+      <Modal
+        visible={themeOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setThemeOpen(false)}
+      >
+        <Pressable style={styles.backdrop} onPress={() => setThemeOpen(false)}>
+          <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()}>
+            <Text style={styles.sheetTitle}>{t('welcome.themeLabel')}</Text>
+            {THEME_OPTIONS.map((opt) => {
+              const isSelected = mode === opt.value;
+              return (
+                <TouchableOpacity
+                  key={opt.value}
+                  style={[styles.option, isSelected && styles.optionSelected]}
+                  onPress={() => pickTheme(opt.value)}
+                  activeOpacity={0.8}
+                >
+                  <View style={styles.themeIconWrap}>
+                    <Ionicons name={opt.icon} size={18} color={isSelected ? Colors.primary : Colors.textSecondary} />
+                  </View>
+                  <View style={styles.optionText}>
+                    <Text style={[styles.nativeName, isSelected && styles.nativeNameSelected]}>
+                      {t(`settings.appearance_${opt.value}`)}
+                    </Text>
+                  </View>
+                  {isSelected && (
+                    <Ionicons name="checkmark-circle" size={22} color={Colors.primary} />
+                  )}
+                </TouchableOpacity>
+              );
+            })}
+          </Pressable>
+        </Pressable>
+      </Modal>
     </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (Colors: ThemeColors) => StyleSheet.create({
   safe:      { flex: 1, backgroundColor: Colors.background },
-  container: { flex: 1, paddingHorizontal: Spacing.screenH, paddingTop: 40, justifyContent: 'center' },
+  container: { flex: 1, paddingHorizontal: Spacing.screenH, paddingTop: 32, paddingBottom: 24 },
 
-  brandRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 48 },
-  logoMark: {
-    width: 40, height: 40, borderRadius: Radius.md,
-    backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center',
+  // Freight Terminal header
+  header: { borderBottomWidth: 2, borderBottomColor: Colors.borderStrong, paddingBottom: 18, marginBottom: 48 },
+  headerLabel: { fontFamily: FontFamily.monoSemiBold, fontSize: 11, color: Colors.labelColor, letterSpacing: 1.8 },
+
+  hero:    { marginBottom: 48 },
+  heading: { fontFamily: FontFamily.monoBold, fontSize: 48, color: Colors.textPrimary, lineHeight: 52, marginBottom: 0, letterSpacing: -0.6 },
+  slogan:  { fontFamily: FontFamily.regular, fontSize: FontSize.body, color: Colors.textSecondary, lineHeight: 24 },
+
+  dropdownBlock: { },
+  dropdownLabel: { fontFamily: FontFamily.monoSemiBold, fontSize: 10, color: Colors.labelColor, letterSpacing: 1.4, marginBottom: 12, textTransform: 'uppercase' },
+  dropdown: {
+    flexDirection: 'row', alignItems: 'center', gap: 14,
+    backgroundColor: Colors.surfaceHigh, borderWidth: 1, borderColor: Colors.border,
+    borderRadius: Radius.sm, paddingVertical: 16, paddingHorizontal: 18,
   },
-  logoChar:  { fontFamily: FontFamily.bold, fontSize: 22, color: Colors.background },
-  brandName: { fontFamily: FontFamily.semiBold, fontSize: 18, color: Colors.textPrimary },
+  dropdownFlag:    { fontSize: 26 },
+  themeBlock:      { marginTop: 20 },
+  themeIconWrap: {
+    width: 30, height: 30, borderRadius: Radius.sm,
+    backgroundColor: Colors.primaryDim, borderWidth: 1, borderColor: Colors.primaryMid,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  dropdownText:    { flex: 1 },
+  dropdownNative:  { fontFamily: FontFamily.semiBold, fontSize: FontSize.body, color: Colors.textPrimary, marginBottom: 2 },
+  dropdownEnglish: { fontFamily: FontFamily.regular, fontSize: FontSize.label, color: Colors.textSecondary },
 
-  headingBlock: { marginBottom: 32 },
-  heading:      { fontFamily: FontFamily.bold, fontSize: FontSize.title, color: Colors.textPrimary, marginBottom: 8 },
-  subheading:   { fontFamily: FontFamily.regular, fontSize: FontSize.label, color: Colors.textSecondary, lineHeight: 20 },
+  spacer: { flex: 1 },
 
-  optionList: { gap: 10, marginBottom: 32 },
+  button: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    backgroundColor: Colors.primary, borderRadius: Radius.md,
+    paddingVertical: 17, marginBottom: 16,
+    shadowColor: Colors.primary, shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.4, shadowRadius: 12,
+    elevation: 12,
+  },
+  buttonLoading: { opacity: 0.7 },
+  buttonText:    { fontFamily: FontFamily.semiBold, fontSize: FontSize.body, color: Colors.onPrimary, fontWeight: '600' },
+  changeHint:    { fontFamily: FontFamily.regular, fontSize: FontSize.caption, color: Colors.textSecondary, textAlign: 'center' },
+
+  // Picker sheet
+  backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' },
+  sheet: {
+    backgroundColor: Colors.background, borderTopLeftRadius: Radius.lg, borderTopRightRadius: Radius.lg,
+    borderTopWidth: 1, borderColor: Colors.border,
+    paddingHorizontal: Spacing.screenH, paddingTop: 24, paddingBottom: 40, gap: 10,
+  },
+  sheetTitle: { fontFamily: FontFamily.monoSemiBold, fontSize: 10, color: Colors.labelColor, letterSpacing: 1.4, marginBottom: 12, textTransform: 'uppercase' },
+
   option: {
     flexDirection: 'row', alignItems: 'center', gap: 16,
-    backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border,
-    borderRadius: Radius.lg, paddingVertical: 18, paddingHorizontal: 20,
+    backgroundColor: Colors.surfaceHigh, borderWidth: 1, borderColor: Colors.border,
+    borderRadius: Radius.sm, paddingVertical: 18, paddingHorizontal: 20,
   },
-  optionSelected: { borderColor: Colors.primary, backgroundColor: Colors.primaryDim },
+  optionSelected: { borderColor: Colors.primary, backgroundColor: Colors.primaryDim, borderWidth: 2 },
 
   flag:       { fontSize: 28 },
   optionText: { flex: 1 },
@@ -117,20 +273,4 @@ const styles = StyleSheet.create({
   },
   nativeNameSelected: { color: Colors.primary },
   englishName: { fontFamily: FontFamily.regular, fontSize: FontSize.label, color: Colors.textSecondary },
-
-  radio: {
-    width: 22, height: 22, borderRadius: 11,
-    borderWidth: 2, borderColor: Colors.border,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  radioSelected: { borderColor: Colors.primary },
-  radioDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: Colors.primary },
-
-  button: {
-    backgroundColor: Colors.primary, borderRadius: Radius.md,
-    paddingVertical: 17, alignItems: 'center', marginBottom: 16,
-  },
-  buttonLoading: { opacity: 0.7 },
-  buttonText:    { fontFamily: FontFamily.semiBold, fontSize: FontSize.body, color: Colors.background },
-  changeHint:    { fontFamily: FontFamily.regular, fontSize: FontSize.caption, color: Colors.textSecondary, textAlign: 'center' },
 });

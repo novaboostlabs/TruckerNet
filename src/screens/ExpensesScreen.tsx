@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
   ScrollView, KeyboardAvoidingView, Platform, Modal, Pressable, Alert,
@@ -6,13 +6,17 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors, FontFamily, FontSize, Spacing, Radius, SectionLabel } from '../theme/theme';
+import { Colors, FontFamily, FontSize, Spacing, Radius, SectionLabel, ThemeColors, sectionLabel } from '../theme/theme';
+import { useTheme } from '../theme/ThemeContext';
 import {
   getUserExpenses, replaceUserExpenses, getWeeklyMiles, setMonthlyMiles,
 } from '../db/database';
 import { toMonthlyAmount, ExpenseFrequency } from '../utils/marketRates';
 import { useAuth } from '../contexts/AuthContext';
 import { pushExpenses } from '../lib/sync/expensesSync';
+import * as haptics from '../lib/haptics';
+import GridBackground from '../components/GridBackground';
+import AccentRule from '../components/AccentRule';
 import 'react-native-get-random-values';
 import { v4 as uuid } from 'uuid';
 
@@ -55,6 +59,8 @@ function emptyDraft(): Draft {
 type FreqTarget = { kind: 'fixed'; id: string } | { kind: 'draft' } | null;
 
 export default function ExpensesScreen() {
+  const { colors: Colors } = useTheme();
+  const styles = useMemo(() => makeStyles(Colors), [Colors]);
   const { t } = useTranslation();
   const { user } = useAuth();
 
@@ -189,6 +195,7 @@ export default function ExpensesScreen() {
     // Back up to the cloud (local-first: never blocks the UI; no-op for guests).
     if (user) pushExpenses(user.id);
 
+    haptics.success();
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   }
@@ -225,6 +232,7 @@ export default function ExpensesScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
+      <GridBackground />
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
 
@@ -233,6 +241,7 @@ export default function ExpensesScreen() {
             <View>
               <Text style={styles.headerLabel}>{t('expenses.eyebrow')}</Text>
               <Text style={styles.headerTitle}>{t('expenses.title')}</Text>
+              <AccentRule style={{ marginTop: 8 }} />
             </View>
           </View>
 
@@ -388,7 +397,7 @@ export default function ExpensesScreen() {
             activeOpacity={0.85}
           >
             {saved
-              ? <><Ionicons name="checkmark" size={18} color={Colors.background} /><Text style={styles.saveBtnText}>{t('expenses.saved')}</Text></>
+              ? <><Ionicons name="checkmark" size={18} color={Colors.onPrimary} /><Text style={styles.saveBtnText}>{t('expenses.saved')}</Text></>
               : <Text style={styles.saveBtnText}>{t('expenses.save')}</Text>
             }
           </TouchableOpacity>
@@ -424,37 +433,37 @@ export default function ExpensesScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (Colors: ThemeColors) => StyleSheet.create({
   safe:    { flex: 1, backgroundColor: Colors.background },
   flex:    { flex: 1 },
   content: { paddingHorizontal: Spacing.screenH, paddingTop: 16 },
 
   header: { paddingTop: 16, paddingBottom: 24, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  headerLabel: { ...SectionLabel, marginBottom: 4 },
-  headerTitle: { fontFamily: FontFamily.bold, fontSize: FontSize.title, color: Colors.textPrimary },
+  headerLabel: { ...sectionLabel(Colors), marginBottom: 4 },
+  headerTitle: { fontFamily: FontFamily.monoBold, fontSize: FontSize.title, color: Colors.textPrimary },
   replayBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
     backgroundColor: Colors.primaryDim, borderRadius: Radius.pill,
     paddingHorizontal: 12, paddingVertical: 8, borderWidth: 1, borderColor: Colors.primaryMid,
   },
-  replayBtnText: { fontFamily: FontFamily.semiBold, fontSize: FontSize.label, color: Colors.primary },
+  replayBtnText: { fontFamily: FontFamily.monoSemiBold, fontSize: FontSize.label, color: Colors.primary },
 
   heroCard: {
     backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border,
-    borderRadius: Radius.xl, padding: Spacing.cardPad, marginBottom: 28,
+    borderRadius: Radius.md, padding: Spacing.cardPad, marginBottom: 28,
   },
-  heroLabel:        { ...SectionLabel, marginBottom: 10 },
-  heroNumber:       { fontFamily: FontFamily.bold, fontSize: FontSize.hero, color: Colors.textSecondary, lineHeight: 52, letterSpacing: -1, marginBottom: 4 },
+  heroLabel:        { ...sectionLabel(Colors), marginBottom: 10 },
+  heroNumber:       { fontFamily: FontFamily.monoBold, fontSize: FontSize.hero, color: Colors.textSecondary, lineHeight: 52, letterSpacing: -1, marginBottom: 4 },
   heroNumberActive: { color: Colors.primary },
   heroSub:          { fontFamily: FontFamily.regular, fontSize: FontSize.body, color: Colors.textSecondary },
 
-  sectionTitle: { fontFamily: FontFamily.semiBold, fontSize: FontSize.body, color: Colors.textPrimary, marginBottom: 4 },
+  sectionTitle: { fontFamily: FontFamily.monoSemiBold, fontSize: FontSize.body, color: Colors.textPrimary, marginBottom: 4 },
   sectionHint:  { fontFamily: FontFamily.regular, fontSize: FontSize.label, color: Colors.textSecondary, marginBottom: 14, lineHeight: 18 },
 
   expenseList: { gap: 12, marginBottom: 24 },
   expenseCard: {
     backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border,
-    borderRadius: Radius.lg, paddingHorizontal: 16, paddingVertical: 4,
+    borderRadius: Radius.md, paddingHorizontal: 16, paddingVertical: 4,
   },
   labelRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14 },
   rowIcon: {
@@ -463,14 +472,14 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   labelTextWrap: { flex: 1 },
-  fixedLabel:    { fontFamily: FontFamily.semiBold, fontSize: FontSize.body, color: Colors.textPrimary },
+  fixedLabel:    { fontFamily: FontFamily.monoSemiBold, fontSize: FontSize.body, color: Colors.textPrimary },
   fixedSubtitle: { fontFamily: FontFamily.regular, fontSize: FontSize.caption, color: Colors.textSecondary, marginTop: 2 },
-  labelInput:    { flex: 1, fontFamily: FontFamily.semiBold, fontSize: FontSize.body, color: Colors.textPrimary, paddingVertical: 0 },
+  labelInput:    { flex: 1, fontFamily: FontFamily.monoSemiBold, fontSize: FontSize.body, color: Colors.textPrimary, paddingVertical: 0 },
 
   expenseDivider: { height: 1, backgroundColor: Colors.borderSubtle },
   amountRow:   { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 14 },
-  dollarSign:  { fontFamily: FontFamily.semiBold, fontSize: FontSize.subtitle, color: Colors.textSecondary },
-  amountInput: { flex: 1, fontFamily: FontFamily.bold, fontSize: FontSize.subtitle, color: Colors.textPrimary, paddingVertical: 0 },
+  dollarSign:  { fontFamily: FontFamily.monoSemiBold, fontSize: FontSize.subtitle, color: Colors.textSecondary },
+  amountInput: { flex: 1, fontFamily: FontFamily.monoBold, fontSize: FontSize.subtitle, color: Colors.textPrimary, paddingVertical: 0 },
   freqChip: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
     backgroundColor: Colors.surfaceHigh, borderRadius: Radius.pill,
@@ -485,54 +494,55 @@ const styles = StyleSheet.create({
   completedCard: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
     backgroundColor: Colors.surfaceHigh, borderWidth: 1, borderColor: Colors.border,
-    borderRadius: Radius.lg, paddingHorizontal: 16, paddingVertical: 14,
+    borderRadius: Radius.md, paddingHorizontal: 16, paddingVertical: 14,
   },
   completedInfo:  { flex: 1 },
-  completedLabel: { fontFamily: FontFamily.semiBold, fontSize: FontSize.body, color: Colors.textPrimary, marginBottom: 2 },
+  completedLabel: { fontFamily: FontFamily.monoSemiBold, fontSize: FontSize.body, color: Colors.textPrimary, marginBottom: 2 },
   completedMeta:  { fontFamily: FontFamily.regular, fontSize: FontSize.caption, color: Colors.textSecondary },
 
   addBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 8, justifyContent: 'center',
     backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border,
-    borderRadius: Radius.lg, paddingVertical: 16, borderStyle: 'dashed',
+    borderRadius: Radius.md, paddingVertical: 16, borderStyle: 'dashed',
   },
   addBtnDisabled:     { opacity: 0.6 },
-  addBtnText:         { fontFamily: FontFamily.semiBold, fontSize: FontSize.body, color: Colors.primary },
+  addBtnText:         { fontFamily: FontFamily.monoSemiBold, fontSize: FontSize.body, color: Colors.primary },
   addBtnTextDisabled: { color: Colors.textTertiary },
 
   milesCard: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
     backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border,
-    borderRadius: Radius.lg, paddingHorizontal: 16, paddingVertical: 16, marginBottom: 24,
+    borderRadius: Radius.md, paddingHorizontal: 16, paddingVertical: 16, marginBottom: 24,
   },
-  milesInput:  { flex: 1, fontFamily: FontFamily.bold, fontSize: FontSize.subtitle, color: Colors.textPrimary, paddingVertical: 0 },
+  milesInput:  { flex: 1, fontFamily: FontFamily.monoBold, fontSize: FontSize.subtitle, color: Colors.textPrimary, paddingVertical: 0 },
   milesSuffix: { fontFamily: FontFamily.medium, fontSize: FontSize.label, color: Colors.textSecondary },
 
   totalCard: {
     backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.primaryMid,
-    borderRadius: Radius.lg, padding: Spacing.cardPad, marginBottom: 24,
+    borderRadius: Radius.md, padding: Spacing.cardPad, marginBottom: 24,
   },
-  totalLabel: { ...SectionLabel, fontSize: 10, marginBottom: 6 },
-  totalValue: { fontFamily: FontFamily.bold, fontSize: FontSize.cardNumber, color: Colors.primary, letterSpacing: -0.5 },
+  totalLabel: { ...sectionLabel(Colors), fontSize: 10, marginBottom: 6 },
+  totalValue: { fontFamily: FontFamily.monoBold, fontSize: FontSize.cardNumber, color: Colors.primary, letterSpacing: -0.5 },
   totalSub:   { fontFamily: FontFamily.regular, fontSize: FontSize.body, color: Colors.textSecondary },
 
   saveBtn: {
     flexDirection: 'row', gap: 8,
     backgroundColor: Colors.primary, borderRadius: Radius.md,
     paddingVertical: 17, alignItems: 'center', justifyContent: 'center', marginTop: 4,
+    shadowColor: Colors.primary, shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.4, shadowRadius: 12, elevation: 12,
   },
   saveBtnSaved: { backgroundColor: Colors.success },
-  saveBtnText:  { fontFamily: FontFamily.semiBold, fontSize: FontSize.body, color: Colors.background, letterSpacing: 0.2 },
+  saveBtnText:  { fontFamily: FontFamily.monoSemiBold, fontSize: FontSize.body, color: Colors.onPrimary, letterSpacing: 0.2 },
 
   // Frequency dropdown
   modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
   modalSheet: {
-    backgroundColor: Colors.surface, borderTopLeftRadius: Radius.xl, borderTopRightRadius: Radius.xl,
+    backgroundColor: Colors.surface, borderTopLeftRadius: Radius.md, borderTopRightRadius: Radius.md,
     borderWidth: 1, borderColor: Colors.border,
     paddingHorizontal: Spacing.screenH, paddingTop: 10, paddingBottom: 36,
   },
   modalHandle: { alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: Colors.border, marginBottom: 14 },
-  modalTitle:  { fontFamily: FontFamily.bold, fontSize: FontSize.subtitle, color: Colors.textPrimary, marginBottom: 12 },
+  modalTitle:  { fontFamily: FontFamily.monoBold, fontSize: FontSize.subtitle, color: Colors.textPrimary, marginBottom: 12 },
   freqOption: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingVertical: 15, paddingHorizontal: 16, borderRadius: Radius.md, marginBottom: 6,
@@ -540,5 +550,5 @@ const styles = StyleSheet.create({
   },
   freqOptionActive:     { backgroundColor: Colors.primaryDim, borderColor: Colors.primaryMid },
   freqOptionText:       { fontFamily: FontFamily.medium, fontSize: FontSize.body, color: Colors.textPrimary },
-  freqOptionTextActive: { fontFamily: FontFamily.semiBold, color: Colors.primary },
+  freqOptionTextActive: { fontFamily: FontFamily.monoSemiBold, color: Colors.primary },
 });

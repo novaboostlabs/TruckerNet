@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
   KeyboardAvoidingView, Platform, ScrollView,
@@ -6,12 +6,18 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors, FontFamily, FontSize, Spacing, Radius, SectionLabel } from '../../theme/theme';
+import { Colors, FontFamily, FontSize, Spacing, Radius, SectionLabel, ThemeColors, sectionLabel } from '../../theme/theme';
+import { useTheme } from '../../theme/ThemeContext';
 import { getSetting, setSetting } from '../../db/database';
+import { capture } from '../../lib/analytics';
+import GridBackground from '../../components/GridBackground';
+import AccentRule from '../../components/AccentRule';
 
 interface Props { onNext: () => void; onBack: () => void; }
 
 export default function OnboardingMilesScreen({ onNext, onBack }: Props) {
+  const { colors: Colors } = useTheme();
+  const styles = useMemo(() => makeStyles(Colors), [Colors]);
   const { t }  = useTranslation();
   const [miles,   setMiles]   = useState(() => {
     const w = getSetting('weekly_miles');
@@ -36,6 +42,7 @@ export default function OnboardingMilesScreen({ onNext, onBack }: Props) {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+      <GridBackground />
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -67,6 +74,7 @@ export default function OnboardingMilesScreen({ onNext, onBack }: Props) {
           </View>
 
           <Text style={styles.heading}>{t('onboarding.miles.title')}</Text>
+          <AccentRule style={{ marginTop: 10, marginBottom: 16 }} />
           <Text style={styles.subheading}>{t('onboarding.miles.subtitle')}</Text>
 
           {/* Input */}
@@ -123,7 +131,7 @@ export default function OnboardingMilesScreen({ onNext, onBack }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (Colors: ThemeColors) => StyleSheet.create({
   safe:          { flex: 1, backgroundColor: Colors.background },
   flex:          { flex: 1 },
   scroll:        { flex: 1 },
@@ -134,36 +142,36 @@ const styles = StyleSheet.create({
   progressDot:       { flex: 1, height: 3, borderRadius: 2, backgroundColor: Colors.surface },
   progressDotActive: { backgroundColor: Colors.primary },
 
-  stepLabel: { fontFamily: FontFamily.medium, fontSize: FontSize.label, color: Colors.textSecondary, marginBottom: 32 },
+  stepLabel: { fontFamily: FontFamily.monoSemiBold, fontSize: FontSize.caption, color: Colors.labelColor, letterSpacing: 1.4, textTransform: 'uppercase', marginBottom: 32 },
 
   iconCircle: {
-    width: 64, height: 64, borderRadius: 32,
+    width: 64, height: 64, borderRadius: Radius.md,
     backgroundColor: Colors.primaryDim, borderWidth: 1, borderColor: Colors.primaryMid,
     alignItems: 'center', justifyContent: 'center', marginBottom: 24,
   },
 
-  heading:    { fontFamily: FontFamily.bold, fontSize: FontSize.title, color: Colors.textPrimary, lineHeight: 36, marginBottom: 10 },
+  heading:    { fontFamily: FontFamily.monoBold, fontSize: FontSize.title, color: Colors.textPrimary, lineHeight: 36, marginBottom: 0, letterSpacing: -0.6 },
   subheading: { fontFamily: FontFamily.regular, fontSize: FontSize.body, color: Colors.textSecondary, lineHeight: 22, marginBottom: 32 },
 
   inputBlock:       { marginBottom: 20 },
-  inputLabel:       { ...SectionLabel, marginBottom: 10 },
+  inputLabel:       { ...sectionLabel(Colors), fontFamily: FontFamily.monoSemiBold, marginBottom: 10 },
   inputWrap: {
     flexDirection: 'row', alignItems: 'center',
     backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border,
-    borderRadius: Radius.lg, paddingHorizontal: 20, paddingVertical: 18, gap: 8,
+    borderRadius: Radius.md, paddingHorizontal: 20, paddingVertical: 18, gap: 8,
   },
   inputWrapFocused: { borderColor: Colors.primary, backgroundColor: Colors.primaryDim },
-  input:  { flex: 1, fontFamily: FontFamily.bold, fontSize: FontSize.hero, color: Colors.textPrimary, letterSpacing: -1 },
-  suffix: { fontFamily: FontFamily.regular, fontSize: FontSize.body, color: Colors.textSecondary },
+  input:  { flex: 1, fontFamily: FontFamily.monoBold, fontSize: FontSize.hero, color: Colors.textPrimary, letterSpacing: -1 },
+  suffix: { fontFamily: FontFamily.monoRegular, fontSize: FontSize.body, color: Colors.textSecondary },
   hint:   { fontFamily: FontFamily.regular, fontSize: FontSize.label, color: Colors.textSecondary, marginTop: 10, paddingHorizontal: 4 },
 
   calcCard:  {
     backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.primaryMid,
-    borderRadius: Radius.lg, padding: Spacing.cardPad,
+    borderRadius: Radius.md, padding: Spacing.cardPad,
   },
-  calcLabel: { ...SectionLabel, fontSize: 10, marginBottom: 6 },
-  calcValue: { fontFamily: FontFamily.bold, fontSize: FontSize.cardNumber, color: Colors.primary, letterSpacing: -0.5 },
-  calcSub:   { fontFamily: FontFamily.regular, fontSize: FontSize.body, color: Colors.textSecondary },
+  calcLabel: { ...sectionLabel(Colors), fontFamily: FontFamily.monoSemiBold, fontSize: 10, marginBottom: 6 },
+  calcValue: { fontFamily: FontFamily.monoBold, fontSize: FontSize.cardNumber, color: Colors.primary, letterSpacing: -1 },
+  calcSub:   { fontFamily: FontFamily.monoRegular, fontSize: FontSize.body, color: Colors.textSecondary },
 
   buttonWrap: {
     paddingHorizontal: Spacing.screenH,
@@ -171,8 +179,11 @@ const styles = StyleSheet.create({
     paddingBottom: 16,
     backgroundColor: Colors.background,
   },
-  button:        { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: Colors.primary, borderRadius: Radius.md, paddingVertical: 17 },
-  buttonDim:     { backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border },
-  buttonText:    { fontFamily: FontFamily.semiBold, fontSize: FontSize.body, color: Colors.background },
+  button:        {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: Colors.primary, borderRadius: Radius.md, paddingVertical: 17,
+    shadowColor: Colors.primary, shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.4, shadowRadius: 12, elevation: 12,
+  },
+  buttonDim:     { backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border, shadowOpacity: 0, elevation: 0 },
+  buttonText:    { fontFamily: FontFamily.semiBold, fontSize: FontSize.body, color: Colors.onPrimary },
   buttonTextDim: { color: Colors.textSecondary },
 });

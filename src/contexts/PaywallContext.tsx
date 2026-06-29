@@ -1,6 +1,7 @@
 import React, { createContext, useCallback, useContext, useState } from 'react';
 import { Modal } from 'react-native';
 import PaywallScreen, { PaywallReason } from '../screens/PaywallScreen';
+import { capture } from '../lib/analytics';
 
 /**
  * App-wide paywall presentation. The paywall fires from many places (Add Load
@@ -23,6 +24,7 @@ export function PaywallProvider({ children }: { children: React.ReactNode }) {
   const present = useCallback((r: PaywallReason = 'generic') => {
     setReason(r);
     setVisible(true);
+    capture('paywall_shown', { reason: r });
   }, []);
 
   const close = useCallback(() => setVisible(false), []);

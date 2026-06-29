@@ -1,14 +1,17 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors, FontFamily, FontSize } from '../theme/theme';
+import { FontFamily, FontSize, ThemeColors } from '../theme/theme';
+import { useTheme } from '../theme/ThemeContext';
+import * as haptics from '../lib/haptics';
 
 import DashboardScreen from '../screens/DashboardScreen';
 import FuelScreen      from '../screens/FuelScreen';
 import IFTAScreen      from '../screens/IFTAScreen';
 import ExpensesScreen  from '../screens/ExpensesScreen';
 import HistoryScreen   from '../screens/HistoryScreen';
+import { capture } from '../lib/analytics';
 
 const Tab = createBottomTabNavigator();
 type IoniconsName = React.ComponentProps<typeof Ionicons>['name'];
@@ -38,9 +41,11 @@ function TabIcon({
   iconInactive: IoniconsName;
   label: string;
 }) {
+  const { colors: Colors } = useTheme();
+  const styles = useMemo(() => makeStyles(Colors), [Colors]);
   return (
     <View style={styles.tabItem}>
-      {/* Active indicator — green bar at top */}
+      {/* Active indicator — teal bar at top */}
       <View style={[styles.indicator, focused && styles.indicatorActive]} />
 
       {/* Icon with optional glow background */}
@@ -61,6 +66,8 @@ function TabIcon({
 }
 
 export default function TabNavigator() {
+  const { colors: Colors } = useTheme();
+  const styles = useMemo(() => makeStyles(Colors), [Colors]);
   return (
     <Tab.Navigator
       screenOptions={({ route }) => {
@@ -86,22 +93,31 @@ export default function TabNavigator() {
       }}
     >
       {TABS.map((tab) => (
-        <Tab.Screen key={tab.name} name={tab.name} component={
-          tab.name === 'Dashboard' ? DashboardScreen :
-          tab.name === 'Fuel'      ? FuelScreen      :
-          tab.name === 'IFTA'      ? IFTAScreen      :
-          tab.name === 'Expenses'  ? ExpensesScreen  :
-                                     HistoryScreen
-        } />
+        <Tab.Screen
+          key={tab.name}
+          name={tab.name}
+          listeners={{
+            tabPress: () => haptics.tapLight(),
+            focus:    () => capture('tab_viewed', { tab: tab.name.toLowerCase() }),
+          }}
+          component={
+            tab.name === 'Dashboard' ? DashboardScreen :
+            tab.name === 'Fuel'      ? FuelScreen      :
+            tab.name === 'IFTA'      ? IFTAScreen      :
+            tab.name === 'Expenses'  ? ExpensesScreen  :
+                                       HistoryScreen
+          }
+        />
       ))}
     </Tab.Navigator>
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (Colors: ThemeColors) => StyleSheet.create({
   tabBar: {
-    backgroundColor: '#0D0D0D',
-    borderTopWidth: 0,
+    backgroundColor: Colors.chrome,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
     height: 82,
     // Shadow above tab bar
     shadowColor: '#000',
@@ -141,7 +157,7 @@ const styles = StyleSheet.create({
     height: 32,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 10,
+    borderRadius: 8,
     marginBottom: 3,
   },
   iconWrapActive: {
@@ -150,13 +166,13 @@ const styles = StyleSheet.create({
 
   // Label
   tabLabel: {
-    fontFamily: FontFamily.medium,
+    fontFamily: FontFamily.monoRegular,
     fontSize: 10,
     color: Colors.textSecondary,
-    letterSpacing: 0.2,
+    letterSpacing: 0.4,
   },
   tabLabelActive: {
     color: Colors.primary,
-    fontFamily: FontFamily.semiBold,
+    fontFamily: FontFamily.monoSemiBold,
   },
 });

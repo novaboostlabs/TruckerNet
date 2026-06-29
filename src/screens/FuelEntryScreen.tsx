@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
   ScrollView, KeyboardAvoidingView, Platform, Alert, Modal,
@@ -6,12 +6,16 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors, FontFamily, FontSize, Spacing, Radius, SectionLabel } from '../theme/theme';
+import { FontFamily, FontSize, Spacing, Radius, ThemeColors, sectionLabel } from '../theme/theme';
+import { useTheme } from '../theme/ThemeContext';
 import db, { getLatestOdometer } from '../db/database';
 import { useAuth } from '../contexts/AuthContext';
 import { pushFuel } from '../lib/sync/fuelSync';
 import { scanFuelReceipt } from '../lib/ocr';
 import { cancelFuelReminder } from '../lib/notifications';
+import { capture } from '../lib/analytics';
+import * as haptics from '../lib/haptics';
+import GridBackground from '../components/GridBackground';
 import 'react-native-get-random-values';
 import { v4 as uuid } from 'uuid';
 
@@ -35,6 +39,8 @@ interface Props {
 
 export default function FuelEntryScreen({ onSaved, onCancel }: Props) {
   const { t } = useTranslation();
+  const { colors: Colors } = useTheme();
+  const styles = useMemo(() => makeStyles(Colors), [Colors]);
   const { user } = useAuth();
 
   const [dollarsSpent,    setDollarsSpent]    = useState('');
@@ -106,13 +112,16 @@ export default function FuelEntryScreen({ onSaved, onCancel }: Props) {
           statePurchased,
         ]
       );
+      capture('fuel_logged', { dollars, gallons: gals, state: statePurchased, mpg });
       // Back up to the cloud (local-first: never blocks the UI; no-op for guests).
       if (user) pushFuel(user.id);
       // Fill-up logged — cancel tonight's reminder so the driver isn't nagged.
       cancelFuelReminder().catch(() => {});
+      haptics.success();
       onSaved();
     } catch (e) {
       console.error('Error saving fuel entry:', e);
+      haptics.error();
       Alert.alert(t('fuel.form.saveErrorTitle'), t('fuel.form.saveError'));
     } finally {
       setSaving(false);
@@ -163,6 +172,7 @@ export default function FuelEntryScreen({ onSaved, onCancel }: Props) {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
+      <GridBackground />
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <ScrollView style={styles.scroll} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
 
@@ -364,7 +374,7 @@ export default function FuelEntryScreen({ onSaved, onCancel }: Props) {
             disabled={!canSave || saving}
             activeOpacity={0.85}
           >
-            <Ionicons name="checkmark" size={18} color={Colors.background} />
+            <Ionicons name="checkmark" size={18} color={Colors.onPrimary} />
             <Text style={styles.saveBtnText}>
               {saving ? t('common.saving') : t('fuel.form.save')}
             </Text>
@@ -378,6 +388,8 @@ export default function FuelEntryScreen({ onSaved, onCancel }: Props) {
 }
 
 function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
+  const { colors: Colors } = useTheme();
+  const fieldStyles = useMemo(() => makeFieldStyles(Colors), [Colors]);
   return (
     <View style={fieldStyles.container}>
       <Text style={fieldStyles.label}>
@@ -390,6 +402,8 @@ function Field({ label, required, children }: { label: string; required?: boolea
 }
 
 function CalcRow({ label, value, highlight }: { label: string; value: string; highlight?: boolean }) {
+  const { colors: Colors } = useTheme();
+  const calcStyles = useMemo(() => makeCalcStyles(Colors), [Colors]);
   return (
     <View style={calcStyles.row}>
       <Text style={calcStyles.label}>{label}</Text>
@@ -398,7 +412,7 @@ function CalcRow({ label, value, highlight }: { label: string; value: string; hi
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (Colors: ThemeColors) => StyleSheet.create({
   safe:    { flex: 1, backgroundColor: Colors.background },
   flex:    { flex: 1 },
   scroll:  { flex: 1 },
@@ -409,7 +423,7 @@ const styles = StyleSheet.create({
     paddingTop: 16, paddingBottom: 24,
   },
   backBtn:     { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
-  headerTitle: { fontFamily: FontFamily.bold, fontSize: FontSize.subtitle, color: Colors.textPrimary },
+  headerTitle: { fontFamily: FontFamily.monoBold, fontSize: FontSize.subtitle, color: Colors.textPrimary },
 
   scanBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9,
@@ -419,7 +433,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   scanBtnDisabled: { opacity: 0.6 },
-  scanBtnText: { fontFamily: FontFamily.semiBold, fontSize: FontSize.body, color: Colors.primary },
+  scanBtnText: { fontFamily: FontFamily.monoSemiBold, fontSize: FontSize.body, color: Colors.primary },
   scanHint: {
     flexDirection: 'row', alignItems: 'center', gap: 7,
     marginTop: -6, marginBottom: 18, paddingHorizontal: 2,
@@ -427,19 +441,19 @@ const styles = StyleSheet.create({
   scanHintText: { flex: 1, fontFamily: FontFamily.regular, fontSize: FontSize.caption, color: Colors.textSecondary, lineHeight: 17 },
 
   section:      { marginBottom: 20 },
-  sectionLabel: { ...SectionLabel, marginBottom: 10 },
+  sectionLabel: { ...sectionLabel(Colors), marginBottom: 10 },
 
   card: {
     backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border,
-    borderRadius: Radius.lg, paddingHorizontal: Spacing.cardPad,
+    borderRadius: Radius.md, paddingHorizontal: Spacing.cardPad,
   },
   divider: { height: 1, backgroundColor: Colors.borderSubtle },
 
   prefixRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   suffixRow: { flexDirection: 'row', alignItems: 'center', gap: 8, justifyContent: 'flex-end' },
-  prefix:    { fontFamily: FontFamily.semiBold, fontSize: FontSize.subtitle, color: Colors.textSecondary },
+  prefix:    { fontFamily: FontFamily.monoSemiBold, fontSize: FontSize.subtitle, color: Colors.textSecondary },
   suffix:    { fontFamily: FontFamily.regular, fontSize: FontSize.body, color: Colors.textSecondary, minWidth: 32 },
-  fieldInput: { flex: 1, fontFamily: FontFamily.bold, fontSize: FontSize.subtitle, color: Colors.textPrimary },
+  fieldInput: { flex: 1, fontFamily: FontFamily.monoBold, fontSize: FontSize.subtitle, color: Colors.textPrimary },
 
   liveCalc: {
     fontFamily: FontFamily.medium, fontSize: FontSize.label, color: Colors.primary,
@@ -456,9 +470,9 @@ const styles = StyleSheet.create({
   stateSelector: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border,
-    borderRadius: Radius.lg, paddingHorizontal: Spacing.cardPad, paddingVertical: 14,
+    borderRadius: Radius.md, paddingHorizontal: Spacing.cardPad, paddingVertical: 14,
   },
-  stateSelectorText: { fontFamily: FontFamily.bold, fontSize: FontSize.body, color: Colors.textPrimary, marginBottom: 2 },
+  stateSelectorText: { fontFamily: FontFamily.monoBold, fontSize: FontSize.body, color: Colors.textPrimary, marginBottom: 2 },
   stateSelectorAbbr: { fontFamily: FontFamily.regular, fontSize: FontSize.caption, color: Colors.textSecondary },
 
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'flex-end' },
@@ -471,7 +485,7 @@ const styles = StyleSheet.create({
     alignSelf: 'center', marginBottom: 16,
   },
   modalTitle: {
-    fontFamily: FontFamily.bold, fontSize: FontSize.body, color: Colors.textPrimary,
+    fontFamily: FontFamily.monoBold, fontSize: FontSize.body, color: Colors.textPrimary,
     marginBottom: 12, paddingHorizontal: 4,
   },
   stateRow: {
@@ -481,36 +495,37 @@ const styles = StyleSheet.create({
   },
   stateRowActive:     { backgroundColor: Colors.primaryDim, borderRadius: Radius.sm, paddingHorizontal: 8 },
   stateRowName:       { flex: 1, fontFamily: FontFamily.medium, fontSize: FontSize.body, color: Colors.textPrimary },
-  stateRowNameActive: { color: Colors.primary, fontFamily: FontFamily.semiBold },
+  stateRowNameActive: { color: Colors.primary, fontFamily: FontFamily.monoSemiBold },
   stateRowAbbr:       { fontFamily: FontFamily.regular, fontSize: FontSize.label, color: Colors.textSecondary, marginRight: 4 },
   stateRowAbbrActive: { color: Colors.primary },
 
   calcCard: {
     backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border,
-    borderRadius: Radius.lg, overflow: 'hidden',
+    borderRadius: Radius.md, overflow: 'hidden',
   },
 
   saveBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
     backgroundColor: Colors.primary, borderRadius: Radius.md, paddingVertical: 17,
+    shadowColor: Colors.primary, shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.4, shadowRadius: 12, elevation: 12,
   },
   saveBtnDisabled: { opacity: 0.4 },
-  saveBtnText:     { fontFamily: FontFamily.semiBold, fontSize: FontSize.body, color: Colors.background },
+  saveBtnText:     { fontFamily: FontFamily.monoSemiBold, fontSize: FontSize.body, color: Colors.onPrimary },
 });
 
-const fieldStyles = StyleSheet.create({
+const makeFieldStyles = (Colors: ThemeColors) => StyleSheet.create({
   container: { paddingVertical: 14 },
-  label:     { ...SectionLabel, fontSize: 10, marginBottom: 8 },
+  label:     { ...sectionLabel(Colors), fontSize: 10, marginBottom: 8 },
   required:  { color: Colors.danger },
 });
 
-const calcStyles = StyleSheet.create({
+const makeCalcStyles = (Colors: ThemeColors) => StyleSheet.create({
   row: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     paddingVertical: 13, paddingHorizontal: Spacing.cardPad,
     borderBottomWidth: 1, borderBottomColor: Colors.borderSubtle,
   },
   label:          { fontFamily: FontFamily.regular, fontSize: FontSize.body, color: Colors.textSecondary },
-  value:          { fontFamily: FontFamily.semiBold, fontSize: FontSize.body, color: Colors.textPrimary },
-  valueHighlight: { color: Colors.primary, fontFamily: FontFamily.bold },
+  value:          { fontFamily: FontFamily.monoSemiBold, fontSize: FontSize.body, color: Colors.textPrimary },
+  valueHighlight: { color: Colors.primary, fontFamily: FontFamily.monoBold },
 });

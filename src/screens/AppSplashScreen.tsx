@@ -232,7 +232,7 @@ const styles = StyleSheet.create({
     elevation: 16,
   },
   diamondText: {
-    fontFamily: FontFamily.bold,
+    fontFamily: FontFamily.monoBold,
     fontSize: 26,
     color: Colors.background,
     transform: [{ rotate: '-45deg' }],
@@ -251,7 +251,7 @@ const styles = StyleSheet.create({
 
   // ── Wordmark ───────────────────────────────────────────────────────────────
   wordmark: {
-    fontFamily: FontFamily.bold,
+    fontFamily: FontFamily.monoBold,
     fontSize: 30,
     color: Colors.textPrimary,
     letterSpacing: -0.5,
@@ -270,7 +270,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.2,
   },
   taglinePeriod: {
-    fontFamily: FontFamily.bold,
+    fontFamily: FontFamily.monoBold,
     fontSize: FontSize.body,
     color: Colors.secondary,   // amber period — the one accent touch
   },

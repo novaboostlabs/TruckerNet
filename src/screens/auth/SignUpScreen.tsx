@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
   KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator,
@@ -11,16 +11,21 @@ import * as WebBrowser from 'expo-web-browser';
 import * as Linking from 'expo-linking';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
-import { Colors, FontFamily, FontSize, Spacing, Radius } from '../../theme/theme';
+import { Colors, FontFamily, FontSize, Spacing, Radius, ThemeColors, sectionLabel } from '../../theme/theme';
+import { useTheme } from '../../theme/ThemeContext';
+import { capture } from '../../lib/analytics';
+import GridBackground from '../../components/GridBackground';
+import AccentRule from '../../components/AccentRule';
 
 WebBrowser.maybeCompleteAuthSession();
 
 interface Props {
   onGoToSignIn: () => void;
-  onGuestMode:  () => void;
 }
 
-export default function SignUpScreen({ onGoToSignIn, onGuestMode }: Props) {
+export default function SignUpScreen({ onGoToSignIn }: Props) {
+  const { colors: Colors } = useTheme();
+  const styles = useMemo(() => makeStyles(Colors), [Colors]);
   const { t } = useTranslation();
   const { signUp } = useAuth();
 
@@ -39,8 +44,12 @@ export default function SignUpScreen({ onGoToSignIn, onGuestMode }: Props) {
     setError(null);
     const { error } = await signUp(email.trim().toLowerCase(), password);
     setLoading(false);
-    if (error) setError(error);
-    else setSuccess(true);
+    if (error) {
+      setError(error);
+    } else {
+      capture('user_signed_up', { method: 'email' });
+      setSuccess(true);
+    }
   }
 
   async function handleGoogle() {
@@ -61,6 +70,7 @@ export default function SignUpScreen({ onGoToSignIn, onGuestMode }: Props) {
           const refreshToken = params.searchParams.get('refresh_token');
           if (accessToken && refreshToken) {
             await supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken });
+            capture('user_signed_up', { method: 'google' });
           }
         }
       }
@@ -84,6 +94,7 @@ export default function SignUpScreen({ onGoToSignIn, onGuestMode }: Props) {
       if (credential.identityToken) {
         const { error } = await supabase.auth.signInWithIdToken({ provider: 'apple', token: credential.identityToken });
         if (error) throw error;
+        capture('user_signed_up', { method: 'apple' });
       }
     } catch (e: any) {
       if (e.code !== 'ERR_REQUEST_CANCELED') setError(t('auth.appleFailed'));
@@ -96,6 +107,7 @@ export default function SignUpScreen({ onGoToSignIn, onGuestMode }: Props) {
   if (success) {
     return (
       <SafeAreaView style={styles.safe}>
+        <GridBackground />
         <View style={styles.successContent}>
           <View style={styles.successIconCircle}>
             <Ionicons name="checkmark" size={32} color={Colors.primary} />
@@ -116,8 +128,14 @@ export default function SignUpScreen({ onGoToSignIn, onGuestMode }: Props) {
 
   return (
     <SafeAreaView style={styles.safe}>
+      <GridBackground />
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+
+          {/* Terminal header */}
+          <View style={styles.header}>
+            <Text style={styles.headerLabel}>TRUCKERNET // SIGN UP</Text>
+          </View>
 
           {/* Brand */}
           <View style={styles.brand}>
@@ -129,6 +147,7 @@ export default function SignUpScreen({ onGoToSignIn, onGuestMode }: Props) {
           </View>
 
           <Text style={styles.heading}>{t('auth.createAccount')}</Text>
+          <AccentRule style={{ marginTop: 10, marginBottom: 14 }} />
           <Text style={styles.subheading}>{t('auth.signUpSubtitle')}</Text>
 
           {error && (
@@ -195,7 +214,7 @@ export default function SignUpScreen({ onGoToSignIn, onGuestMode }: Props) {
 
           <TouchableOpacity style={[styles.button, loading && styles.buttonLoading]} onPress={handleSignUp} activeOpacity={0.85} disabled={loading}>
             {loading
-              ? <ActivityIndicator color={Colors.background} size="small" />
+              ? <ActivityIndicator color={Colors.onPrimary} size="small" />
               : <Text style={styles.buttonText}>{t('auth.signUp')}</Text>
             }
           </TouchableOpacity>
@@ -205,67 +224,69 @@ export default function SignUpScreen({ onGoToSignIn, onGuestMode }: Props) {
             <Text style={styles.switchLink}>{t('auth.signIn')}</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.skipRow} onPress={onGuestMode} activeOpacity={0.7}>
-            <Text style={styles.skipText}>{t('auth.guestMode')}</Text>
-          </TouchableOpacity>
-
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (Colors: ThemeColors) => StyleSheet.create({
   safe:   { flex: 1, backgroundColor: Colors.background },
   flex:   { flex: 1 },
-  scroll: { paddingHorizontal: Spacing.screenH, paddingTop: 32, paddingBottom: 48 },
+  scroll: { paddingHorizontal: Spacing.screenH, paddingTop: 24, paddingBottom: 48 },
 
-  brand:    { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 40 },
-  logoMark: { width: 40, height: 40, borderRadius: Radius.md, backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center' },
-  logoChar: { fontFamily: FontFamily.bold, fontSize: 22, color: Colors.background, lineHeight: 26 },
-  appName:  { fontFamily: FontFamily.semiBold, fontSize: 16, color: Colors.textPrimary },
+  header: { borderBottomWidth: 1, borderBottomColor: Colors.borderSubtle, paddingBottom: 16, marginBottom: 32 },
+  headerLabel: { fontFamily: FontFamily.monoSemiBold, fontSize: 11, color: Colors.labelColor, letterSpacing: 1.8 },
+
+  brand:    { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 36 },
+  logoMark: { width: 40, height: 40, borderRadius: Radius.sm, backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center' },
+  logoChar: { fontFamily: FontFamily.monoBold, fontSize: 22, color: Colors.onPrimary, lineHeight: 26 },
+  appName:  { fontFamily: FontFamily.monoSemiBold, fontSize: 16, color: Colors.textPrimary, letterSpacing: -0.3 },
   tagline:  { fontFamily: FontFamily.regular, fontSize: FontSize.caption, color: Colors.textSecondary, marginTop: 1 },
 
-  heading:    { fontFamily: FontFamily.bold, fontSize: FontSize.title, color: Colors.textPrimary, lineHeight: 36, marginBottom: 6 },
+  heading:    { fontFamily: FontFamily.monoBold, fontSize: FontSize.title, color: Colors.textPrimary, lineHeight: 36, marginBottom: 0, letterSpacing: -0.6 },
   subheading: { fontFamily: FontFamily.regular, fontSize: FontSize.body, color: Colors.textSecondary, lineHeight: 22, marginBottom: 28 },
 
   errorBox:  { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: Colors.dangerDim, borderWidth: 1, borderColor: Colors.danger + '40', borderRadius: Radius.md, paddingHorizontal: 14, paddingVertical: 12, marginBottom: 20 },
   errorText: { fontFamily: FontFamily.regular, fontSize: FontSize.label, color: Colors.danger, flex: 1 },
 
   oauthRow:      { flexDirection: 'row', gap: 12, marginBottom: 24 },
-  oauthBtn:      { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: Radius.md, paddingVertical: 14, borderWidth: 1 },
+  oauthBtn:      { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: Radius.sm, paddingVertical: 14, borderWidth: 1 },
   oauthBtnApple: { backgroundColor: '#000', borderColor: '#000' },
   oauthBtnGoogle:{ backgroundColor: Colors.surface, borderColor: Colors.border },
   oauthBtnText:  { fontFamily: FontFamily.semiBold, fontSize: FontSize.body, color: Colors.textPrimary },
   googleG:       { fontFamily: FontFamily.bold, fontSize: FontSize.body, color: Colors.textPrimary },
 
   dividerRow:  { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 24 },
-  dividerLine: { flex: 1, height: 1, backgroundColor: Colors.border },
-  dividerText: { fontFamily: FontFamily.regular, fontSize: FontSize.label, color: Colors.textSecondary },
+  dividerLine: { flex: 1, height: 1, backgroundColor: Colors.secondary + '4D' },
+  dividerText: { fontFamily: FontFamily.monoRegular, fontSize: FontSize.caption, color: Colors.secondary, letterSpacing: 1, textTransform: 'uppercase' },
 
   fields:     { gap: 20, marginBottom: 24 },
-  fieldLabel: { fontFamily: FontFamily.semiBold, fontSize: FontSize.micro, color: Colors.textSecondary, letterSpacing: 1.2, marginBottom: 8 },
-  input:      { backgroundColor: Colors.surfaceHigh, borderWidth: 1, borderColor: Colors.border, borderRadius: Radius.md, paddingHorizontal: 16, paddingVertical: 16, fontFamily: FontFamily.regular, fontSize: FontSize.body, color: Colors.textPrimary },
+  fieldLabel: { fontFamily: FontFamily.monoSemiBold, fontSize: 10, color: Colors.labelColor, letterSpacing: 1.4, textTransform: 'uppercase', marginBottom: 8 },
+  input:      { backgroundColor: Colors.surfaceHigh, borderWidth: 1, borderColor: Colors.border, borderRadius: Radius.sm, paddingHorizontal: 16, paddingVertical: 16, fontFamily: FontFamily.regular, fontSize: FontSize.body, color: Colors.textPrimary },
   passwordWrap:  { position: 'relative' },
   passwordInput: { paddingRight: 50 },
   eyeBtn:        { position: 'absolute', right: 16, top: 0, bottom: 0, justifyContent: 'center' },
 
-  button:        { backgroundColor: Colors.primary, borderRadius: Radius.md, paddingVertical: 17, alignItems: 'center', marginBottom: 20 },
+  button:        {
+    backgroundColor: Colors.primary, borderRadius: Radius.md, paddingVertical: 17, alignItems: 'center', marginBottom: 20,
+    shadowColor: Colors.primary, shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.4, shadowRadius: 12, elevation: 12,
+  },
   buttonLoading: { opacity: 0.7 },
-  buttonText:    { fontFamily: FontFamily.semiBold, fontSize: FontSize.body, color: Colors.background },
+  buttonText:    { fontFamily: FontFamily.semiBold, fontSize: FontSize.body, color: Colors.onPrimary },
 
   switchRow:  { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginBottom: 20 },
   switchText: { fontFamily: FontFamily.regular, fontSize: FontSize.body, color: Colors.textSecondary },
   switchLink: { fontFamily: FontFamily.semiBold, fontSize: FontSize.body, color: Colors.primary },
 
   skipRow: { alignItems: 'center', paddingTop: 8 },
-  skipText: { fontFamily: FontFamily.regular, fontSize: FontSize.label, color: Colors.textSecondary },
+  skipText: { fontFamily: FontFamily.monoRegular, fontSize: FontSize.label, color: Colors.textSecondary, letterSpacing: 0.5 },
 
   // Success
   successContent:    { flex: 1, paddingHorizontal: Spacing.screenH, alignItems: 'center', justifyContent: 'center', paddingBottom: 40 },
   successIconCircle: { width: 72, height: 72, borderRadius: 36, backgroundColor: Colors.primaryDim, borderWidth: 1, borderColor: Colors.primaryMid, alignItems: 'center', justifyContent: 'center', marginBottom: 24 },
-  successTitle:      { fontFamily: FontFamily.bold, fontSize: FontSize.title, color: Colors.textPrimary, marginBottom: 12 },
+  successTitle:      { fontFamily: FontFamily.monoBold, fontSize: FontSize.title, color: Colors.textPrimary, marginBottom: 12, letterSpacing: -0.6 },
   successBody:       { fontFamily: FontFamily.regular, fontSize: FontSize.body, color: Colors.textSecondary, textAlign: 'center', marginBottom: 8, lineHeight: 22 },
-  successEmail:      { fontFamily: FontFamily.semiBold, color: Colors.textPrimary },
+  successEmail:      { fontFamily: FontFamily.monoSemiBold, color: Colors.textPrimary },
   successNote:       { fontFamily: FontFamily.regular, fontSize: FontSize.label, color: Colors.textSecondary, textAlign: 'center', marginBottom: 32, lineHeight: 20 },
 });

@@ -61,6 +61,15 @@
             "deploymentTarget": "16.0"
           }
         }
+      ],
+      "@sentry/react-native",
+      [
+        "@sentry/react-native/expo",
+        {
+          "url": "https://sentry.io/",
+          "project": "react-native",
+          "organization": "nova-boost-labs"
+        }
       ]
     ],
     "extra": {

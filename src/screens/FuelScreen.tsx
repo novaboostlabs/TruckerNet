@@ -1,13 +1,16 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState, useMemo } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Modal } from 'react-native';
 import FuelEntryScreen from './FuelEntryScreen';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
-import { Colors, FontFamily, FontSize, Spacing, Radius, SectionLabel } from '../theme/theme';
+import { Colors, FontFamily, FontSize, Spacing, Radius, SectionLabel, ThemeColors, sectionLabel } from '../theme/theme';
+import { useTheme } from '../theme/ThemeContext';
 import { getDateLocale } from '../lib/i18n';
 import { getFuelStats, getFuelEntryCount, FuelStats, FuelEntryDisplay } from '../db/database';
+import GridBackground from '../components/GridBackground';
+import AccentRule from '../components/AccentRule';
 
 const EMPTY_STATS: FuelStats = {
   latestCPM: 0, rollingCount: 0, latestDate: '', latestState: '',
@@ -22,6 +25,8 @@ function formatDate(iso: string): string {
 }
 
 export default function FuelScreen() {
+  const { colors: Colors } = useTheme();
+  const styles = useMemo(() => makeStyles(Colors), [Colors]);
   const { t } = useTranslation();
   const [showEntry, setShowEntry] = useState(false);
   const [stats, setStats] = useState<FuelStats>(() =>
@@ -41,6 +46,7 @@ export default function FuelScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
+      <GridBackground />
       <Modal visible={showEntry} animationType="slide" presentationStyle="pageSheet">
         <FuelEntryScreen
           onSaved={() => { setShowEntry(false); refresh(); }}
@@ -55,6 +61,7 @@ export default function FuelScreen() {
           <View>
             <Text style={styles.eyebrow}>{t('fuel.eyebrow')}</Text>
             <Text style={styles.title}>{t('fuel.title')}</Text>
+            <AccentRule style={{ marginTop: 8 }} />
           </View>
           <TouchableOpacity style={styles.addBtn} activeOpacity={0.8} onPress={() => setShowEntry(true)}>
             <Ionicons name="add" size={16} color={Colors.primary} />
@@ -160,37 +167,37 @@ export default function FuelScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (Colors: ThemeColors) => StyleSheet.create({
   safe:    { flex: 1, backgroundColor: Colors.background },
   scroll:  { flex: 1 },
   content: { paddingHorizontal: Spacing.screenH, paddingBottom: 40 },
 
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', paddingTop: 16, paddingBottom: 24 },
-  eyebrow: { ...SectionLabel, marginBottom: 4 },
-  title:   { fontFamily: FontFamily.bold, fontSize: FontSize.title, color: Colors.textPrimary },
+  eyebrow: { ...sectionLabel(Colors), marginBottom: 4 },
+  title:   { fontFamily: FontFamily.monoBold, fontSize: FontSize.title, color: Colors.textPrimary },
   addBtn:  {
     flexDirection: 'row', alignItems: 'center', gap: 6,
     backgroundColor: Colors.primaryDim, borderRadius: Radius.pill,
     paddingHorizontal: 14, paddingVertical: 9,
     borderWidth: 1, borderColor: Colors.primaryMid,
   },
-  addBtnText: { fontFamily: FontFamily.semiBold, fontSize: FontSize.label, color: Colors.primary },
+  addBtnText: { fontFamily: FontFamily.monoSemiBold, fontSize: FontSize.label, color: Colors.primary },
 
-  heroCard:        { backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border, borderRadius: Radius.xl, padding: Spacing.cardPad, marginBottom: 20 },
-  heroEyebrow:     { ...SectionLabel, marginBottom: 10 },
-  heroNumber:      { fontFamily: FontFamily.bold, fontSize: FontSize.hero, lineHeight: 52, letterSpacing: -1, marginBottom: 4 },
+  heroCard:        { backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border, borderRadius: Radius.md, padding: Spacing.cardPad, marginBottom: 20 },
+  heroEyebrow:     { ...sectionLabel(Colors), marginBottom: 10 },
+  heroNumber:      { fontFamily: FontFamily.monoBold, fontSize: FontSize.hero, lineHeight: 52, letterSpacing: -1, marginBottom: 4 },
   heroSub:         { fontFamily: FontFamily.regular, fontSize: FontSize.label, color: Colors.textSecondary, marginBottom: 18 },
   heroDivider:     { height: 1, backgroundColor: Colors.borderSubtle, marginBottom: 16 },
   heroStats:       { flexDirection: 'row' },
   heroStat:        { flex: 1 },
   heroStatDivider: { width: 1, backgroundColor: Colors.border, marginHorizontal: 12 },
-  heroStatLabel:   { ...SectionLabel, fontSize: 9, marginBottom: 4 },
-  heroStatValue:   { fontFamily: FontFamily.semiBold, fontSize: FontSize.label, color: Colors.textPrimary },
+  heroStatLabel:   { ...sectionLabel(Colors), fontSize: 9, marginBottom: 4 },
+  heroStatValue:   { fontFamily: FontFamily.monoSemiBold, fontSize: FontSize.label, color: Colors.textPrimary },
 
   section:      { marginBottom: 20 },
-  sectionLabel: { ...SectionLabel, marginBottom: 12 },
+  sectionLabel: { ...sectionLabel(Colors), marginBottom: 12 },
 
-  chartCard:    { backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border, borderRadius: Radius.lg, padding: Spacing.cardPad },
+  chartCard:    { backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border, borderRadius: Radius.md, padding: Spacing.cardPad },
   chartBars:    { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', height: 120, gap: 8 },
   chartBarWrap: { flex: 1, alignItems: 'center', justifyContent: 'flex-end', gap: 4 },
   chartBarLabel: { fontFamily: FontFamily.medium, fontSize: 9, color: Colors.textSecondary, marginBottom: 4 },
@@ -198,17 +205,17 @@ const styles = StyleSheet.create({
   chartBarDate: { fontFamily: FontFamily.regular, fontSize: 9, color: Colors.textSecondary, marginTop: 4 },
   emptyChart:   { fontFamily: FontFamily.regular, fontSize: FontSize.label, color: Colors.textSecondary, textAlign: 'center', paddingVertical: 24 },
 
-  emptyCard:  { backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border, borderRadius: Radius.lg, padding: 32, alignItems: 'center' },
-  emptyTitle: { fontFamily: FontFamily.semiBold, fontSize: FontSize.body, color: Colors.textPrimary, marginBottom: 6 },
+  emptyCard:  { backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border, borderRadius: Radius.md, padding: 32, alignItems: 'center' },
+  emptyTitle: { fontFamily: FontFamily.monoSemiBold, fontSize: FontSize.body, color: Colors.textPrimary, marginBottom: 6 },
   emptyHint:  { fontFamily: FontFamily.regular, fontSize: FontSize.label, color: Colors.textSecondary, textAlign: 'center', lineHeight: 20 },
 
-  entriesCard:  { backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border, borderRadius: Radius.lg, overflow: 'hidden' },
+  entriesCard:  { backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border, borderRadius: Radius.md, overflow: 'hidden' },
   entryRow:     { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, paddingHorizontal: Spacing.cardPad },
   entryLeft:    { flex: 1 },
-  entryDate:    { fontFamily: FontFamily.semiBold, fontSize: FontSize.body, color: Colors.textPrimary, marginBottom: 3 },
+  entryDate:    { fontFamily: FontFamily.monoSemiBold, fontSize: FontSize.body, color: Colors.textPrimary, marginBottom: 3 },
   entryDetail:  { fontFamily: FontFamily.regular, fontSize: FontSize.caption, color: Colors.textSecondary },
   entryRight:   { alignItems: 'flex-end' },
-  entryCPM:     { fontFamily: FontFamily.bold, fontSize: FontSize.body, color: Colors.primary, marginBottom: 2 },
+  entryCPM:     { fontFamily: FontFamily.monoBold, fontSize: FontSize.body, color: Colors.primary, marginBottom: 2 },
   entryCPMUnit: { fontFamily: FontFamily.regular, fontSize: FontSize.caption, color: Colors.textSecondary },
   entrySpent:   { fontFamily: FontFamily.regular, fontSize: FontSize.caption, color: Colors.textSecondary },
   entryDivider: { height: 1, backgroundColor: Colors.borderSubtle, marginHorizontal: Spacing.cardPad },

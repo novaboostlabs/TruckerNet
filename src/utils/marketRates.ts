@@ -13,8 +13,9 @@
 //     load; local runs priced as flat jobs, not $/mile)
 //   • Seasonal index: Truck Dispatch Experts 2026 seasonal calendar
 //
-// Update BASELINE_DRY_VAN quarterly from Scale Funding free rate page or
-// Trucking Dive rate tracker — no subscription required.
+// Re-center the market by editing `baseline_dry_van` in the Supabase
+// `market_config` row (refinement #3a) — no app release needed. Check it against
+// the Scale Funding free rate page or Trucking Dive rate tracker periodically.
 //
 // CPM math is backend-only; users see total $ range.
 // ─────────────────────────────────────────────────────────────
@@ -32,17 +33,46 @@ export type LoadType =
   | 'auto_transport';
 
 // ── National baseline (all-in spot, $/mile, dry van) ─────────────────────────
-// Source: 2026 national average. Update quarterly from public sources.
-const BASELINE_DRY_VAN = 2.50;
+// The foundation the whole formula multiplies off of. Remotely tunable
+// (refinement #3a): marketConfig pushes the latest value here on launch via
+// setBaselineDryVan(), so the market can be re-centered without an app release.
+// Falls back to this bundled default offline / before the first fetch.
+export const DEFAULT_BASELINE_DRY_VAN = 2.50; // 2026 national van avg, all-in spot
+
+// Sanity envelope — a bad remote value can never nuke every estimate. Mirrors the
+// CHECK constraint in 2026-06-27_market_config.sql.
+const BASELINE_MIN = 1.50;
+const BASELINE_MAX = 4.00;
+
+let activeBaseline = DEFAULT_BASELINE_DRY_VAN;
+
+/**
+ * Set the active national baseline (called by marketConfig on launch with the
+ * cached, then freshly-fetched, remote value). Clamped to a sane envelope.
+ * Returns the value actually applied so the caller can cache the clamped figure.
+ */
+export function setBaselineDryVan(value: number): number {
+  const clamped = Math.max(BASELINE_MIN, Math.min(BASELINE_MAX, value));
+  activeBaseline = clamped;
+  return clamped;
+}
+
+export function getBaselineDryVan(): number {
+  return activeBaseline;
+}
 
 // ── Equipment multipliers (relative to dry van = 1.0) ────────────────────────
 // Sources: 2026 spot market averages; reefer +$0.39/mi over van (national);
 // flatbed +$0.25–$0.45/mi; hazmat premium baked in (cert cost + risk).
+// Multipliers are RELATIVE RATIOS to dry van, calibrated against 2026 equipment
+// rate trackers: national van ~$2.68, reefer ~$3.26 (ratio 1.22), flatbed ~$3.60
+// (ratio 1.34) — Scale Funding / O Trucking / ACT, May 2026. Validated by blind
+// lane comparison 2026-06-27 (flatbed/reefer were previously undercalibrated).
 const EQUIPMENT_MULT: Record<LoadType, number> = {
   dry_van:       1.00,
-  reefer:        1.20,   // +$0.40–$0.50/mi; temperature control premium
-  flatbed:       1.18,   // +$0.25–$0.45/mi; tarping, securement labor
-  step_deck:     1.40,   // 40% premium; 20% fewer capable carriers than std flatbed
+  reefer:        1.22,   // ~$3.26/mi national vs $2.68 van — temp-control premium
+  flatbed:       1.34,   // ~$3.60/mi national vs $2.68 van — tarping/securement labor
+  step_deck:     1.50,   // ~12% over flatbed; fewer capable carriers, taller freight
   intermodal:    0.88,   // −12%; rail leg reduces carrier cost but limits flexibility
   tanker:        1.13,   // +13%; CDL + tanker endorsement, cleaning requirements
   hazmat:        1.38,   // +38%; hazmat certification + placard liability
@@ -51,20 +81,49 @@ const EQUIPMENT_MULT: Record<LoadType, number> = {
   auto_transport: 1.10,  // +10%; per-car pricing structure, equivalent FTL RPM
 };
 
-// ── Distance band multipliers (relative to standard 501–1000 mi = 1.0) ───────
-// Short hauls have high $/mi because fixed costs (loading, detention, paperwork)
-// are spread over fewer miles. Under 150 mi, minimum floor often overrides $/mi.
+// ── Distance multiplier (continuous curve, relative to ~750 mi = 1.0) ─────────
+// Short hauls earn high $/mi because fixed costs (loading, detention, paperwork)
+// are spread over fewer miles; the curve flattens toward a long-haul asymptote.
+//
+// This is a CONTINUOUS function, not a step table — a 250 vs 251 mi load must
+// never get materially different estimates (the old 7-band version jumped ~12%
+// at each arbitrary edge, which an experienced driver entering 248 vs 252 would
+// immediately distrust). Piecewise-linear interpolation through the same
+// calibrated anchor points the old bands were built on, so prior calibration
+// (and the blind-study validation) is preserved while the cliffs disappear.
+//
+// The `DistanceBand` labels below are kept only as a categorical tag — they're
+// used by the community rate network (rateReports.ts) to hold the band fixed
+// across confidence tiers, and surfaced as result metadata. They no longer
+// drive the multiplier.
 export type DistanceBand = 'micro' | 'local' | 'short' | 'medium' | 'standard' | 'long' | 'mega';
 
-const DISTANCE_MULT: Record<DistanceBand, number> = {
-  micro:    1.85,   // ≤50 mi  — floor almost always binding; $4–$8/mi if billed
-  local:    1.58,   // 51–100 mi — often flat-rated; floor frequently binding
-  short:    1.30,   // 101–250 mi — per-mile pricing takes over
-  medium:   1.14,   // 251–500 mi
-  standard: 1.00,   // 501–1,000 mi — baseline band
-  long:     0.90,   // 1,001–2,000 mi
-  mega:     0.84,   // 2,001+ mi — longest hauls have lowest $/mi
-};
+// [miles, multiplier] anchors, ascending. Interpolated linearly between; flat
+// beyond the ends. Anchor at the representative center of each old band.
+const DISTANCE_ANCHORS: ReadonlyArray<readonly [number, number]> = [
+  [25,   1.85],   // micro    — floor almost always binding anyway
+  [75,   1.58],   // local    — often flat-rated
+  [175,  1.30],   // short    — per-mile pricing takes over
+  [375,  1.14],   // medium
+  [750,  1.00],   // standard — baseline
+  [1500, 0.90],   // long
+  [2500, 0.84],   // mega     — longest hauls, lowest $/mi
+];
+
+export function getDistanceMultiplier(miles: number): number {
+  const a = DISTANCE_ANCHORS;
+  if (miles <= a[0][0])               return a[0][1];
+  if (miles >= a[a.length - 1][0])    return a[a.length - 1][1];
+  for (let i = 0; i < a.length - 1; i++) {
+    const [x0, y0] = a[i];
+    const [x1, y1] = a[i + 1];
+    if (miles <= x1) {
+      const t = (miles - x0) / (x1 - x0);
+      return y0 + t * (y1 - y0);
+    }
+  }
+  return a[a.length - 1][1];
+}
 
 // ── Minimum load floors ($ total, any load) ──────────────────────────────────
 // Below these thresholds no owner-operator should accept a load — covers
@@ -84,10 +143,22 @@ const MINIMUM_FLOOR: Record<LoadType, number> = {
 };
 
 // ── Range spread (±% around midpoint) ────────────────────────────────────────
-// Reflects the typical regional variance in spot rates (~±13% nationally).
-// RGN is wider because project freight is highly quote-specific.
-const SPREAD_DEFAULT = 0.13;
-const SPREAD_RGN     = 0.30;  // wider — heavy haul is extremely quote-specific
+// Reflects typical regional variance in spot rates AND our own confidence in the
+// estimate. A pure model with less information should present an honestly WIDER
+// range — being humble where we're uncertain is what keeps an experienced driver
+// from writing the number off. Confidence tightens automatically once real
+// community data backs the lane (that path shows the data-derived range instead).
+//   • high   — geography known, typical lane → tight ±13%
+//   • medium — geography unknown (e.g. quick eval, miles + rate only) → ±18%
+//   • low    — short flat-rated haul or project freight; highly negotiated → ±24%
+export type RateConfidence = 'high' | 'medium' | 'low';
+
+const SPREAD_BY_CONFIDENCE: Record<RateConfidence, number> = {
+  high:   0.13,
+  medium: 0.18,
+  low:    0.24,
+};
+const SPREAD_RGN = 0.30;  // wider still — heavy haul is extremely quote-specific
 
 // ── Seasonal index (month 1–12, annual avg = 1.0) ────────────────────────────
 // Source: Truck Dispatch Experts 2026 seasonal calendar; FreightWaves patterns.
@@ -106,6 +177,76 @@ const SEASONAL_INDEX: Record<number, number> = {
   11: 1.18,  // Nov — holiday freight; softens late month
   12: 1.00,  // Dec — early month strong, dead week post-Christmas
 };
+
+// ── Geographic market strength (origin-driven) ───────────────────────────────
+// The single biggest determinant of rate that a pure distance/equipment model
+// misses: WHERE the load originates. The same truck, trailer, miles and month
+// pays very differently out of Los Angeles vs rural Montana. Rates are set
+// primarily by how tight the ORIGIN market is (outbound load-to-truck balance);
+// the destination matters as a smaller "how hard is my reload / backhaul" nudge.
+//
+// Calibration (2026 public freight-market data — never load-board scraping):
+//   • National dry-van spot avg ~$2.30–$2.60/mi (Scale Funding, ACT, O Trucking)
+//   • CA outbound (LA/Long Beach/Central Valley) $3.00–$3.50/mi — CARB + driver
+//     shortage → hottest origin (DAT/CHR regional, Truck Dispatch Experts 2026)
+//   • Midwest core strongest van region $2.58/mi, corridor $2.82 (Keynnect 2026)
+//   • PNW→East premium long-haul $2.80–$3.20 (O Trucking 2026)
+//   • SE produce corridors + TX cross-border +30–40% surge (CHR 2026)
+//   • Mountain/N. Plains (MT/WY/ID/ND/SD): low load-to-truck, sparse van freight
+//   • Northeast import-heavy → soft outbound; FL/Laredo = backhaul traps
+// Values are RELATIVE to the national baseline (1.00). Re-tune as markets move.
+const ORIGIN_STRENGTH: Record<string, number> = {
+  // Hot — tightest outbound markets in the country
+  CA: 1.15,
+  // Strong — major freight generators / premium outbound
+  TX: 1.08, IL: 1.08, IN: 1.08, OH: 1.08, MI: 1.08, WI: 1.08, WA: 1.08, OR: 1.08,
+  // Solid — strong regional hubs and produce corridors
+  GA: 1.04, NC: 1.04, SC: 1.04, TN: 1.04, MN: 1.04, IA: 1.04, MO: 1.04, KS: 1.04,
+  // Average — national-typical outbound
+  FL: 1.00, AL: 1.00, KY: 1.00, AR: 1.00, LA: 1.00, MS: 1.00, OK: 1.00, VA: 1.00,
+  AZ: 1.00, NV: 1.00, UT: 1.00, CO: 1.00, NM: 1.00,
+  // Soft — import-heavy / repositioning markets (Northeast favors inbound)
+  NY: 0.95, NJ: 0.95, PA: 0.95, CT: 0.95, RI: 0.95, MA: 0.95, VT: 0.95, NH: 0.95,
+  ME: 0.95, MD: 0.95, DE: 0.95, DC: 0.95, WV: 0.95, NE: 0.95,
+  // Sparse — low freight density, van positioning risk
+  MT: 0.90, WY: 0.90, ID: 0.90, ND: 0.90, SD: 0.90,
+  // Non-contiguous — thin lanes, treat as average-soft
+  AK: 0.95, HI: 0.95,
+};
+
+const GEO_NEUTRAL = 1.0;
+
+// Destination "reload difficulty" coefficient: how much a weak destination
+// market lifts the fair rate (deadhead compensation). Small and capped so it
+// never dominates the origin signal.
+const RELOAD_K = 0.25;
+
+function originStrength(state?: string): number {
+  if (!state) return GEO_NEUTRAL;
+  return ORIGIN_STRENGTH[state.toUpperCase()] ?? GEO_NEUTRAL;
+}
+
+/**
+ * Combined geographic multiplier for an origin→destination lane.
+ *   geo = originStrength × reloadAdjustment(destination)
+ * Returns 1.0 (neutral) when either endpoint is unknown — e.g. a quick eval
+ * with only miles + rate. Clamped so combined extremes can never go absurd.
+ */
+export function getGeoMultiplier(originState?: string, destState?: string): number {
+  const origin = originStrength(originState);
+
+  // Weak destination (low strength) → harder reload → slight upward nudge.
+  // Hot destination → easy reload → slight downward nudge. Capped at ±5%.
+  let reload = GEO_NEUTRAL;
+  if (destState) {
+    const destStrength = originStrength(destState);
+    reload = 1 + (1 - destStrength) * RELOAD_K;
+    reload = Math.max(0.95, Math.min(1.05, reload));
+  }
+
+  const geo = origin * reload;
+  return Math.max(0.82, Math.min(1.25, geo));
+}
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -136,24 +277,38 @@ export interface MarketRateResult {
   verdict:         'strong' | 'fair' | 'low' | 'very_low';
   percentOfMarket: number;       // 100 = at midpoint of fair range
   floorApplied:    boolean;      // true when minimum floor overrode per-mile calc
+  geoMult:         number;       // applied geographic multiplier (1.0 = neutral/unknown)
+  confidence:      RateConfidence; // how sure the model is — drives range width + UI label
 }
 
 // ── Core rate function ────────────────────────────────────────────────────────
 
 export function getFairMarketRate(
-  miles:     number,
-  loadType:  LoadType,
-  grossPay?: number,
+  miles:       number,
+  loadType:    LoadType,
+  grossPay?:   number,
+  originState?: string,
+  destState?:   string,
 ): MarketRateResult {
   const band     = getDistanceBand(miles);
+  const distMult = getDistanceMultiplier(miles);
   const seasonal = getSeasonalMult();
-  const spread   = loadType === 'rgn' ? SPREAD_RGN : SPREAD_DEFAULT;
+  const geo      = getGeoMultiplier(originState, destState);
+
+  // Confidence in the model estimate → drives how wide a range we present.
+  // Geography is the biggest variable, so not knowing it lowers confidence;
+  // short flat-rated hauls and project freight are inherently negotiated.
+  let confidence: RateConfidence = (originState && destState) ? 'high' : 'medium';
+  if (band === 'micro' || band === 'local' || loadType === 'rgn') confidence = 'low';
+
+  const spread = loadType === 'rgn' ? SPREAD_RGN : SPREAD_BY_CONFIDENCE[confidence];
 
   // Mid-market rate per mile
-  const midRPM = BASELINE_DRY_VAN
+  const midRPM = activeBaseline
     * EQUIPMENT_MULT[loadType]
-    * DISTANCE_MULT[band]
-    * seasonal;
+    * distMult
+    * seasonal
+    * geo;
 
   const minRPM = midRPM * (1 - spread);
   const maxRPM = midRPM * (1 + spread);
@@ -195,6 +350,8 @@ export function getFairMarketRate(
     verdict,
     percentOfMarket,
     floorApplied,
+    geoMult: Math.round(geo * 1000) / 1000,
+    confidence,
   };
 }
 

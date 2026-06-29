@@ -6,18 +6,32 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors, FontFamily, FontSize, Spacing, Radius, SectionLabel } from '../theme/theme';
+import { Colors, FontFamily, FontSize, Spacing, Radius, SectionLabel, ThemeColors, sectionLabel } from '../theme/theme';
+import { useTheme } from '../theme/ThemeContext';
 import { calcBreakEven, getPersonalLaneHistory, LaneHistory } from '../db/database';
 import {
   getFairMarketRate, calcDeadheadCost, LoadType,
 } from '../utils/marketRates';
 import AddressAutocomplete from '../components/AddressAutocomplete';
 import FairMarketLock from '../components/FairMarketLock';
+import GridBackground from '../components/GridBackground';
+import AccentRule from '../components/AccentRule';
 import { useSubscription } from '../contexts/SubscriptionContext';
 import { usePaywall } from '../contexts/PaywallContext';
 import { getRouteMiles, AddressSuggestion } from '../lib/mapbox';
 import { AddLoadPrefill } from './AddLoadScreen';
-import { getCommunityRate, CommunityRate } from '../lib/rateReports';
+import { getCommunityRate, CommunityRate, CommunityTier } from '../lib/rateReports';
+import { capture } from '../lib/analytics';
+import * as haptics from '../lib/haptics';
+import { getBrokerScorecard, BrokerScorecard } from '../lib/brokerScorecard';
+import BrokerScorecardCard from '../components/BrokerScorecardCard';
+
+// Maps a community-data confidence tier to its i18n label key.
+function tierKey(tier: CommunityTier): string {
+  return tier === 'exact'    ? 'rateInsights.tierExact'
+       : tier === 'corridor' ? 'rateInsights.tierCorridor'
+       :                        'rateInsights.tierNational';
+}
 
 interface Props {
   onClose: () => void;
@@ -41,12 +55,31 @@ function extractState(label: string): string {
 }
 
 export default function CheckLoadScreen({ onClose, onLogLoad }: Props) {
+  const { colors: Colors } = useTheme();
+  const styles = useMemo(() => makeStyles(Colors), [Colors]);
   const { t } = useTranslation();
   const { isPro } = useSubscription();
   const { present: presentPaywall } = usePaywall();
 
   const [pay, setPay]           = useState('');
   const [miles, setMiles]       = useState('');
+  const [brokerName, setBrokerName] = useState('');
+  const [brokerMC,   setBrokerMC]   = useState('');
+  const [brokerScorecard, setBrokerScorecard] = useState<BrokerScorecard | null>(null);
+  const [brokerSCLoading, setBrokerSCLoading] = useState(false);
+
+  useEffect(() => {
+    const name = brokerName.trim();
+    const mc   = brokerMC.trim();
+    if (name.length < 2 && mc.length < 2) { setBrokerScorecard(null); return; }
+    const timer = setTimeout(async () => {
+      setBrokerSCLoading(true);
+      try { setBrokerScorecard(await getBrokerScorecard(name, mc)); }
+      catch { setBrokerScorecard(null); }
+      finally { setBrokerSCLoading(false); }
+    }, 600);
+    return () => clearTimeout(timer);
+  }, [brokerName, brokerMC]);
 
   function cap(raw: string, max: number): string {
     const n = parseFloat(raw);
@@ -69,11 +102,13 @@ export default function CheckLoadScreen({ onClose, onLogLoad }: Props) {
 
   const personalHistory = useMemo<LaneHistory | null>(() => {
     if (!pickupSel || !deliverySel) return null;
-    return getPersonalLaneHistory(
-      extractState(pickupSel.label),
-      extractState(deliverySel.label),
-      loadType,
-    );
+    return getPersonalLaneHistory({
+      pickupLat: pickupSel.lat, pickupLng: pickupSel.lng,
+      deliveryLat: deliverySel.lat, deliveryLng: deliverySel.lng,
+      originState: extractState(pickupSel.label),
+      destState:   extractState(deliverySel.label),
+      equipment:   loadType,
+    });
   }, [pickupSel, deliverySel, loadType]);
 
   useEffect(() => {
@@ -138,7 +173,11 @@ export default function CheckLoadScreen({ onClose, onLogLoad }: Props) {
 
   const isBackhaulRescue = backhaul && verdict === 'red';
 
-  const fair = hasInputs ? getFairMarketRate(loadMiles, loadType, grossPay) : null;
+  // Pass origin/dest states (when both endpoints are geocoded) so the fair-market
+  // estimate reflects regional market strength, not just miles + equipment.
+  const fairOrigin = pickupSel   ? extractState(pickupSel.label)   : undefined;
+  const fairDest   = deliverySel ? extractState(deliverySel.label) : undefined;
+  const fair = hasInputs ? getFairMarketRate(loadMiles, loadType, grossPay, fairOrigin, fairDest) : null;
   const deadheadCost = calcDeadheadCost(loadMiles, fuelCPM, fixedCPM);
 
   const verdictColor =
@@ -157,8 +196,28 @@ export default function CheckLoadScreen({ onClose, onLogLoad }: Props) {
     verdict === 'red' ? 'close-circle' :
     'checkmark-circle';
 
+  // Fire a haptic the moment a verdict first appears so the driver feels it.
+  const prevHasInputs = React.useRef(false);
+  useEffect(() => {
+    if (hasInputs && !prevHasInputs.current) {
+      haptics.verdict(verdict);
+    }
+    prevHasInputs.current = hasInputs;
+  }, [hasInputs, verdict]);
+
+  function handleClose() {
+    if (hasInputs) {
+      capture('check_load_used', {
+        verdict, load_type: loadType, miles: loadMiles,
+        gross_pay: grossPay, net_pay: netPay, is_backhaul: backhaul,
+      });
+    }
+    onClose();
+  }
+
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+      <GridBackground />
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
 
         {/* Header */}
@@ -166,8 +225,9 @@ export default function CheckLoadScreen({ onClose, onLogLoad }: Props) {
           <View>
             <Text style={styles.eyebrow}>{t('checkLoad.title').toUpperCase()}</Text>
             <Text style={styles.title}>{t('checkLoad.subtitle')}</Text>
+            <AccentRule style={{ marginTop: 8 }} />
           </View>
-          <TouchableOpacity style={styles.closeBtn} onPress={onClose} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+          <TouchableOpacity style={styles.closeBtn} onPress={handleClose} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
             <Ionicons name="close" size={22} color={Colors.textSecondary} />
           </TouchableOpacity>
         </View>
@@ -250,8 +310,23 @@ export default function CheckLoadScreen({ onClose, onLogLoad }: Props) {
             <Ionicons name="chevron-down" size={18} color={Colors.primary} />
           </TouchableOpacity>
 
+          {/* Broker (optional) */}
+          <Text style={[styles.fieldLabel, { marginTop: 18 }]}>{t('addLoad.broker')} <Text style={styles.optional}>(optional)</Text></Text>
+          <TextInput
+            style={styles.brokerInput}
+            value={brokerName}
+            onChangeText={setBrokerName}
+            placeholder={t('addLoad.brokerName')}
+            placeholderTextColor={Colors.textTertiary}
+            returnKeyType="done"
+            autoCorrect={false}
+          />
+          {(brokerScorecard || brokerSCLoading) && (
+            <BrokerScorecardCard scorecard={brokerScorecard} loading={brokerSCLoading} />
+          )}
+
           {/* Backhaul toggle */}
-          <View style={styles.toggleCard}>
+          <View style={[styles.toggleCard, { marginTop: 18 }]}>
             <View style={styles.toggleText}>
               <Text style={styles.toggleLabel}>{t('checkLoad.backhaul')}</Text>
               <Text style={styles.toggleHint}>{t('checkLoad.backhaulHint')}</Text>
@@ -276,6 +351,18 @@ export default function CheckLoadScreen({ onClose, onLogLoad }: Props) {
                   ? t('rateInsights.historyOne', { pay: money(personalHistory.lastPay), date: personalHistory.lastDate })
                   : t('rateInsights.historyMulti', { count: personalHistory.count, avg: money(personalHistory.avgPay), last: money(personalHistory.lastPay) })}
               </Text>
+              {personalHistory.count >= 2 && grossPay > 0 && Math.abs(grossPay - personalHistory.avgPay) >= 1 && (
+                <View style={[styles.usualPill, { backgroundColor: grossPay >= personalHistory.avgPay ? Colors.primaryDim : Colors.secondaryDim }]}>
+                  <Ionicons
+                    name={grossPay >= personalHistory.avgPay ? 'trending-up' : 'trending-down'}
+                    size={13}
+                    color={grossPay >= personalHistory.avgPay ? Colors.primary : Colors.secondary}
+                  />
+                  <Text style={[styles.usualPillText, { color: grossPay >= personalHistory.avgPay ? Colors.primary : Colors.secondary }]}>
+                    {t(grossPay >= personalHistory.avgPay ? 'rateInsights.aboveUsual' : 'rateInsights.belowUsual', { amount: `$${money(Math.abs(grossPay - personalHistory.avgPay))}` })}
+                  </Text>
+                </View>
+              )}
             </View>
           )}
 
@@ -334,25 +421,37 @@ export default function CheckLoadScreen({ onClose, onLogLoad }: Props) {
               {fair && (
                 isPro ? (
                   <>
-                    <View style={styles.fairRow}>
-                      <Text style={styles.fairLabel}>
-                        {t('checkLoad.result.fairMarket', { type: t(`addLoad.loadTypes.${loadType}`) })}
-                      </Text>
-                      <Text style={styles.fairValue}>
-                        ${money(fair.minTotal)}–${money(fair.maxTotal)}
-                      </Text>
-                    </View>
-                    {/* Community rates — more accurate than the seeded model when data exists */}
-                    {(communityLoading || communityRate) && (
-                      <View style={styles.communityRow}>
-                        <Ionicons name="people-outline" size={13} color={Colors.primary} />
-                        {communityLoading ? (
-                          <ActivityIndicator size="small" color={Colors.textTertiary} />
-                        ) : communityRate ? (
-                          <Text style={styles.communityText}>
-                            {t('rateInsights.communityCount', { count: communityRate.count })} · ${money(communityRate.lowPay)}–${money(communityRate.highPay)}
+                    {/* When real driver data exists it leads as the headline; the
+                        seeded model is shown as a labeled estimate beneath it. */}
+                    {communityRate ? (
+                      <>
+                        <View style={styles.fairRow}>
+                          <Text style={styles.fairLabel}>
+                            {t('checkLoad.result.fairMarket', { type: t(`addLoad.loadTypes.${loadType}`) })}
                           </Text>
-                        ) : null}
+                          <Text style={styles.fairValue}>
+                            ${money(communityRate.lowPay)}–${money(communityRate.highPay)}
+                          </Text>
+                        </View>
+                        <View style={styles.communityRow}>
+                          <Ionicons name="people-outline" size={13} color={Colors.primary} />
+                          <Text style={styles.communityText}>
+                            {t(tierKey(communityRate.tier), { count: communityRate.count })}
+                          </Text>
+                        </View>
+                        <Text style={styles.estLine}>
+                          {t(fair.confidence === 'low' ? 'rateInsights.estRough' : 'rateInsights.estTag')} ${money(fair.minTotal)}–${money(fair.maxTotal)}
+                        </Text>
+                      </>
+                    ) : (
+                      <View style={styles.fairRow}>
+                        <Text style={styles.fairLabel}>
+                          {t('checkLoad.result.fairMarket', { type: t(`addLoad.loadTypes.${loadType}`) })}
+                        </Text>
+                        <Text style={styles.fairValue}>
+                          ${money(fair.minTotal)}–${money(fair.maxTotal)}
+                          {communityLoading ? '' : ` ${t(fair.confidence === 'low' ? 'rateInsights.estRough' : 'rateInsights.estTag')}`}
+                        </Text>
                       </View>
                     )}
                   </>
@@ -395,7 +494,7 @@ export default function CheckLoadScreen({ onClose, onLogLoad }: Props) {
             <Ionicons name="arrow-forward" size={18} color={hasInputs ? Colors.background : Colors.textTertiary} />
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.closeTextBtn} onPress={onClose} activeOpacity={0.7}>
+          <TouchableOpacity style={styles.closeTextBtn} onPress={handleClose} activeOpacity={0.7}>
             <Text style={styles.closeTextBtnLabel}>{t('checkLoad.result.close')}</Text>
           </TouchableOpacity>
 
@@ -439,7 +538,7 @@ export default function CheckLoadScreen({ onClose, onLogLoad }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (Colors: ThemeColors) => StyleSheet.create({
   safe: { flex: 1, backgroundColor: Colors.background },
   flex: { flex: 1 },
 
@@ -447,25 +546,25 @@ const styles = StyleSheet.create({
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start',
     paddingHorizontal: Spacing.screenH, paddingTop: 12, paddingBottom: 16,
   },
-  eyebrow: { ...SectionLabel, marginBottom: 4 },
-  title:   { fontFamily: FontFamily.bold, fontSize: FontSize.subtitle, color: Colors.textPrimary, maxWidth: 260 },
+  eyebrow: { ...sectionLabel(Colors), fontFamily: FontFamily.monoSemiBold, marginBottom: 4 },
+  title:   { fontFamily: FontFamily.monoBold, fontSize: FontSize.subtitle, color: Colors.textPrimary, maxWidth: 260, letterSpacing: -0.4 },
   closeBtn: {
-    width: 38, height: 38, borderRadius: Radius.pill,
+    width: 38, height: 38, borderRadius: Radius.sm,
     backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border,
     alignItems: 'center', justifyContent: 'center',
   },
 
   content: { paddingHorizontal: Spacing.screenH, paddingBottom: 20 },
 
-  fieldLabel: { ...SectionLabel, marginBottom: 10 },
+  fieldLabel: { ...sectionLabel(Colors), fontFamily: FontFamily.monoSemiBold, marginBottom: 10 },
   inputCard: {
     flexDirection: 'row', alignItems: 'center',
     backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border,
-    borderRadius: Radius.lg, paddingHorizontal: 18, paddingVertical: 14,
+    borderRadius: Radius.md, paddingHorizontal: 18, paddingVertical: 14,
   },
-  dollarSign:  { fontFamily: FontFamily.semiBold, fontSize: FontSize.subtitle, color: Colors.textSecondary, marginRight: 6 },
-  bigInput:    { flex: 1, fontFamily: FontFamily.bold, fontSize: 28, color: Colors.textPrimary, padding: 0 },
-  inputSuffix: { fontFamily: FontFamily.medium, fontSize: FontSize.body, color: Colors.textSecondary },
+  dollarSign:  { fontFamily: FontFamily.monoSemiBold, fontSize: FontSize.subtitle, color: Colors.textSecondary, marginRight: 6 },
+  bigInput:    { flex: 1, fontFamily: FontFamily.monoBold, fontSize: 28, color: Colors.textPrimary, padding: 0 },
+  inputSuffix: { fontFamily: FontFamily.monoRegular, fontSize: FontSize.body, color: Colors.textSecondary },
 
   addrHint:  { fontFamily: FontFamily.regular, fontSize: FontSize.caption, color: Colors.textSecondary, marginTop: 8 },
 
@@ -473,7 +572,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 18,
   },
   milesBadge:     { flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 10 },
-  milesBadgeText: { fontFamily: FontFamily.medium, fontSize: FontSize.caption, color: Colors.textSecondary },
+  milesBadgeText: { fontFamily: FontFamily.monoRegular, fontSize: FontSize.caption, color: Colors.textSecondary, letterSpacing: 0.3 },
 
   routeErrorRow:  { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 8 },
   routeErrorText: { fontFamily: FontFamily.regular, fontSize: FontSize.caption, color: Colors.secondary, flex: 1 },
@@ -481,14 +580,14 @@ const styles = StyleSheet.create({
   dropdown: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border,
-    borderRadius: Radius.lg, paddingHorizontal: 18, paddingVertical: 16,
+    borderRadius: Radius.md, paddingHorizontal: 18, paddingVertical: 16,
   },
-  dropdownText: { fontFamily: FontFamily.semiBold, fontSize: FontSize.body, color: Colors.textPrimary },
+  dropdownText: { fontFamily: FontFamily.monoSemiBold, fontSize: FontSize.body, color: Colors.textPrimary },
 
   // Load type dropdown sheet
   modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
   modalSheet: {
-    backgroundColor: Colors.surface, borderTopLeftRadius: Radius.xl, borderTopRightRadius: Radius.xl,
+    backgroundColor: Colors.surface, borderTopLeftRadius: Radius.lg, borderTopRightRadius: Radius.lg,
     borderWidth: 1, borderColor: Colors.border,
     paddingHorizontal: Spacing.screenH, paddingTop: 10, paddingBottom: 36,
   },
@@ -496,11 +595,11 @@ const styles = StyleSheet.create({
     alignSelf: 'center', width: 40, height: 4, borderRadius: 2,
     backgroundColor: Colors.border, marginBottom: 14,
   },
-  modalTitle:  { fontFamily: FontFamily.bold, fontSize: FontSize.subtitle, color: Colors.textPrimary, marginBottom: 12 },
+  modalTitle:  { fontFamily: FontFamily.monoBold, fontSize: FontSize.subtitle, color: Colors.textPrimary, marginBottom: 12, letterSpacing: -0.4 },
   modalScroll: { maxHeight: 380 },
   typeOption: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingVertical: 15, paddingHorizontal: 16, borderRadius: Radius.md, marginBottom: 6,
+    paddingVertical: 15, paddingHorizontal: 16, borderRadius: Radius.sm, marginBottom: 6,
     borderWidth: 1, borderColor: 'transparent',
   },
   typeOptionActive:     { backgroundColor: Colors.primaryDim, borderColor: Colors.primaryMid },
@@ -510,33 +609,33 @@ const styles = StyleSheet.create({
   toggleCard: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border,
-    borderRadius: Radius.lg, paddingHorizontal: 16, paddingVertical: 14, marginTop: 18,
+    borderRadius: Radius.md, paddingHorizontal: 16, paddingVertical: 14,
   },
   toggleText:  { flex: 1, marginRight: 12 },
-  toggleLabel: { fontFamily: FontFamily.semiBold, fontSize: FontSize.body, color: Colors.textPrimary, marginBottom: 2 },
+  toggleLabel: { fontFamily: FontFamily.monoSemiBold, fontSize: FontSize.body, color: Colors.textPrimary, marginBottom: 2, letterSpacing: -0.3 },
   toggleHint:  { fontFamily: FontFamily.regular, fontSize: FontSize.caption, color: Colors.textSecondary },
 
   resultCard: {
-    backgroundColor: Colors.surface, borderWidth: 2, borderRadius: Radius.xl,
+    backgroundColor: Colors.surface, borderWidth: 2, borderRadius: Radius.md,
     padding: Spacing.cardPad, marginTop: 24,
   },
   verdictRow:   { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16 },
-  verdictLabel: { fontFamily: FontFamily.bold, fontSize: FontSize.body },
+  verdictLabel: { fontFamily: FontFamily.monoBold, fontSize: FontSize.body, letterSpacing: -0.3 },
 
-  netLabel: { ...SectionLabel, marginBottom: 6 },
-  netValue: { fontFamily: FontFamily.bold, fontSize: FontSize.heroLarge, lineHeight: 56, letterSpacing: -1.5, marginBottom: 16 },
+  netLabel: { ...sectionLabel(Colors), fontFamily: FontFamily.monoSemiBold, marginBottom: 6 },
+  netValue: { fontFamily: FontFamily.monoBold, fontSize: FontSize.heroLarge, lineHeight: 56, letterSpacing: -2, marginBottom: 16 },
 
   statsRow:  { flexDirection: 'row', alignItems: 'center', marginBottom: 14 },
   statCell:  { flex: 1 },
   statSep:   { width: 1, height: 32, backgroundColor: Colors.border, marginHorizontal: 16 },
-  statLabel: { ...SectionLabel, fontSize: 10, marginBottom: 4 },
-  statValue: { fontFamily: FontFamily.semiBold, fontSize: FontSize.subtitle, color: Colors.textPrimary },
+  statLabel: { ...sectionLabel(Colors), fontFamily: FontFamily.monoSemiBold, fontSize: 10, marginBottom: 4 },
+  statValue: { fontFamily: FontFamily.monoSemiBold, fontSize: FontSize.subtitle, color: Colors.textPrimary },
 
   deltaPill: {
     flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start',
     borderRadius: Radius.pill, paddingHorizontal: 12, paddingVertical: 7,
   },
-  deltaText: { fontFamily: FontFamily.semiBold, fontSize: FontSize.label },
+  deltaText: { fontFamily: FontFamily.monoSemiBold, fontSize: FontSize.label },
 
   backhaulNote: {
     flexDirection: 'row', alignItems: 'flex-start', gap: 8,
@@ -553,29 +652,42 @@ const styles = StyleSheet.create({
     marginTop: 16, paddingTop: 14, borderTopWidth: 1, borderTopColor: Colors.borderSubtle,
   },
   fairLabel: { fontFamily: FontFamily.regular, fontSize: FontSize.label, color: Colors.textSecondary, flex: 1, marginRight: 12 },
-  fairValue: { fontFamily: FontFamily.semiBold, fontSize: FontSize.body, color: Colors.textPrimary },
+  fairValue: { fontFamily: FontFamily.monoSemiBold, fontSize: FontSize.body, color: Colors.textPrimary },
 
   communityRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 8 },
-  communityText: { fontFamily: FontFamily.regular, fontSize: FontSize.caption, color: Colors.primary },
+  communityText: { fontFamily: FontFamily.monoRegular, fontSize: FontSize.caption, color: Colors.primary },
+  estLine: { fontFamily: FontFamily.monoRegular, fontSize: FontSize.caption, color: Colors.textTertiary, marginTop: 4 },
 
   insightCard: {
     marginTop: 16, padding: 12, backgroundColor: Colors.surface,
     borderRadius: Radius.md, borderWidth: 1, borderColor: Colors.border,
   },
   insightHeader: { flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 4 },
-  insightTitle: { fontFamily: FontFamily.medium, fontSize: 11, color: Colors.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5 },
-  insightValue: { fontFamily: FontFamily.regular, fontSize: FontSize.label, color: Colors.textPrimary },
+  insightTitle: { fontFamily: FontFamily.monoSemiBold, fontSize: 11, color: Colors.labelColor, textTransform: 'uppercase', letterSpacing: 1 },
+  insightValue: { fontFamily: FontFamily.monoRegular, fontSize: FontSize.label, color: Colors.textPrimary },
+  optional: { fontFamily: FontFamily.regular, fontSize: FontSize.micro, color: Colors.textTertiary, letterSpacing: 0.5 },
+  brokerInput: {
+    backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border,
+    borderRadius: Radius.md, paddingHorizontal: 16, paddingVertical: 14,
+    fontFamily: FontFamily.regular, fontSize: FontSize.body, color: Colors.textPrimary,
+  },
+  usualPill: {
+    flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start',
+    borderRadius: Radius.pill, paddingHorizontal: 10, paddingVertical: 6, marginTop: 8,
+  },
+  usualPillText: { fontFamily: FontFamily.monoSemiBold, fontSize: FontSize.caption, letterSpacing: 0.2 },
 
   setupNote: { fontFamily: FontFamily.regular, fontSize: FontSize.caption, color: Colors.textSecondary, marginTop: 14, lineHeight: 18 },
 
   logBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
     backgroundColor: Colors.primary, borderRadius: Radius.md, paddingVertical: 17, marginTop: 24,
+    shadowColor: Colors.primary, shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.4, shadowRadius: 12, elevation: 12,
   },
-  logBtnDisabled:     { backgroundColor: Colors.surfaceHigh },
-  logBtnText:         { fontFamily: FontFamily.semiBold, fontSize: FontSize.body, color: Colors.background },
+  logBtnDisabled:     { backgroundColor: Colors.surfaceHigh, shadowOpacity: 0, elevation: 0 },
+  logBtnText:         { fontFamily: FontFamily.semiBold, fontSize: FontSize.body, color: Colors.onPrimary },
   logBtnTextDisabled: { color: Colors.textTertiary },
 
   closeTextBtn:      { alignItems: 'center', paddingVertical: 16 },
-  closeTextBtnLabel: { fontFamily: FontFamily.medium, fontSize: FontSize.body, color: Colors.textSecondary },
+  closeTextBtnLabel: { fontFamily: FontFamily.monoRegular, fontSize: FontSize.body, color: Colors.textSecondary },
 });

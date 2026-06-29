@@ -61,6 +61,10 @@ export async function pushLoads(userId: string): Promise<SyncResult> {
         gross_rate_per_mile:   l.gross_rate_per_mile,
         net_rate_per_mile:     l.net_rate_per_mile,
         verdict:               l.verdict ?? null,
+        pickup_lat:            l.pickup_lat ?? null,
+        pickup_lng:            l.pickup_lng ?? null,
+        delivery_lat:          l.delivery_lat ?? null,
+        delivery_lng:          l.delivery_lng ?? null,
       }));
 
       const { error: loadsErr } = await supabase
@@ -140,6 +144,7 @@ export async function pullLoads(userId: string): Promise<PullResult> {
         benchmark_fair_pay_min, benchmark_fair_pay_max,
         fuel_cost_for_load, fixed_cost_for_load, net_pay,
         gross_rate_per_mile, net_rate_per_mile, verdict, created_at,
+        pickup_lat, pickup_lng, delivery_lat, delivery_lng,
         state_mileage ( load_id, state, miles, is_manually_edited ),
         load_expenses ( id, load_id, label, category, amount, date, created_at )
       `)
@@ -181,6 +186,10 @@ export async function pullLoads(userId: string): Promise<PullResult> {
         net_rate_per_mile:     Number(r.net_rate_per_mile) || 0,
         verdict:               r.verdict ?? null,
         created_at:            r.created_at ?? new Date().toISOString(),
+        pickup_lat:            r.pickup_lat != null ? Number(r.pickup_lat) : null,
+        pickup_lng:            r.pickup_lng != null ? Number(r.pickup_lng) : null,
+        delivery_lat:          r.delivery_lat != null ? Number(r.delivery_lat) : null,
+        delivery_lng:          r.delivery_lng != null ? Number(r.delivery_lng) : null,
       }));
 
       const stateMileage: StateMileageRow[] = rows.flatMap((r: any) =>

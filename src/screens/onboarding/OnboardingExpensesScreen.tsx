@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
   ScrollView, KeyboardAvoidingView, Platform, Modal, Pressable,
@@ -6,10 +6,14 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors, FontFamily, FontSize, Spacing, Radius, SectionLabel } from '../../theme/theme';
-import db, { getUserExpenses } from '../../db/database';
+import { Colors, FontFamily, FontSize, Spacing, Radius, SectionLabel, ThemeColors, sectionLabel } from '../../theme/theme';
+import { useTheme } from '../../theme/ThemeContext';
+import db, { getUserExpenses, markExpensesReviewed } from '../../db/database';
+import GridBackground from '../../components/GridBackground';
+import AccentRule from '../../components/AccentRule';
 import { toMonthlyAmount, ExpenseFrequency } from '../../utils/marketRates';
-import 'react-native-get-random-values';
+import 'react-native-get-random-values'
+import { capture } from '../../lib/analytics';;
 import { v4 as uuid } from 'uuid';
 
 interface Props { onNext: () => void; onBack: () => void; }
@@ -53,6 +57,8 @@ function emptyDraft(): Draft {
 type FreqTarget = { kind: 'fixed'; id: string } | { kind: 'draft' } | null;
 
 export default function OnboardingExpensesScreen({ onNext, onBack }: Props) {
+  const { colors: Colors } = useTheme();
+  const styles = useMemo(() => makeStyles(Colors), [Colors]);
   const { t } = useTranslation();
 
   const freqLabel = (f: ExpenseFrequency) => t(`onboarding.expenses.frequencies.${f}`);
@@ -185,6 +191,12 @@ export default function OnboardingExpensesScreen({ onNext, onBack }: Props) {
         );
       }
     }
+    capture('onboarding_expenses_completed', {
+      expense_count: collected.length,
+      has_expenses: collected.length > 0,
+    });
+    // Stamp today as the first review so the 30-day timer starts from onboarding.
+    markExpensesReviewed();
     onNext();
   }
 
@@ -223,6 +235,7 @@ export default function OnboardingExpensesScreen({ onNext, onBack }: Props) {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+      <GridBackground />
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
 
@@ -245,6 +258,7 @@ export default function OnboardingExpensesScreen({ onNext, onBack }: Props) {
           </View>
 
           <Text style={styles.heading}>{t('onboarding.expenses.title')}</Text>
+          <AccentRule style={{ marginTop: 10, marginBottom: 16 }} />
           <Text style={styles.subheading}>{t('onboarding.expenses.subtitle')}</Text>
 
           {/* ── Essentials ── */}
@@ -367,7 +381,7 @@ export default function OnboardingExpensesScreen({ onNext, onBack }: Props) {
           {/* Next */}
           <TouchableOpacity style={styles.button} onPress={handleNext} activeOpacity={0.85}>
             <Text style={styles.buttonText}>{t('common.next')}</Text>
-            <Ionicons name="arrow-forward" size={18} color={Colors.background} />
+            <Ionicons name="arrow-forward" size={18} color={Colors.onPrimary} />
           </TouchableOpacity>
 
           <View style={{ height: 40 }} />
@@ -408,7 +422,7 @@ export default function OnboardingExpensesScreen({ onNext, onBack }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (Colors: ThemeColors) => StyleSheet.create({
   safe:    { flex: 1, backgroundColor: Colors.background },
   flex:    { flex: 1 },
   content: { paddingHorizontal: Spacing.screenH, paddingTop: 16 },
@@ -417,23 +431,23 @@ const styles = StyleSheet.create({
   progressRow: { flexDirection: 'row', gap: 6, marginBottom: 20 },
   progressDot: { flex: 1, height: 3, borderRadius: 2, backgroundColor: Colors.surface },
   progressDotActive: { backgroundColor: Colors.primary },
-  stepLabel: { fontFamily: FontFamily.medium, fontSize: FontSize.label, color: Colors.textSecondary, marginBottom: 32 },
+  stepLabel: { fontFamily: FontFamily.monoSemiBold, fontSize: FontSize.caption, color: Colors.labelColor, letterSpacing: 1.4, textTransform: 'uppercase', marginBottom: 32 },
 
   iconCircle: {
-    width: 64, height: 64, borderRadius: 32,
+    width: 64, height: 64, borderRadius: Radius.md,
     backgroundColor: Colors.primaryDim, borderWidth: 1, borderColor: Colors.primaryMid,
     alignItems: 'center', justifyContent: 'center', marginBottom: 24,
   },
-  heading:    { fontFamily: FontFamily.bold, fontSize: FontSize.title, color: Colors.textPrimary, lineHeight: 36, marginBottom: 10 },
+  heading:    { fontFamily: FontFamily.monoBold, fontSize: FontSize.title, color: Colors.textPrimary, lineHeight: 36, marginBottom: 0, letterSpacing: -0.6 },
   subheading: { fontFamily: FontFamily.regular, fontSize: FontSize.body, color: Colors.textSecondary, lineHeight: 22, marginBottom: 24 },
 
-  sectionTitle: { fontFamily: FontFamily.semiBold, fontSize: FontSize.body, color: Colors.textPrimary, marginBottom: 4 },
+  sectionTitle: { fontFamily: FontFamily.monoSemiBold, fontSize: FontSize.body, color: Colors.textPrimary, marginBottom: 4, letterSpacing: -0.2 },
   sectionHint:  { fontFamily: FontFamily.regular, fontSize: FontSize.label, color: Colors.textSecondary, marginBottom: 14, lineHeight: 18 },
 
   expenseList: { gap: 12, marginBottom: 24 },
   expenseCard: {
     backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border,
-    borderRadius: Radius.lg, paddingHorizontal: 16, paddingVertical: 4,
+    borderRadius: Radius.md, paddingHorizontal: 16, paddingVertical: 4,
   },
   labelRow:    { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14 },
   rowIcon: {
@@ -448,15 +462,15 @@ const styles = StyleSheet.create({
 
   expenseDivider: { height: 1, backgroundColor: Colors.borderSubtle },
   amountRow:   { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 14 },
-  dollarSign:  { fontFamily: FontFamily.semiBold, fontSize: FontSize.subtitle, color: Colors.textSecondary },
-  amountInput: { flex: 1, fontFamily: FontFamily.bold, fontSize: FontSize.subtitle, color: Colors.textPrimary, paddingVertical: 0 },
+  dollarSign:  { fontFamily: FontFamily.monoSemiBold, fontSize: FontSize.subtitle, color: Colors.textSecondary },
+  amountInput: { flex: 1, fontFamily: FontFamily.monoBold, fontSize: FontSize.subtitle, color: Colors.textPrimary, paddingVertical: 0 },
   freqChip: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
     backgroundColor: Colors.surfaceHigh, borderRadius: Radius.pill,
     paddingHorizontal: 14, paddingVertical: 9, borderWidth: 1, borderColor: Colors.border,
   },
-  freqText:     { fontFamily: FontFamily.medium, fontSize: FontSize.label, color: Colors.primary },
-  monthlyEquiv: { fontFamily: FontFamily.regular, fontSize: FontSize.caption, color: Colors.textSecondary, paddingBottom: 12 },
+  freqText:     { fontFamily: FontFamily.monoSemiBold, fontSize: FontSize.caption, color: Colors.primary, letterSpacing: 0.3 },
+  monthlyEquiv: { fontFamily: FontFamily.monoRegular, fontSize: FontSize.caption, color: Colors.textSecondary, paddingBottom: 12 },
 
   addRowBtn: {
     width: 38, height: 38, borderRadius: 19,
@@ -467,16 +481,16 @@ const styles = StyleSheet.create({
   completedCard: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
     backgroundColor: Colors.surfaceHigh, borderWidth: 1, borderColor: Colors.border,
-    borderRadius: Radius.lg, paddingHorizontal: 16, paddingVertical: 14,
+    borderRadius: Radius.md, paddingHorizontal: 16, paddingVertical: 14,
   },
   completedInfo:  { flex: 1 },
   completedLabel: { fontFamily: FontFamily.semiBold, fontSize: FontSize.body, color: Colors.textPrimary, marginBottom: 2 },
-  completedMeta:  { fontFamily: FontFamily.regular, fontSize: FontSize.caption, color: Colors.textSecondary },
+  completedMeta:  { fontFamily: FontFamily.monoRegular, fontSize: FontSize.caption, color: Colors.textSecondary },
 
   addBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 8, justifyContent: 'center',
     backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border,
-    borderRadius: Radius.lg, paddingVertical: 16, borderStyle: 'dashed',
+    borderRadius: Radius.md, paddingVertical: 16, borderStyle: 'dashed',
   },
   addBtnDisabled:     { opacity: 0.6 },
   addBtnText:         { fontFamily: FontFamily.semiBold, fontSize: FontSize.body, color: Colors.primary },
@@ -484,22 +498,23 @@ const styles = StyleSheet.create({
 
   totalCard: {
     backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.primaryMid,
-    borderRadius: Radius.lg, padding: Spacing.cardPad, marginBottom: 24,
+    borderRadius: Radius.md, padding: Spacing.cardPad, marginBottom: 24,
   },
-  totalLabel: { ...SectionLabel, fontSize: 10, marginBottom: 6 },
-  totalValue: { fontFamily: FontFamily.bold, fontSize: FontSize.cardNumber, color: Colors.primary, letterSpacing: -0.5 },
-  totalSub:   { fontFamily: FontFamily.regular, fontSize: FontSize.body, color: Colors.textSecondary },
+  totalLabel: { ...sectionLabel(Colors), fontFamily: FontFamily.monoSemiBold, fontSize: 10, marginBottom: 6 },
+  totalValue: { fontFamily: FontFamily.monoBold, fontSize: FontSize.cardNumber, color: Colors.primary, letterSpacing: -1 },
+  totalSub:   { fontFamily: FontFamily.monoRegular, fontSize: FontSize.body, color: Colors.textSecondary },
 
   button: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
     backgroundColor: Colors.primary, borderRadius: Radius.md, paddingVertical: 17,
+    shadowColor: Colors.primary, shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.4, shadowRadius: 12, elevation: 12,
   },
-  buttonText: { fontFamily: FontFamily.semiBold, fontSize: FontSize.body, color: Colors.background },
+  buttonText: { fontFamily: FontFamily.semiBold, fontSize: FontSize.body, color: Colors.onPrimary },
 
   // Frequency dropdown
   modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
   modalSheet: {
-    backgroundColor: Colors.surface, borderTopLeftRadius: Radius.xl, borderTopRightRadius: Radius.xl,
+    backgroundColor: Colors.surface, borderTopLeftRadius: Radius.lg, borderTopRightRadius: Radius.lg,
     borderWidth: 1, borderColor: Colors.border,
     paddingHorizontal: Spacing.screenH, paddingTop: 10, paddingBottom: 36,
   },
@@ -507,10 +522,10 @@ const styles = StyleSheet.create({
     alignSelf: 'center', width: 40, height: 4, borderRadius: 2,
     backgroundColor: Colors.border, marginBottom: 14,
   },
-  modalTitle: { fontFamily: FontFamily.bold, fontSize: FontSize.subtitle, color: Colors.textPrimary, marginBottom: 12 },
+  modalTitle: { fontFamily: FontFamily.monoBold, fontSize: FontSize.subtitle, color: Colors.textPrimary, marginBottom: 12, letterSpacing: -0.4 },
   freqOption: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingVertical: 15, paddingHorizontal: 16, borderRadius: Radius.md, marginBottom: 6,
+    paddingVertical: 15, paddingHorizontal: 16, borderRadius: Radius.sm, marginBottom: 6,
     borderWidth: 1, borderColor: 'transparent',
   },
   freqOptionActive: { backgroundColor: Colors.primaryDim, borderColor: Colors.primaryMid },

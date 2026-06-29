@@ -10,6 +10,11 @@ import {
   Inter_700Bold,
 } from '@expo-google-fonts/inter';
 import {
+  JetBrainsMono_400Regular,
+  JetBrainsMono_600SemiBold,
+  JetBrainsMono_700Bold,
+} from '@expo-google-fonts/jetbrains-mono';
+import {
   NotoSansGurmukhi_400Regular,
   NotoSansGurmukhi_700Bold,
 } from '@expo-google-fonts/noto-sans-gurmukhi';
@@ -20,15 +25,39 @@ import {
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
+import { PostHogProvider } from 'posthog-react-native';
 import { initDatabase } from './src/db/database';
+import { loadCachedMarketConfig, refreshMarketConfig } from './src/lib/marketConfig';
 import { AuthProvider } from './src/contexts/AuthContext';
 import { SubscriptionProvider } from './src/contexts/SubscriptionContext';
 import { PaywallProvider } from './src/contexts/PaywallContext';
 import RootNavigator from './src/navigation/RootNavigator';
 import { Colors } from './src/theme/theme';
+import { ThemeProvider, useTheme } from './src/theme/ThemeContext';
 import { initI18n, getSavedLanguage, SupportedLanguage } from './src/lib/i18n';
+import { posthog } from './src/lib/analytics';
+import * as Sentry from '@sentry/react-native';
 
-export default function App() {
+Sentry.init({
+  dsn: 'https://c923a87f3ef94559c465375afb5e69bf@o4511626557587456.ingest.us.sentry.io/4511626562568192',
+
+  // Adds more context data to events (IP address, cookies, user, etc.)
+  // For more information, visit: https://docs.sentry.io/platforms/react-native/data-management/data-collected/
+  sendDefaultPii: true,
+
+  // Enable Logs
+  enableLogs: true,
+
+  // Configure Session Replay
+  replaysSessionSampleRate: 0.1,
+  replaysOnErrorSampleRate: 1,
+  integrations: [Sentry.mobileReplayIntegration(), Sentry.feedbackIntegration()],
+
+  // uncomment the line below to enable Spotlight (https://spotlightjs.com)
+  // spotlight: __DEV__,
+});
+
+function App() {
   const [dbReady,    setDbReady]    = useState(false);
   const [i18nReady,  setI18nReady]  = useState(false);
 
@@ -38,6 +67,10 @@ export default function App() {
     Inter_500Medium,
     Inter_600SemiBold,
     Inter_700Bold,
+    // JetBrains Mono — Freight Terminal aesthetic headings
+    JetBrainsMono_400Regular,
+    JetBrainsMono_600SemiBold,
+    JetBrainsMono_700Bold,
     // Noto Sans Gurmukhi — Punjabi
     NotoSansGurmukhi_400Regular,
     NotoSansGurmukhi_700Bold,
@@ -50,6 +83,10 @@ export default function App() {
   useEffect(() => {
     try {
       initDatabase();
+      // Apply the last-known fair-market baseline immediately, then refresh from
+      // Supabase in the background (refinement #3a). Both no-op gracefully.
+      loadCachedMarketConfig();
+      refreshMarketConfig().catch(() => {});
     } catch (e) {
       console.error('DB init failed:', e);
     } finally {
@@ -76,17 +113,37 @@ export default function App() {
   }
 
   return (
+    <Sentry.ErrorBoundary>
     <SafeAreaProvider>
-      <AuthProvider>
-        <SubscriptionProvider>
-          <PaywallProvider>
-            <NavigationContainer>
-              <StatusBar style="light" />
-              <RootNavigator />
-            </NavigationContainer>
-          </PaywallProvider>
-        </SubscriptionProvider>
-      </AuthProvider>
+      <ThemeProvider>
+        <PostHogProvider
+          client={posthog}
+          autocapture={{
+            captureScreens: false,
+            captureTouches: false,
+          }}
+        >
+          <AuthProvider>
+            <SubscriptionProvider>
+              <PaywallProvider>
+                <NavigationContainer>
+                  <ThemedStatusBar />
+                  <RootNavigator />
+                </NavigationContainer>
+              </PaywallProvider>
+            </SubscriptionProvider>
+          </AuthProvider>
+        </PostHogProvider>
+      </ThemeProvider>
     </SafeAreaProvider>
+    </Sentry.ErrorBoundary>
   );
 }
+
+// Status bar follows the active theme (light icons on dark, dark icons on light).
+function ThemedStatusBar() {
+  const { isDark } = useTheme();
+  return <StatusBar style={isDark ? 'light' : 'dark'} />;
+}
+
+export default Sentry.wrap(App);

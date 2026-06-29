@@ -5,8 +5,13 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
-import { Colors, FontFamily, FontSize, Spacing, Radius } from '../theme/theme';
+import { FontFamily, FontSize, Spacing, Radius, ThemeColors } from '../theme/theme';
+import { useTheme } from '../theme/ThemeContext';
 import { useSubscription } from '../contexts/SubscriptionContext';
+import { capture } from '../lib/analytics';
+import GridBackground from '../components/GridBackground';
+import AccentRule from '../components/AccentRule';
+import { getValueMissedStats, ValueMissedStats } from '../db/database';
 
 export type PaywallReason =
   | 'generic'
@@ -14,13 +19,25 @@ export type PaywallReason =
   | 'loadLimit'
   | 'history'
   | 'ifta'
-  | 'export';
+  | 'export'
+  | 'analytics';
 
 const URL_TERMS   = 'https://truckernet.novaboostlabs.co/terms';
 const URL_PRIVACY = 'https://truckernet.novaboostlabs.co/privacy';
 
-const PRICE_MONTHLY = '$34.99';
-const PRICE_ANNUAL  = '$297.99';
+// Fallbacks only — real prices come live from RevenueCat (see useSubscription).
+// Used in Expo Go / before offerings load so the screen never renders blank.
+const FALLBACK_MONTHLY = { priceString: '$34.99',  price: 34.99 };
+const FALLBACK_ANNUAL  = { priceString: '$297.99', price: 297.99 };
+
+// Format a derived amount (per-month equivalent, savings) reusing the currency
+// symbol/placement of a store-provided localized price string, so $/€/£ all work
+// without depending on Intl currency support in Hermes.
+function priceLike(template: string, amount: number): string {
+  const m = template.match(/^(\D*)([\d.,]+)(\D*)$/);
+  if (!m) return `$${amount.toFixed(2)}`;
+  return `${m[1]}${amount.toFixed(2)}${m[3]}`;
+}
 
 type FeatureKey = 'fairMarket' | 'unlimitedLoads' | 'history' | 'ifta' | 'sync' | 'analytics';
 
@@ -50,6 +67,7 @@ const REASON_CONFIG: Record<PaywallReason, {
   history:    { titleKey: 'paywall.titleHistory',       heroIcon: 'calendar-outline',    highlight: 'history' },
   ifta:       { titleKey: 'paywall.titleIfta',          heroIcon: 'map-outline',         highlight: 'ifta' },
   export:     { titleKey: 'paywall.titleExport',        heroIcon: 'download-outline',    highlight: 'ifta' },
+  analytics:  { titleKey: 'paywall.titleAnalytics',     heroIcon: 'stats-chart-outline', highlight: 'analytics' },
 };
 
 interface Props {
@@ -58,12 +76,35 @@ interface Props {
 }
 
 export default function PaywallScreen({ onClose, reason = 'generic' }: Props) {
+  const { colors: Colors } = useTheme();
+  const styles = useMemo(() => makeStyles(Colors), [Colors]);
   const { t } = useTranslation();
-  const { isPro, purchase, restore } = useSubscription();
+  const { isPro, purchase, restore, pricing, trialEligible } = useSubscription();
   const [plan, setPlan] = useState<'annual' | 'monthly'>('annual');
   const [busy, setBusy] = useState(false);
 
   const config = REASON_CONFIG[reason];
+
+  // Value-missed stats — computed once when the paywall opens.
+  // Only shown for fairMarket and loadLimit reasons where we have real numbers.
+  const valueMissed = useMemo<ValueMissedStats | null>(() => {
+    if (reason !== 'fairMarket' && reason !== 'loadLimit' && reason !== 'generic') return null;
+    const stats = getValueMissedStats(30); // last 30 days
+    return stats.lowballCount > 0 ? stats : null;
+  }, [reason]);
+
+  // Live store prices with safe fallbacks.
+  const monthly = pricing.monthly ?? FALLBACK_MONTHLY;
+  const annual  = pricing.annual  ?? FALLBACK_ANNUAL;
+
+  // Derived figures, computed from the real numbers — never hardcoded.
+  const annualPerMonth = priceLike(annual.priceString, annual.price / 12);
+  const savingsPct     = monthly.price > 0
+    ? Math.round((1 - annual.price / (monthly.price * 12)) * 100)
+    : 0;
+
+  // Only promise a free trial when the selected plan is actually eligible.
+  const trialOnPlan = plan === 'annual' ? trialEligible.annual : trialEligible.monthly;
 
   // Put the triggered feature first, then the rest in original order.
   const features = useMemo(() => {
@@ -77,6 +118,7 @@ export default function PaywallScreen({ onClose, reason = 'generic' }: Props) {
     : t(`paywall.reason.${reason}`);
 
   async function handlePurchase() {
+    capture('upgrade_tapped', { plan, reason });
     setBusy(true);
     const { error } = await purchase(plan);
     setBusy(false);
@@ -84,6 +126,7 @@ export default function PaywallScreen({ onClose, reason = 'generic' }: Props) {
       Alert.alert(t('paywall.comingSoonTitle'), error);
       return;
     }
+    capture('subscription_purchased', { plan, reason });
     onClose();
   }
 
@@ -93,13 +136,17 @@ export default function PaywallScreen({ onClose, reason = 'generic' }: Props) {
       error ? t('paywall.comingSoonTitle') : t('paywall.restoredTitle'),
       error ?? t('paywall.restoredBody'),
     );
-    if (!error) onClose();
+    if (!error) {
+      capture('subscription_restored');
+      onClose();
+    }
   }
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+      <GridBackground />
       {/* Close button */}
-      <TouchableOpacity style={styles.closeBtn} onPress={onClose} activeOpacity={0.7}>
+      <TouchableOpacity style={styles.closeBtn} onPress={() => { capture('paywall_dismissed', { reason }); onClose(); }} activeOpacity={0.7}>
         <Ionicons name="close" size={20} color={Colors.textSecondary} />
       </TouchableOpacity>
 
@@ -116,7 +163,24 @@ export default function PaywallScreen({ onClose, reason = 'generic' }: Props) {
         </View>
 
         <Text style={styles.title}>{t(config.titleKey)}</Text>
-        <Text style={styles.subtitle}>{subtitle}</Text>
+        <AccentRule style={{ marginTop: 10, marginBottom: 14 }} />
+
+        {/* Value-missed callout — replaces generic subtitle when we have real numbers */}
+        {valueMissed ? (
+          <View style={styles.valueMissedCard}>
+            <Text style={styles.valueMissedNumber}>
+              ${valueMissed.estimatedLost.toLocaleString('en-US')}
+            </Text>
+            <Text style={styles.valueMissedLabel}>
+              {t('paywall.valueMissed', {
+                count: valueMissed.lowballCount,
+                amount: `$${valueMissed.estimatedLost.toLocaleString('en-US')}`,
+              })}
+            </Text>
+          </View>
+        ) : (
+          <Text style={styles.subtitle}>{subtitle}</Text>
+        )}
 
         {/* Already Pro short-circuit */}
         {isPro && (
@@ -173,25 +237,27 @@ export default function PaywallScreen({ onClose, reason = 'generic' }: Props) {
           selected={plan === 'annual'}
           onPress={() => setPlan('annual')}
           title={t('paywall.planAnnual')}
-          price={PRICE_ANNUAL}
+          price={annual.priceString}
           unit={t('paywall.perYear')}
-          sublabel={t('paywall.annualMonthly')}
+          sublabel={t('paywall.annualMonthly', { price: annualPerMonth })}
           badge={t('paywall.bestValue')}
-          savingsBadge={t('paywall.saveBadge')}
+          savingsBadge={savingsPct > 0 ? t('paywall.saveBadge', { pct: savingsPct }) : undefined}
         />
         <PlanOption
           selected={plan === 'monthly'}
           onPress={() => setPlan('monthly')}
           title={t('paywall.planMonthly')}
-          price={PRICE_MONTHLY}
+          price={monthly.priceString}
           unit={t('paywall.perMonth')}
         />
 
-        {/* ── Trial note ── */}
-        <View style={styles.trialNote}>
-          <Ionicons name="gift-outline" size={15} color={Colors.primary} />
-          <Text style={styles.trialNoteText}>{t('paywall.trialBadge')}</Text>
-        </View>
+        {/* ── Trial note (only when the selected plan still offers a trial) ── */}
+        {trialOnPlan && (
+          <View style={styles.trialNote}>
+            <Ionicons name="gift-outline" size={15} color={Colors.primary} />
+            <Text style={styles.trialNoteText}>{t('paywall.trialBadge')}</Text>
+          </View>
+        )}
 
         {/* ── CTA ── */}
         <TouchableOpacity
@@ -201,16 +267,21 @@ export default function PaywallScreen({ onClose, reason = 'generic' }: Props) {
           disabled={busy}
         >
           <Text style={styles.ctaText}>
-            {busy ? t('common.loading') : t('paywall.ctaTrial')}
+            {busy
+              ? t('common.loading')
+              : trialOnPlan ? t('paywall.ctaTrial') : t('paywall.ctaSubscribe')}
           </Text>
         </TouchableOpacity>
 
         <Text style={styles.ctaSub}>
-          {t('paywall.ctaThen', {
-            price: plan === 'annual'
-              ? `${PRICE_ANNUAL}${t('paywall.perYear')}`
-              : `${PRICE_MONTHLY}${t('paywall.perMonth')}`,
-          })}
+          {(() => {
+            const price = plan === 'annual'
+              ? `${annual.priceString}${t('paywall.perYear')}`
+              : `${monthly.priceString}${t('paywall.perMonth')}`;
+            return trialOnPlan
+              ? t('paywall.ctaThen', { price })
+              : t('paywall.ctaPriceLine', { price });
+          })()}
         </Text>
 
         {/* ── Trust strip ── */}
@@ -262,6 +333,8 @@ interface PlanOptionProps {
 }
 
 function PlanOption({ selected, onPress, title, price, unit, sublabel, badge, savingsBadge }: PlanOptionProps) {
+  const { colors: Colors } = useTheme();
+  const styles = useMemo(() => makeStyles(Colors), [Colors]);
   return (
     <TouchableOpacity
       style={[styles.plan, selected && styles.planSelected]}
@@ -297,7 +370,7 @@ function PlanOption({ selected, onPress, title, price, unit, sublabel, badge, sa
 
 // ── Styles ───────────────────────────────────────────────────────────────────
 
-const styles = StyleSheet.create({
+const makeStyles = (Colors: ThemeColors) => StyleSheet.create({
   safe:    { flex: 1, backgroundColor: Colors.background },
 
   closeBtn: {
@@ -329,12 +402,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14, paddingVertical: 5,
   },
   proBadgeText: {
-    fontFamily: FontFamily.bold, fontSize: FontSize.micro,
-    color: Colors.background, letterSpacing: 2,
+    fontFamily: FontFamily.monoBold, fontSize: FontSize.micro,
+    color: Colors.onPrimary, letterSpacing: 2,
   },
 
   title: {
-    fontFamily: FontFamily.bold, fontSize: 26,
+    fontFamily: FontFamily.monoBold, fontSize: 26,
     color: Colors.textPrimary, textAlign: 'center',
     marginBottom: 8, letterSpacing: -0.3,
   },
@@ -344,6 +417,21 @@ const styles = StyleSheet.create({
     lineHeight: 22, marginBottom: 28, paddingHorizontal: 8,
   },
 
+  // Value-missed callout — replaces subtitle when real lowball data exists.
+  valueMissedCard: {
+    backgroundColor: Colors.dangerDim, borderWidth: 1, borderColor: Colors.danger + '40',
+    borderRadius: Radius.md, paddingHorizontal: 20, paddingVertical: 14,
+    alignItems: 'center', marginBottom: 28,
+  },
+  valueMissedNumber: {
+    fontFamily: FontFamily.monoBold, fontSize: 36, color: Colors.danger,
+    letterSpacing: -1, marginBottom: 6,
+  },
+  valueMissedLabel: {
+    fontFamily: FontFamily.regular, fontSize: FontSize.body,
+    color: Colors.textSecondary, textAlign: 'center', lineHeight: 20,
+  },
+
   alreadyProCard: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
     backgroundColor: Colors.primaryDim, borderWidth: 1, borderColor: Colors.primaryMid,
@@ -351,14 +439,14 @@ const styles = StyleSheet.create({
     alignSelf: 'stretch', marginBottom: 20,
   },
   alreadyProText: {
-    fontFamily: FontFamily.semiBold, fontSize: FontSize.label, color: Colors.primary,
+    fontFamily: FontFamily.monoSemiBold, fontSize: FontSize.label, color: Colors.primary,
   },
 
   // Feature list
   featureCard: {
     alignSelf: 'stretch', backgroundColor: Colors.surface,
     borderWidth: 1, borderColor: Colors.border,
-    borderRadius: Radius.lg, paddingHorizontal: Spacing.cardPad,
+    borderRadius: Radius.md, paddingHorizontal: Spacing.cardPad,
     marginBottom: 16, overflow: 'hidden',
   },
   featureRow: {
@@ -379,7 +467,7 @@ const styles = StyleSheet.create({
   featureIconHighlight: { backgroundColor: Colors.secondaryDim },
   featureText: { flex: 1 },
   featureTitle: {
-    fontFamily: FontFamily.semiBold, fontSize: FontSize.body,
+    fontFamily: FontFamily.monoSemiBold, fontSize: FontSize.body,
     color: Colors.textPrimary, marginBottom: 2,
   },
   featureTitleHighlight: { color: Colors.secondary },
@@ -391,8 +479,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 7, paddingVertical: 3,
   },
   featureNewBadgeText: {
-    fontFamily: FontFamily.bold, fontSize: 9,
-    color: Colors.background, letterSpacing: 0.5, textTransform: 'uppercase',
+    fontFamily: FontFamily.monoBold, fontSize: 9,
+    color: Colors.onPrimary, letterSpacing: 0.5, textTransform: 'uppercase',
   },
 
   // ROI callout
@@ -412,7 +500,7 @@ const styles = StyleSheet.create({
   plan: {
     alignSelf: 'stretch', flexDirection: 'row', alignItems: 'center', gap: 14,
     backgroundColor: Colors.surface, borderWidth: 1.5, borderColor: Colors.border,
-    borderRadius: Radius.lg, padding: 16, marginBottom: 10,
+    borderRadius: Radius.md, padding: 16, marginBottom: 10,
   },
   planSelected: { borderColor: Colors.primary, backgroundColor: Colors.primaryDim },
   radio: {
@@ -424,15 +512,15 @@ const styles = StyleSheet.create({
   planInfo:     { flex: 1 },
   planTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' },
   planTitle: {
-    fontFamily: FontFamily.semiBold, fontSize: FontSize.body, color: Colors.textPrimary,
+    fontFamily: FontFamily.monoSemiBold, fontSize: FontSize.body, color: Colors.textPrimary,
   },
   planBestValue: {
     backgroundColor: Colors.primary, borderRadius: Radius.sm,
     paddingHorizontal: 6, paddingVertical: 2,
   },
   planBestValueText: {
-    fontFamily: FontFamily.bold, fontSize: 9,
-    color: Colors.background, letterSpacing: 0.8,
+    fontFamily: FontFamily.monoBold, fontSize: 9,
+    color: Colors.onPrimary, letterSpacing: 0.8,
   },
   planSavings: {
     backgroundColor: Colors.secondaryDim, borderRadius: Radius.sm,
@@ -440,7 +528,7 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: Colors.secondary + '40',
   },
   planSavingsText: {
-    fontFamily: FontFamily.bold, fontSize: 9, color: Colors.secondary, letterSpacing: 0.5,
+    fontFamily: FontFamily.monoBold, fontSize: 9, color: Colors.secondary, letterSpacing: 0.5,
   },
   planSub: {
     fontFamily: FontFamily.regular, fontSize: FontSize.caption,
@@ -448,7 +536,7 @@ const styles = StyleSheet.create({
   },
   planPriceWrap: { alignItems: 'flex-end' },
   planPrice: {
-    fontFamily: FontFamily.bold, fontSize: FontSize.subtitle, color: Colors.textPrimary,
+    fontFamily: FontFamily.monoBold, fontSize: FontSize.subtitle, color: Colors.textPrimary,
   },
   planUnit: {
     fontFamily: FontFamily.regular, fontSize: FontSize.caption, color: Colors.textSecondary,
@@ -471,7 +559,7 @@ const styles = StyleSheet.create({
   },
   ctaDisabled: { opacity: 0.6 },
   ctaText: {
-    fontFamily: FontFamily.bold, fontSize: FontSize.body, color: Colors.background,
+    fontFamily: FontFamily.monoBold, fontSize: FontSize.body, color: Colors.onPrimary,
   },
   ctaSub: {
     fontFamily: FontFamily.regular, fontSize: FontSize.caption,

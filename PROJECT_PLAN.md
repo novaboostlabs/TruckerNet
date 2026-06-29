@@ -16,7 +16,7 @@
 > branch and push `main`** so the user's build always reflects the latest.
 > (Decided 2026-06-19 after changes weren't appearing because `main` was stale.)
 
-_Last updated: 2026-06-24 — Load-attached expenses built (#11). Scale/toll/lumper/detention chips in Add Load. Net pay recalculated including expenses. Itemized in Load Detail. Supabase sync wired. USER must run migration: `supabase/migrations/2026-06-24_load_expenses.sql`. Remaining: aesthetic redesign, Supabase Realtime._ Community rates from `rate_reports` Supabase table (opt-out, anonymous, 90-day rolling, min 3 reports). Personal lane history from local DB. Both surfaces in CheckLoad + AddLoad. Settings toggle. All 4 languages at parity. USER must run migration: `supabase/migrations/2026-06-23_rate_reports.sql`. NEXT: RevenueCat products in App Store Connect → ping to wire real SDK; DNS/Terms/Privacy/email alias._
+_Last updated: 2026-06-29 — MASSIVE session. Full Freight Terminal aesthetic redesign (entire app, light+dark theme system), fair-market formula complete (#1–4), haptics, PostHog full funnel instrumentation, broker scorecard, re-engagement notifications (smart weekly + streak + idle), tax set-aside, value-based paywall conversion, standalone one-off expenses, personal nearby-lane history (50mi radius), category-aware expense aging, dynamic break-even (all 3 components), dashboard layout overhaul. RevenueCat live SDK key wired. All 8 Supabase migrations applied by user. See §6 Work Log below for full details._
 
 > **Backend sync state:** Sync is **local-first** — SQLite is source of truth;
 > push on save, pull on sign-in. All 3 slices wired: expenses + fuel + loads.
@@ -170,12 +170,11 @@ do not start these until the user calls for them. Newest batch first.
     smart defaulting: if there's already an in-progress load, default to "completed"
     (they're probably logging a finished run); otherwise default to "upcoming".
 
-1. **Per-session data congruency / one source of truth.** Expenses page shows
-   conflicting info entered across different sessions (e.g. fuel added one session,
-   insurance another, now conflicting). Each app session should be a clean slate
-   until an account is created; once an account exists, all the user's data
-   consolidates onto that one account (the Uber/Partiful model). Tie-in with the
-   local-first sync work.
+1. ✅ **Per-session data congruency / one source of truth** — done 2026-06-26 (B4).
+   Root cause was cross-account contamination on reconcile: a session ending via expiry
+   (not explicit sign-out) left local data that could be pushed into a different account's
+   empty cloud. Fixed with explicit `data_owner_id` ownership (`claimDataOwnership`) — the
+   Uber/Partiful model. See Work Log 2026-06-26 "B4 fix".
 2. ✅ **Auto per-state mileage on Add Load** — done 2026-06-20. Mapbox now returns
    full route geometry (`overview=full&geometries=geojson`). `src/lib/stateSplit.ts`
    converts `us-atlas/states-10m.json` TopoJSON → GeoJSON at startup (via
@@ -478,6 +477,8 @@ calibration = future.
   as an alias on your existing account. All emails land in your normal inbox.
 - [ ] **Update App Store listing** (when ready): use `truckernet.novaboostlabs.co`
   as the Support URL and Privacy Policy URL — Apple and Google both require these.
+- [x] **Supabase migrations applied (2026-06-25):** `2026-06-22_loads_bol_photo.sql`, `2026-06-23_rate_reports.sql`, `2026-06-24_load_expenses.sql`
+- [x] **Edge functions deployed (2026-06-25):** `ocr-fuel-receipt`, `ocr-bol` — `ANTHROPIC_API_KEY` secret set.
 
 **Phase 2 (after all Phase 1 bugs cleared):**
 - Aesthetic redesign (Partiful/Wise/Calm-tier polish)
@@ -543,7 +544,7 @@ calibration = future.
 | B1 | **Add Load status defaults to "completed"** — every new load starts with the wrong status | Immediate UX confusion on the single most-used flow |
 | B2 | **Demo data flashes on first paint of each tab** before real data loads | Looks buggy; undermines trust |
 | B3 | **Onboarding break-even result screen** shows `—` for fixed-cost component of the formula | The payoff moment of onboarding looks broken |
-| B4 | **Per-session data congruency** — conflicting expense data appears across sessions on the same account | Corrupts the driver's break-even number silently |
+| B4 | ✅ Done 2026-06-26 — **Per-session data congruency** fixed via `data_owner_id` ownership (cross-account contamination on expiry-reconcile). See Work Log. | Corrupts the driver's break-even number silently |
 
 #### Features that complete the core loop
 
@@ -559,23 +560,47 @@ an app that *records* and an app that *motivates*. Without it, there is no reaso
 open the app on days you aren't logging a load — the primary retention lever identified
 in the PRD.
 
-**Analytics charts**
-At minimum two charts: (1) net pay trend over the last 8–12 weeks (bar chart), and
-(2) cost breakdown showing what share of gross goes to fuel / fixed / per-load expenses.
-This is what makes Pro worth paying for over Free. Right now the tier difference is
-mostly access, not intelligence. Charts are the "aha" moment that justifies renewal.
+**Analytics charts** ✅ Done 2026-06-25
+Two charts on Dashboard, both Pro-gated with a paywall overlay for free users:
+1. Net Pay Trend — 12-week SVG bar chart (green/red per week, zero baseline)
+2. Cost Breakdown — stacked horizontal bar (fuel/fixed/expenses/net) + legend with % of gross
+Used `react-native-svg` (installed). New DB functions: `getWeeklyNetTrend()`, `getCostBreakdown()`.
+Added `'analytics'` PaywallReason and translations in all 4 languages.
 
-**IFTA PDF export**
-CSV export is built. But IFTA is a flagship differentiator — "never do IFTA by hand
-again" — and truckers hand their accountant a document, not a spreadsheet. Without PDF,
-the feature is commercially incomplete. Q1 is IFTA filing season; this needs to exist.
+**IFTA PDF export** ✅ Done 2026-06-25
+`expo-print` + `expo-sharing`. Export button now opens an action sheet (iOS) / Alert (Android)
+with "Export PDF" and "Export CSV" options. PDF is a professional HTML-rendered document:
+TRUCKERNET header with amber accent, Q/year + date range, 4-stat summary (miles, gallons,
+MPG, states), per-state table, totals row, disclaimer. File shared via native share sheet.
 
-**Pre-onboarding walkthrough + driver profile**
-3–4 illustrated screens before sign-up that explain what TruckerNet does ("Know your
-true net pay," "Auto-build your IFTA," "See if a load is worth it"). Then a profile
-setup screen: driver name, home base city/state, primary equipment type. Without this,
-cold installs from TikTok or Reddit don't understand the value before they bounce.
-Profile also seeds equipment type so Add Load auto-defaults — small but polished.
+**Pre-onboarding walkthrough** ◐ Walkthrough done 2026-06-26 (profile + auth reorder pending)
+4-screen swipeable walkthrough before sign-in, using mock product UI (not illustrations)
+so drivers see the real app before committing:
+1. **How it works** — the mechanic shown as a 3-step flow: costs → break-even ($2.18/mi)
+   → verdict (TAKE IT ✓). Primes the onboarding questions that come right after.
+2. **Check Load** — mock result card: $1,247 net · $2.97/mi · above break-even.
+3. **Fair Market Price** — $1,800 offered vs $2,050–$2,300 fair market → "below market" pill.
+4. **IFTA files itself** — mini state table + "ready to export." Footer becomes the
+   primary CTA: Get Started / I already have an account / Explore without an account.
+Files: `src/screens/walkthrough/WalkthroughScreen.tsx`. Wired into `RootNavigator` as a
+new `'walkthrough'` step between language and sign-in; shown once (flag `walkthrough_seen`
+in settings, survives sign-out, resets only on reinstall). All 4 languages.
+
+✅ DONE 2026-06-26 (see Work Log 2026-06-26 §A):
+- **Auth flow reorder** ✅ — sign-up/login now runs AFTER onboarding + break-even result,
+  before the dashboard. RootNavigator session effect handles post-auth onboarding-flag +
+  expense push.
+- **Driver profile setup** ✅ — `ProfileSetupScreen` (name, equipment type incl. Intermodal
+  Container + Car Transport, truck number, home base). Runs after the break-even result.
+  (Not yet wired to personalize Add Load defaults / Dashboard greeting — profile data is
+  stored but not yet consumed. Follow-up.)
+- **Welcome page** ✅ — language picker became a real welcome screen with live language switching.
+
+STILL PENDING:
+- Guest mode ("Explore without an account") to be REMOVED before launch (kept now for review).
+- Consume profile data: ✅ greet by name on Dashboard + ✅ pre-fill equipment type on Add
+  Load (done 2026-06-26). STILL OPEN: sync profile fields to Supabase `profiles`.
+- Dashboard goal-hero "Monday-zero" empty-state framing: ✅ done 2026-06-26.
 
 #### Growth infrastructure
 
@@ -605,15 +630,16 @@ at launch. This is infrastructure, not a feature, but it is not optional in prod
 | Bug: status default (B1) | XS | Polish — wrong on every new load |
 | Bug: demo data flash (B2) | XS | Looks broken |
 | Bug: onboarding formula (B3) | XS | Payoff moment looks broken |
-| Bug: session data congruency (B4) | S | Silently corrupts break-even |
-| History search | S–M | Table-stakes once loads accumulate |
-| Income goal tracker | M | Primary retention mechanic |
-| Analytics charts | M | Makes Pro worth $34.99/mo |
-| IFTA PDF export | M | Completes flagship feature |
-| Pre-onboarding walkthrough + profile | M | Cold install conversion |
+| Bug: session data congruency (B4) | S | ✅ Done 2026-06-26 — data_owner_id ownership fix |
+| History search | S–M | ✅ Done 2026-06-25 |
+| ~~Income goal tracker~~ | ~~M~~ | ✅ Done 2026-06-25 |
+| Analytics charts | M | ✅ Done 2026-06-25 |
+| IFTA PDF export | M | ✅ Done 2026-06-25 |
+| Pre-onboarding walkthrough | M | ✅ Done 2026-06-26 — walkthrough + welcome page + profile setup + auth-after-onboarding all shipped |
+| Monetization completion (usage meter, dynamic pricing, trial eligibility) | M | ✅ Done 2026-06-26 — needs store config (§5.6) + real-build verification |
 | Referral program | M | Organic growth from day one |
-| PostHog | S | Can't improve what you can't see |
-| Sentry | S | Error visibility in production |
+| PostHog | S | ✅ Done 2026-06-25 |
+| Sentry | S | ✅ Done 2026-06-25 |
 
 ---
 
@@ -695,7 +721,610 @@ app has proven product-market fit.
 
 ---
 
+## 5.6 🔑 RevenueCat + App Store Connect Setup (USER action — gates all revenue)
+
+> The monetization **code is done** (Work Log 2026-06-26 §C). Nothing earns money until
+> the store products + RevenueCat are configured and tested on a **real build** (Expo Go
+> cannot process purchases). This is the only thing between the app and live revenue.
+> Do the steps in order — each depends on the previous.
+
+**Reference values (code + RevenueCat dashboard now agree — confirmed 2026-06-26):**
+- Entitlement identifier: **`pro`** (display name "TruckerNet Pro")
+  (`SubscriptionContext.tsx` → `ENTITLEMENT_ID = 'pro'`; app reads `entitlements.active['pro']`).
+- Products attached to the entitlement: **`truckernet_pro_monthly`**, **`truckernet_pro_annual`**.
+- Package lookups: monthly resolves via `current.monthly` (RC "Monthly" package) or a
+  package whose identifier is `monthly`; annual via `current.annual` or identifier `yearly`.
+- Target prices (set these as the product prices): **$34.99/mo**, **$297.99/yr** (~29% off).
+- Free trial: **7-day** intro offer on **both** products (the paywall promises it).
+- iOS API key placeholder in code is a `test_` key — **replace with the live key** before
+  submission (`IOS_API_KEY`). `ANDROID_API_KEY` is empty — fill when Android is set up.
+
+### Step 1 — App Store Connect (iOS)
+- [ ] In **Apps → TruckerNet → Subscriptions**, create a **Subscription Group**
+  (e.g. "Driver Pro").
+- [ ] Add **two auto-renewable subscriptions** in that group:
+  - [ ] **Monthly** — Product ID **`truckernet_pro_monthly`**, price **$34.99/mo**.
+  - [ ] **Annual** — Product ID **`truckernet_pro_annual`**, price **$297.99/yr**.
+- [ ] On **each** product add an **Introductory Offer → Free Trial → 7 days** (new
+  subscribers). This is what makes "Start 7-Day Free Trial" real; without it the trial
+  copy auto-hides (trial-eligibility check returns ineligible/no-offer).
+- [ ] Fill required localizations, review screenshot, and the subscription
+  **Privacy/Terms** — Apple blocks the product as "Missing Metadata" otherwise.
+- [ ] Complete **Agreements, Tax, and Banking** (Paid Apps agreement active) — products
+  won't return from the store until this is signed.
+
+### Step 2 — RevenueCat dashboard  ✅ entitlement already created (2026-06-26)
+- [ ] Create the **iOS app** in RevenueCat; upload the **App Store Connect API key**
+  (In-App Purchase key) so RC can validate receipts.
+- [x] Entitlement created — identifier **`pro`**, display name **TruckerNet Pro**.
+- [x] Products **`truckernet_pro_monthly`** + **`truckernet_pro_annual`** attached to `pro`.
+  (After Step 1 creates them in App Store Connect, confirm RC imports the same Product IDs.)
+- [ ] Create an **Offering** (mark it **current**) with two **Packages**:
+  - [ ] **Monthly** package → monthly product.
+  - [ ] **Annual** package → annual product.
+  (Use RC's standard Monthly/Annual package types so `current.monthly` / `current.annual`
+  resolve; otherwise the identifier fallbacks `monthly` / `yearly` must match.)
+- [ ] Copy the **Public SDK key (iOS)** → paste into `SubscriptionContext.tsx`
+  `IOS_API_KEY`, replacing the `test_…` value.
+
+### Step 3 — Build & verify (real device, NOT Expo Go)
+- [ ] Add a **Sandbox tester** in App Store Connect (Users and Access → Sandbox).
+- [ ] Make a **dev/TestFlight build** (`eas build` — `react-native-purchases` is native and
+  absent from Expo Go; the app auto-runs mock mode there).
+- [ ] On device, open any paywall and confirm:
+  - [ ] Real **localized prices** render (not the `$34.99/$297.99` fallbacks) — proves the
+    offering loaded.
+  - [ ] **Savings badge** computes from real prices.
+  - [ ] **"Start 7-Day Free Trial"** shows for a fresh sandbox account; after using it,
+    the CTA becomes **"Subscribe"** and the gift note disappears.
+  - [ ] Purchase completes → `isPro` flips → gated features unlock (load limit, IFTA
+    export, fair-market, History past periods, analytics).
+  - [ ] **Restore Purchases** works on a reinstall.
+- [ ] Confirm the legal links resolve: `…/terms` and `…/privacy` must be live (see the DNS
+  /Terms/Privacy USER action items in §5) — Apple rejects subscriptions without them.
+
+### Step 4 (later) — Android
+- [ ] Create the same two subscriptions in **Google Play Console** with 7-day trials.
+- [ ] Add the **Android app** in RevenueCat, attach products to the same entitlement.
+- [ ] Paste the **Android public SDK key** into `ANDROID_API_KEY`.
+
+---
+
+## 5.7 📌 YOUR PERSONAL TODO — updated 2026-06-29
+
+> Status as of this session. ✅ = done, [ ] = still needed.
+
+**A. Monetization — RevenueCat + App Store**
+- [x] Agreements, Tax & Banking in App Store Connect ✅
+- [x] `truckernet_pro_monthly` ($34.99/mo) + `truckernet_pro_annual` ($297.99/yr) created in App Store Connect ✅
+- [x] 7-day free trial intro offer on both products ✅
+- [x] RevenueCat: entitlement `pro`, products attached, iOS app connected (Subscription Key uploaded), Offering built ✅
+- [x] Live iOS SDK key `appl_JvoQxWtuPHFOIitrxyHEVEmGuve` pasted into `SubscriptionContext.tsx` ✅
+- [x] iOS Sandbox tester added ✅
+- [ ] **EAS build** → `eas build --platform ios --profile preview` — run from the project directory, install on iPhone, then test: real prices, 7-day trial, purchase → Pro unlock, Restore Purchases.
+- [ ] **Google OAuth** — three steps remaining (see §G below)
+- [ ] Android: create matching subscriptions in Google Play Console, add Android app in RevenueCat, paste Android SDK key into `ANDROID_API_KEY` in `SubscriptionContext.tsx`.
+
+**A2. Supabase migrations — ALL APPLIED ✅ (2026-06-29)**
+- [x] `2026-06-26_rate_reports_type_band_idx.sql`
+- [x] `2026-06-26_rate_reports_integrity.sql`
+- [x] `2026-06-26_sync_schema_parity.sql`
+- [x] `2026-06-27_market_config.sql`
+- [x] `2026-06-28_profiles_driver_fields.sql`
+- [x] `2026-06-28_general_expenses.sql`
+- [x] `2026-06-28_loads_coordinates.sql`
+- [x] `2026-06-29_broker_reports.sql`
+
+**B. Web presence + legal — required for App Store approval**
+- [ ] **Website aesthetics** — get `novaboostlabs.co` / subdomain looking presentable first.
+- [ ] **DNS:** CNAME `truckernet` → host so `truckernet.novaboostlabs.co` resolves.
+- [ ] **Terms** page live at `truckernet.novaboostlabs.co/terms`.
+- [ ] **Privacy Policy** page live at `truckernet.novaboostlabs.co/privacy`.
+  (Apple **will not approve** subscriptions without live Terms/Privacy URLs.)
+- [ ] **Email alias** `truckernet@novaboostlabs.co` in Google Workspace admin.
+- [ ] Set Support URL + Privacy URL on the App Store listing once the above are live.
+
+**G. Google OAuth — 3 steps remaining**
+1. **Google Cloud Console** → find your OAuth Client ID → Authorized Redirect URIs → confirm this URL is listed:
+   `https://yhgluoeivobniifgbazy.supabase.co/auth/v1/callback`
+2. **Supabase** → Authentication → Providers → Google → toggle ON → paste Client ID + Secret → Save.
+3. **Supabase** → Authentication → URL Configuration → Redirect URLs → Add:
+   `truckernet://auth/callback`
+   (This is the mobile deep-link back into the app — the step most people miss.)
+   Note: Google sign-in only works in a real build (EAS), not Expo Go.
+
+---
+
 ## 6. Work Log (newest first)
+
+### 2026-06-28 — Final V1 code gaps closed: profile sync, guest removal, brand icon
+
+Three remaining code-side V1 items (everything else was store/legal user actions):
+
+**1. Profile → Supabase sync.** Driver profile (name/equipment/truck#/home base) was local-only;
+a reinstall lost it. Added migration `2026-06-28_profiles_driver_fields.sql` (4 columns on the
+existing `profiles` table) + `src/lib/sync/profileSync.ts` (push/pull/reconcile, mirrors
+expensesSync), wired `syncProfileOnSignIn` into RootNavigator's sign-in effect. Upsert only
+touches profile columns, leaving weekly_miles/weekly_fuel_cost intact. **USER must apply the migration.**
+
+**2. Guest mode removed.** "Explore without an account" stripped from Walkthrough, SignIn, SignUp;
+`enterGuestMode` + GUEST_SETTING removed from RootNavigator; profile_setup now always → signup.
+App is now account-required (the pre-launch decision). `guest_mode` setting plumbing + i18n keys
+left in place (harmless, preserves i18n parity); Settings `!user` checks kept as defensive no-ops.
+
+**3. New Freight Terminal app icon.** Old `assets/icon.png` predated the rebrand. Generated a
+brand-matched set via `scripts/gen-icons.js` (resvg + real JetBrains Mono ExtraBold): teal "TN"
+monogram, faint teal grid, amber accent bar, terminal frame on #0A0A0B. Regenerated icon.png,
+splash-icon.png, android foreground/background/monochrome, favicon.png (all correct dims, foreground
+transparent + safe-zone padded). `@resvg/resvg-js` installed --no-save (one-off build tool; PNGs are committed).
+
+**tsc 0 errors, i18n parity OK.** This closes the last V1 code work; remaining items are all
+user/store actions (§5.7) + the new profiles migration.
+
+---
+
+### 2026-06-29 — Massive feature + polish session (full summary)
+
+**CODE — all tsc clean, i18n parity OK across en/es/pa/zh throughout.**
+
+**Freight Terminal aesthetic — COMPLETE across all 21 screens + components**
+Light/dark theme system: `darkColors`/`lightColors` in theme.ts, `ThemeProvider`/`useTheme()` context,
+persisted `theme_mode` setting, System/Light/Dark toggle in Settings + Welcome screen dropdown.
+`GridBackground.tsx` (28px SVG grid, all screens), `AccentRule.tsx` (vivid amber underline, all headings),
+JetBrains Mono font added (`@expo-google-fonts/jetbrains-mono`). All screens converted to `makeStyles(Colors)`
+reactive pattern. Tab bar chrome themed. App icons regenerated to Freight Terminal brand (via `scripts/gen-icons.js`).
+
+**Fair-market formula — refinements #1–4 COMPLETE**
+#1 Geography (origin strength × reload), #2 continuous distance curve (eliminates band cliffs),
+#3a remote-tunable baseline via `market_config` Supabase table, #4 confidence ranges (high/medium/low,
+`rateInsights.estRough` for wide-range estimates). All migration applied.
+
+**Features shipped:**
+- **Haptics** — `src/lib/haptics.ts`, wired to all save/verdict/tab/selection moments.
+- **PostHog full funnel** — 30 events covering entire onboarding, walkthrough CTAs, first-load celebration, load-limit hit, all auth methods. Rescheduled weekly summary with real data.
+- **Broker scorecard** — anonymous crowdsourced broker intel. `broker_reports` Supabase table. `src/lib/brokerScorecard.ts`. A–F grade from pay-vs-market + recommend rate. Surfaces on Add Load + Check Load when broker name entered.
+- **Re-engagement notifications** — smart weekly P&L (real net + best lane + vs break-even, refreshed on app open), consecutive-weeks streak milestones (2/3/5/10/15/20/26/52 weeks), idle nudge (7 days, regular loggers only).
+- **Tax set-aside estimate** — `getTaxSetAside()` in DB, `TaxSetAsideCard` on Dashboard, Settings rate slider (default 25%), quarterly IRS deadlines, urgency warning within 14 days. Not tax advice disclaimer always shown.
+- **Value-based paywall conversion** — `getValueMissedStats()` computes lowball load count + conservative lost amount. PaywallScreen shows real dollar callout when triggered from fairMarket. FreeUsageMeter shows "Pro would have flagged X lowball loads" when data exists.
+- **Standalone one-off expenses** — `AddExpenseScreen`, `general_expenses` table, FAB "Add Expense" button, cloud sync (`generalExpensesSync.ts`). Unattached → reduces period net. Attached to load → reduces that load's net. History shows expenses interleaved with loads by date (amber icon, delete on tap).
+- **Personal nearby-lane history (50mi radius)** — `getPersonalLaneHistory()` rewritten with haversine matching. `pickup_lat/lng/delivery_lat/lng` added to loads (stored on save, synced). Falls back to state-level for older loads. Delta pill: "+$200 above your usual for this lane" / "-$150 below" on Check Load + Add Load.
+- **Dynamic break-even (all 3 components)** — fuel CPM: rolling 10 fill-ups (unchanged, already good). Fixed expenses: 30-day check-in + category-aware aging (insurance 335d, ELD 335d, truck 180d, parking 60d etc.). Monthly miles: auto-switches from onboarding estimate → actual logged miles (1+ loads) → 90-day rolling avg (5+ loads). `milesSource` tag shown on break-even strip.
+- **Expense review system** — `ExpenseReviewBanner` (amber, shows specific stale categories by name), `ExpenseReviewModal` (per-row "Still correct" confirm + "All accurate" bulk confirm + "Edit" → Expenses tab). `confirmed_at` column on `user_expenses`. 30-day adaptive push notification.
+- **Google Sign-in icon** — real 4-color SVG Google "G" replacing the placeholder.
+- **Address autocomplete on Profile Setup** home base field.
+- **Speed-dial FAB** — Dashboard "+" expands into Add Load / Add Fill-Up / Add Expense with spring animation and backdrop.
+- **Onboarding profile sync** — `profileSync.ts`, `profiles` table gets name/equipment/truck#/home_base.
+- **Guest mode removed** — app is now account-required.
+- **Dashboard layout overhaul** — Check Load CTA moved above analytics (Zone 2), period cards collapsed into hero (month secondary line), Recent Loads before analytics, expense banner above loads, break-even strip as reference Zone 3.
+- **RevenueCat live SDK key** — `appl_JvoQxWtuPHFOIitrxyHEVEmGuve` in `SubscriptionContext.tsx`.
+- **All 8 Supabase migrations applied** by user 2026-06-29.
+
+**What's still needed (user actions only — all code is done):**
+1. EAS build: `eas build --platform ios --profile preview`
+2. Google OAuth: 3 Supabase config steps (see §5.7 §G)
+3. Website aesthetics → DNS → Terms/Privacy pages → email alias
+4. Android subscriptions + RC Android setup (when ready)
+5. App Store submission (after Terms/Privacy are live)
+
+---
+
+### 2026-06-28 — Freight Terminal aesthetic: FULL APP redesign complete
+
+**Why:** V1's biggest open item was the aesthetic overhaul. User chose the "Freight Terminal"
+direction (dark mono-grid, data-dense, mega-carrier-credible) from 4 mocked concepts.
+
+**Design system (see memory `freight-terminal-aesthetic.md` for the spec):**
+- Teal `#00C896` primary (user-confirmed — not #2DD4BF/too light, not #0D9488/too dark), amber
+  `#E8A020` as tertiary (heading underlines, auth "OR" dividers, warnings/caution verdicts).
+- JetBrains Mono (`@expo-google-fonts/jetbrains-mono`) for headings, numerals, labels; Inter for body.
+- New components: `GridBackground.tsx` (28px SVG grid, on every screen but splash) and
+  `AccentRule.tsx` (amber heading underline).
+- `theme.ts`: added mono FontFamily entries; SectionLabel globally mono.
+
+**Screens migrated (all 21 + tab bar):** Welcome, Walkthrough, SignIn/Up, onboarding ×5,
+Dashboard (+4 cards), CheckLoad, AddLoad, LoadDetail, Fuel, FuelEntry, Expenses, IFTA, History,
+Settings, Paywall, TabNavigator. Splash kept its bespoke animated identity.
+
+**Method:** per-screen grid+accent+glow, plus bulk font/corner conversion
+(bold→monoBold, semiBold→monoSemiBold, Radius.xl/lg→md). **tsc 0 errors, i18n parity intact.**
+USER: run the app and spot-check; the aesthetic is feature-complete pending device QA.
+
+---
+
+### 2026-06-27 — Fair-market formula refinement #4: confidence-aware ranges
+
+**Why:** Credibility through humility — a model-only estimate with less information should
+present an honestly WIDER range and say so, rather than a confident wrong-looking point range.
+Tightens automatically once community data backs the lane (that path already shows the
+data-derived range).
+
+**Built (`src/utils/marketRates.ts`):** New `RateConfidence` ('high'|'medium'|'low') on
+`MarketRateResult`. `SPREAD_BY_CONFIDENCE` replaces the flat ±13%: high (geography known) ±13%,
+medium (geography unknown — quick eval) ±18%, low (micro/local short flat-rated haul OR rgn) ±24%
+(rgn keeps its ±30%). Confidence computed before spread. Frontend: CheckLoadScreen + AddLoadScreen
+show "rough est. · varies by lane" (`rateInsights.estRough`, new key in all 4 langs) instead of
+"est." when `confidence === 'low'`.
+
+**Verified:** 600mi van geo-known → high/±13%; same unknown → medium/±18%; 80mi → low/±24%;
+900mi RGN → low/±30%. `tsc` 0 errors, i18n parity OK.
+
+**This completes the fair-market refinement roadmap (#1–4).** Formula now: remote-tunable baseline
+× equipment (recalibrated) × continuous distance curve × seasonal × geography(origin+reload),
+±confidence-scaled spread, min floors, with community/Waze data overriding when available.
+
+---
+
+### 2026-06-27 — Fair-market formula refinement #3a: remote-tunable baseline
+
+**Why:** The national baseline ($2.50) was hardcoded — couldn't be updated without an app
+release, and a market swing would drift every estimate at once and look broken to all users.
+
+**Built:**
+- Migration `supabase/migrations/2026-06-27_market_config.sql` — singleton `market_config` row
+  with `baseline_dry_van`, CHECK clamp 1.50–4.00, public SELECT / no write policy (dashboard /
+  service role only). Seeded at **2.50 = bundled default → applying it changes nothing** until
+  deliberately tuned.
+- `src/utils/marketRates.ts`: baseline const → injectable `activeBaseline` (default
+  `DEFAULT_BASELINE_DRY_VAN = 2.50`) with `setBaselineDryVan()` (clamps, returns applied) +
+  `getBaselineDryVan()`. Formula multiplies off `activeBaseline`.
+- `src/lib/marketConfig.ts`: `loadCachedMarketConfig()` (sync, applies last cached value) +
+  `refreshMarketConfig()` (async fetch → clamp → apply → cache). Degrades gracefully offline /
+  unconfigured / first-launch (falls back to bundled default).
+- `App.tsx`: after `initDatabase()`, apply cached baseline then background-refresh.
+
+**Decided 3a only, not 3b** (fuel-coupling): rates track diesel only ~20–30%; auto-coupling
+overcorrects for modest gain. Manual dashboard edit is simpler and fully controlled.
+
+**Verified:** clamp (5.00→4.00, 0.90→1.50), knob moves all estimates proportionally (2.50→2.65
+= +6% app-wide), bad/empty cache → bundled default. `tsc` 0 errors. Note: residual −5% seen
+earlier was equipment-specific (van lanes were spot-on at 2.50), so seed stays 2.50 — tune later
+from real data, not a blind reseed.
+
+**USER ACTION:** apply `2026-06-27_market_config.sql`; thereafter re-center rates anytime by
+editing the `market_config` row in the Supabase dashboard. Refinement #4 (confidence ranges) open.
+
+---
+
+### 2026-06-27 — Fair-market formula refinement #2: continuous distance curve (kill band cliffs)
+
+**Why:** The 7-band distance step function jumped 10–18% at arbitrary mile edges — a 250 vs
+251 mi load got a ~12% different estimate. An experienced driver entering 248 vs 252 mi and
+seeing the number lurch would distrust the whole feature.
+
+**Built (`src/utils/marketRates.ts`):** Replaced the `DISTANCE_MULT` band→multiplier map with
+`DISTANCE_ANCHORS` (7 [miles, mult] points at the old band centers) + `getDistanceMultiplier()`,
+piecewise-linear interpolation, flat beyond the ends. `getFairMarketRate` now uses the continuous
+fn. Kept `DistanceBand` type + `getDistanceBand()` classifier (still used by rateReports.ts to
+hold the band fixed across community tiers, and as result metadata) — they no longer drive the
+multiplier.
+
+**Verified:** Old jumps at band edges (−17.7% @100/101, −12.3% @250/251 & @500/501, −10% @1000/
+1001, −6.7% @2000/2001) → all now ≤0.2% (just the curve's natural 1-mile slope). Real-lane
+validation held / slightly tightened: Dallas→Atlanta +2%, NJ→Atlanta −2%, reefer/flatbed −5%.
+Calibration preserved because anchors = old band multipliers. `tsc --noEmit` → 0 errors.
+
+Refinements #3 (remote/fuel baseline — would close the residual ~−5%), #4 (confidence ranges) open.
+
+---
+
+### 2026-06-27 — Fair-market formula refinement #1: GEOGRAPHY (origin market strength)
+
+**Why:** Fair-market price is the #2 core feature. Biggest accuracy gap was geography — the
+same truck/miles/month pays very differently out of LA vs rural Montana. A pure
+distance/equipment model can't be credible to an experienced driver without it.
+
+**Built (in `src/utils/marketRates.ts`):**
+- New `ORIGIN_STRENGTH` per-state index (6 tiers, 1.15 hot → 0.90 sparse), calibrated from 2026
+  public freight-market data (DAT/CHR/Scale Funding/O Trucking — never load-board scraping).
+  Hot: CA. Strong: TX/IL/IN/OH/MI/WI/WA/OR. Solid: GA/NC/SC/TN/MN/IA/MO/KS. Average: FL/AL/KY/
+  AR/LA/MS/OK/VA/AZ/NV/UT/CO/NM. Soft: Northeast + NE. Sparse: MT/WY/ID/ND/SD.
+- New `getGeoMultiplier(origin, dest)` = originStrength × reloadAdjustment. Reload nudge (±5%
+  cap): weak destination lifts rate (deadhead comp), hot destination trims it (easy reload).
+  Clamped 0.82–1.25. Unknown endpoints → 1.0 (graceful for quick eval).
+- `getFairMarketRate` now takes optional `originState`/`destState`, multiplies GEO into midRPM,
+  returns `geoMult`. Threaded through CheckLoadScreen + AddLoadScreen (states already extracted
+  from geocoded pickup/delivery).
+
+**Blind validation (modeled vs real published 2026 lane rates):**
+- Dallas→Atlanta van: $2.67 vs $2.60 (+3%) ✓; NJ→Atlanta van: $2.40, market says $2.20–2.50 ✓
+- Found + fixed equipment miscalibration: flatbed 1.18→1.34, reefer 1.20→1.22, step_deck
+  1.40→1.50 (ratios vs van from 2026 trackers). Flatbed error −18%→−7%.
+- Residual systematic ~−6 to −9% on equipment traces to the conservative $2.50 baseline (vs
+  current $2.68 national van) — intentional (safer to under- than over-promise); the lever for
+  refinement #3 (remote/fuel-coupled baseline).
+- Known limitation: extreme premium/backhaul lanes (LA↔Chicago 58% real spread) are compressed
+  by the formula — exactly the case the community/Waze data layer is built to capture.
+
+**Rejected:** "This is off" correction button (user: opens us to troll/manipulation of the formula).
+
+`tsc --noEmit` → 0 errors. Refinements #2 (smooth distance curve), #3 (remote/fuel baseline),
+#4 (confidence ranges) still open.
+
+---
+
+### 2026-06-27 — Gap fixes: notification i18n + first-load celebration
+
+**Context:** User asked for real gaps / streamlining (not new features — V2 data-moat ideas
+saved to memory `v2-data-moat-ideas.md`). Audit found 4 gaps; user chose to fix #2 + #3
+(onboarding Skip stays — it's intentional for review, removed at launch; #4 daily-hook entry
+point folded into redesign).
+
+**#2 — Notification copy localized.** All 12 hardcoded English notification strings (weekly
+P&L, IFTA, load-in-progress, fuel, goal 100%/75%) moved into a new `notifications.*` i18n
+block in en/es/pa/zh (at parity). `notifications.ts` now resolves them via `i18n.t()` (instance,
+not hook, since these fire from background/scheduled contexts). Goal notifications interpolate
+`{{net}}/{{period}}/{{goal}}/{{remaining}}` with a localized period label (`periodWeek`/`periodMonth`).
+
+**#3 — First-load celebration (activation moment).** New `FirstLoadCelebration.tsx` modal fires
+once, the first time a driver ever logs a load — shows their true net pay big, with copy that
+frames it as "what the load really pays after every real cost" plus the user-requested accuracy
+nudge: "Log every load and expense to keep your numbers this accurate." Gated by a once-ever
+`first_load_celebrated` setting; detected in `AddLoadScreen.handleSave` (count===0 pre-save),
+surfaced via new `onFirstLoad` callback → Dashboard renders the modal after a 400ms delay so the
+Add Load sheet finishes dismissing first (iOS double-modal safety). New `firstLoad.*` i18n block
+in all 4 languages. Verified live in Playwright (rendered $2,347, all copy resolved, dismiss clean).
+
+**Verification:** `tsc --noEmit` → 0 errors. JSON parity across all 4 languages confirmed.
+
+---
+
+### 2026-06-27 — V1 audit sprint: TypeScript clean-up + Playwright smoke test + i18n fix
+
+**TypeScript:** Fixed 0→5 type errors in `src/db/database.ts`. Root cause: `import { db } from './sqlite'`
+could not be resolved because only `sqlite.native.ts` and `sqlite.web.ts` existed — no `sqlite.ts`
+for `tsc` to find. Created `src/db/sqlite.ts` as a resolution stub (re-exports from `sqlite.native`).
+Metro ignores it at bundle time (prefers `.native.ts`); TypeScript uses it for type checking.
+Result: `tsc --noEmit` → **0 errors**.
+
+**Playwright smoke test (web build):** Started Expo web server, walked through:
+- ✅ Welcome/language picker — renders correctly, live language switching works
+- ✅ Walkthrough — all 4 slides render in web (horizontal pager degrades to scroll on web)
+- ✅ Onboarding fuel → expenses → miles → result — all 4 steps work
+- ✅ Profile setup — name, all 9 equipment types (incl. Intermodal + Car Transport), truck#, home base
+- ✅ Dashboard (injected via React fiber) — break-even strip, weekly hero $0 (Monday-zero), free usage meter "15 of 15 loads left", "Upgrade to Pro" CTAs
+- ✅ IFTA — empty state with disclaimer renders; quarter/year selectors work
+- ✅ Paywall modal — triggered from "Upgrade to Pro"; plan picker, pricing, trial note, CTA all render
+- ⚠️ `paywall.reason.analytics` was rendering as literal key → **fixed** (see below)
+- Web-only warnings: shadow* props (iOS-native, expected), RC no key on web (expected), useNativeDriver (expected)
+
+**i18n fix:** `paywall.reason.analytics` was missing from all 4 translation files. The `analytics`
+`PaywallReason` was added to the type and `REASON_CONFIG` in PaywallScreen but the translation key
+was never added to the `reason` block. Added to en/es/pa/zh at parity.
+
+**Paywall hard-gate audit (code):** Confirmed `AddLoadScreen.tsx:435` — `if (!isPro && !canLogLoadFree()) { presentPaywall('loadLimit'); return; }` — gate is solid. Load count comes from `getLoadCountThisMonth()` → SQLite count of loads WHERE status != 'cancelled' in the current calendar month.
+
+**Referral program:** Deferred to V2 per user decision.
+
+---
+
+### 2026-06-26 — B4 fix: cross-account data contamination (one source of truth)
+
+**Investigation:** ruled out local duplication (both ExpensesScreen and OnboardingExpenses
+use clean delete-all+insert replace semantics; categories align; display filter ==
+break-even filter) and ruled out sync duplication (pull replaces, push upserts-by-id then
+prunes). Found the real hole in the **session/account reconcile**:
+
+- `signOut()` wipes local data first, so the sign-out → sign-in path is clean. **But a
+  session that ends WITHOUT an explicit sign-out** (token expiry / refresh failure) leaves
+  local data in place (correct — it's the user's). If a **different** account then signs in
+  and its cloud is **empty**, `syncXOnSignIn`'s "push local if cloud empty" rule (needed for
+  guest→account consolidation) would shove account #1's data into account #2's cloud —
+  cross-account contamination, matching B4's "conflicting data across sessions/accounts."
+
+**Fix — explicit data ownership (the Uber/Partiful model):**
+- New `data_owner_id` setting + `claimDataOwnership(userId)` in database.ts. Local data is
+  owned by one identity: guest/fresh = unset (''), real account = its uid. On every sign-in
+  (and cold-start with a session), claim runs: if local data belongs to a *different* real
+  account, it's **wiped before reconcile**; a guest's unclaimed data ('') is preserved so it
+  still consolidates onto the first account that claims it.
+- Wired into both RootNavigator sign-in paths (init real-session branch + the sign-in
+  effect), before the sync calls. `data_owner_id` added to `clearAllUserData` so sign-out /
+  guest-reset clears ownership too.
+- **Safe for existing users:** owner starts unset, so the first claim never wipes — the
+  wipe only fires on a genuine account mismatch.
+
+### 2026-06-26 — V1 polish: dashboard Monday-zero + profile data consumption
+
+- **Goal-hero "Monday-zero" fixed** (`GoalProgressCard`). The hero used to greet a driver
+  with a **red 0% bar** at the start of every period (net <= 0 → danger). Now distinguishes
+  a *fresh* period (net === 0 → neutral grey bar + momentum copy "Fresh start — log a load
+  to get rolling") from an *actual loss* (net < 0 → still red). New `dashboard.goalFresh`,
+  all 4 languages. Applies to both hero and compact variants.
+- **Profile data now consumed** (we collect it in ProfileSetup; it was previously unused):
+  - **Dashboard greeting** — when `profile_name` is set, the header shows "WELCOME BACK" +
+    the driver's first name instead of "OVERVIEW / Dashboard". New `dashboard.welcomeBack`,
+    all 4 languages.
+  - **Add Load equipment default** — `loadType` now defaults to the driver's saved
+    `profile_equipment_type` (mapped to a LoadType via `PROFILE_EQUIP_TO_LOADTYPE`;
+    carHauler→auto_transport, boxTruck→dry_van, etc.). A Check Load prefill still wins.
+- **Intentionally NOT done:** guest-mode removal (user keeps it for review until launch);
+  B4 session-data-congruency bug (vague — needs its own investigation, not a blind fix).
+
+### 2026-06-26 — Backend sync audit (resolve memory-vs-plan contradiction)
+
+**Finding:** the code is fully wired — `src/lib/sync/loadsSync.ts` and `fuelSync.ts` both
+have complete push / pull (nested select) / sign-in reconcile, covering loads +
+state_mileage + load_expenses + fuel_entries. The stale "only expenses wired" note was an
+out-of-date MEMORY.md index hook (the memory file itself was already correct). MEMORY.md
+index line corrected.
+
+**Real risk found + fixed:** the sync migrations were *incremental* `ADD COLUMN` patches
+against a base schema not in the repo, so column parity with the ~30-column loads push
+couldn't be proven. A missing remote column → upsert error → and since every sync caller
+is fire-and-forget, it would **fail silently** (a driver's data quietly never reaching the
+cloud). Couldn't verify against live Supabase from here, so eliminated the risk instead:
+- **`supabase/migrations/2026-06-26_sync_schema_parity.sql`** — idempotent
+  `ADD COLUMN IF NOT EXISTS` for **every** column the client pushes, across loads /
+  state_mileage / load_expenses / fuel_entries. Purely additive (never alters/drops, can't
+  change a type or break rows); makes the remote schema a provable superset of the client.
+  **USER must apply** (added to §5.7 A2).
+- Confirmed the local-only `loads.rate_contributed` flag is correctly NOT synced.
+
+### 2026-06-26 — Fair Market data moat: Slice 3 (contribution flywheel)
+
+**Goal:** show drivers they're building the network (the Waze "you're helping" loop) and
+frame the reciprocity so they keep sharing — this is what drives the volume that makes the
+Slice 1 tiers light up.
+
+- **`getRateContributionCount()`** (database.ts) — local count of `loads` with
+  `rate_contributed = 1`: how many of the driver's own loads power the pool. Works offline.
+- **`getNetworkReportCount()`** (rateReports.ts) — async Supabase `count` of reports in the
+  90-day window (the network-wide total). Returns null when offline/unconfigured so the UI
+  hides that figure. (Counts reports, not drivers — the table is anonymous by design.)
+- **Settings "Rate Network" card** (above the existing share toggle, in Data & Privacy):
+  two stats — "loads you've shared" + "loads in the network" — plus a reciprocity blurb
+  that changes with the toggle state: when ON, frames each completed load as helping others
+  spot lowballs and sharpening their own community rates; when OFF, nudges them to turn it
+  on to build the network and unlock sharper rates on their lanes. All 4 languages.
+- This completes the **3-slice Fair Market moat pass**. The crowdsourced rate network is
+  now: visible at low density (Slice 1), trustworthy/poison-resistant (Slice 2), and
+  self-reinforcing (Slice 3). Remaining is purely **volume over time** + the enterprise
+  aggregation/licensing layer (far-future, per enterprise-strategy).
+
+### 2026-06-26 — Fair Market data moat: Slice 2 (data integrity — protect the asset)
+
+**Goal:** make the crowdsourced pool trustworthy enough to eventually license — no
+double-counting, no garbage values, no outlier skew.
+
+- **Dedup + completeness (idempotent contribution).** Found that AddLoad fired
+  `contributeRateReport` on every completed save (no guard), while `LoadDetailScreen`
+  edits never contributed at all — so a load completed via a *status change* was missed,
+  and re-saving an AddLoad load could double-count. New design contributes **exactly once
+  per load, when it first becomes completed**, regardless of screen:
+  - Local schema: `loads.rate_contributed INTEGER DEFAULT 0` (ALTER in the migrations
+    block) + `markLoadRateContributed(id)`; `getLoadById` now selects the flag.
+  - New `maybeContributeLoadRate(loadId)` in `rateReports.ts` — checks status=completed,
+    not-yet-contributed, opt-in, valid states/miles/pay; sets the flag **before** firing
+    the async insert (prefers under-counting to double-counting). Wired into **both**
+    AddLoad save and LoadDetail save; the old inline call was removed. Anonymity preserved
+    (the flag is local-only; `rate_reports` still has no load_id/user_id).
+- **Server-side sanity bounds.** Migration `2026-06-26_rate_reports_integrity.sql` adds
+  CHECK constraints (`NOT VALID`, so legacy rows are untouched): pay_per_mile 0.30–20.0,
+  total_pay 50–100000, miles 1–6000. **USER must apply.** Mirrored by client-side guards
+  in `contributeRateReport` (defense in depth + protection before the migration lands).
+- **Outlier resistance.** The displayed range is already the IQR (25th–75th pct), which
+  ignores tails; additionally `fetchPpms` now filters values outside the sane $/mi envelope
+  so pre-constraint garbage can't skew even the median.
+- **Next (deferred):** Slice 3 = contribution flywheel ("you're building the network" +
+  opt-in nudge) to drive the volume that makes the tiers light up.
+
+### 2026-06-26 — Fair Market data moat: Slice 1 (density activation + community-as-hero)
+
+**Goal:** make the crowdsourced rate network (the real moat) *visible and honest at low
+scale*. The pipes already existed (`rate_reports` table, anonymous contribution on
+completed loads, percentile `getCommunityRate`), but the match was exact-lane-only
+(origin state × dest state × type × band, ≥3 in 90d) → nearly every lane returned null
+until massive scale, so the seeded formula carried everything.
+
+- **`src/lib/rateReports.ts` rewritten** — `getCommunityRate` now **cascades** from
+  specific to broad, holding the **distance band fixed** (so per-mile rates stay
+  comparable) and only widening **geography**:
+  1. `exact` — state→state + type + band (≥3 reports)
+  2. `corridor` — region→region + type + band (≥5) via a US state→freight-region map
+     (west / midwest / south / southeast / northeast)
+  3. `national` — type + band, any geography (≥8)
+  Returns a new `tier` field so the UI shows confidence. Aggregation switched to
+  **per-mile percentiles × this trip's miles** (25/50/75) so reports with differing
+  mileage within a band normalize cleanly. At most 2–3 short, indexed queries,
+  short-circuiting at the first tier that clears its threshold.
+- **`CheckLoadScreen` + `AddLoadScreen`** — when community data exists it now **leads as
+  the headline Fair Market number**, with the seeded model shown beneath as a labeled
+  `est.` range; the community line shows a **tier-specific confidence label** ("N drivers
+  ran this exact lane / this corridor / similar loads"). When no community data, the
+  formula shows with an `est.` tag so the real-vs-estimate hierarchy is always explicit.
+- **i18n** — `rateInsights.tierExact/tierCorridor/tierNational` + `estTag`, all 4 languages.
+- **Migration** `supabase/migrations/2026-06-26_rate_reports_type_band_idx.sql` — index on
+  `(load_type, distance_band, reported_at DESC)` for the national tier. **USER must apply.**
+- **Deliberately NOT done:** seeding `rate_reports` with formula estimates to fake density
+  (would poison the authenticity that is the moat). Formula stays an explicit fallback.
+- **Next (deferred):** Slice 2 = data integrity (one-report-per-load dedup, server-side
+  sanity bounds, outlier trimming). Slice 3 = contribution flywheel ("you're building the
+  network"). Both flagged for a follow-up pass.
+
+### 2026-06-26 — Onboarding restructure + dashboard hero + monetization completion
+
+**A. Pre-dashboard flow restructured (closes §5.5 walkthrough "STILL PENDING").**
+
+- **Welcome page** — `LanguagePickerScreen.tsx` rebuilt from a bare language list into
+  a real first-run welcome: "Welcome to TruckerNet" hero + slogan + a tappable language
+  dropdown (bottom-sheet Modal) that switches the **entire app language live** via
+  `i18n.changeLanguage` (title/slogan/label/button all re-render on select) + a Next
+  button. New `welcome.*` i18n namespace, all 4 languages. Default slogan: "Know exactly
+  what every load pays — and run your truck like the business it is." (workshop candidate).
+- **Driver profile setup** — new `src/screens/onboarding/ProfileSetupScreen.tsx`: name
+  (required), equipment type (9 selectable chips incl. **Intermodal Container** +
+  **Car Transport**), truck number (optional), home base city + 2-char state (optional).
+  Writes `profile_name` / `profile_equipment_type` / `profile_truck_number` /
+  `profile_home_base` settings. New `profile.*` i18n namespace, all 4 languages.
+- **Auth moved AFTER onboarding** — `RootNavigator.tsx`: new flow is
+  `Language(Welcome) → Walkthrough → Fuel → Expenses → Miles → Result → Profile Setup →
+  Sign Up → App`. Walkthrough "Get Started" now routes to `onboarding_fuel` (was
+  `signup`); result screen → `profile_setup`; profile → `signup` (or `app` for guest).
+  The session effect now marks the per-user onboarding flag and runs
+  `syncExpensesOnSignIn` post-auth (onboarding data is captured before a user ID exists,
+  then pushed once they sign up). `clearAllUserData()` extended to wipe the 4 profile keys.
+
+**B. Dashboard hero restructured.** Break-even was the static hero — demoted because it
+  rarely changes and doesn't deserve daily focus.
+- **Hero is now income-goal progress** (`GoalProgressCard` new `variant="hero"`: big net
+  number + % + progress bar + "$X to go · N days left"). When **no goal is set**, a
+  **weekly-net fallback hero** shows `+$net`, and a verdict line fusing the constant in:
+  `$1.94/mi · +$0.51 above break-even` (computed from week gross ÷ week miles vs break-even).
+- **Break-even demoted to a slim reference strip** (tappable → Expenses), showing
+  `BREAK-EVEN $1.430/mi · FUEL CPM $x · FIXED CPM $y`.
+- `getWeekPnL()` / `getMonthPnL()` extended to return `miles` + `loads` (new `PeriodPnL`).
+- New `dashboard.*` keys (goalToGo, weekEmpty, above/belowBreakEven) + `common.load/loads`,
+  all 4 languages. **Open follow-up:** goal hero shows an empty/0% bar early in a period
+  (the "Monday-zero" problem) — needs momentum framing, not a red zero.
+
+**C. Monetization completion pass.** Audit finding: monetization was already ~85% built
+  (RevenueCat fully wired in `SubscriptionContext`, gates enforced at all call sites,
+  conversion-grade `PaywallScreen`). Closed the three real gaps:
+- **Free usage meter** — new `src/components/FreeUsageMeter.tsx`. Renders nothing for Pro.
+  Full-card variant on Dashboard (above Check Load) + compact banner atop Add Load.
+  Shows "X of 15 loads left this month", bar shifts green→amber(≤5)→red(0), taps to the
+  `loadLimit` paywall. The missing free→paid lever (urgency before the wall, not a surprise
+  block at load #16). New `freeUsage.*` namespace, all 4 languages.
+- **Dynamic pricing** — `SubscriptionContext` now loads the live offering and exposes
+  `pricing` (localized `priceString` + numeric `price`). `PaywallScreen` uses real store
+  prices and **computes** the per-month equivalent + savings badge ("SAVE 29%" not a
+  hardcoded "$122"). Falls back to defaults in Expo Go. `priceLike()` reuses the store's
+  currency symbol so $/€/£ format without relying on Hermes Intl. Fixes an App Store
+  rejection risk (hardcoded prices). `annualMonthly` + `saveBadge` made interpolated.
+- **Trial eligibility** — `SubscriptionContext` checks
+  `checkTrialOrIntroductoryPriceEligibility` per plan → `trialEligible`. When the selected
+  plan is no longer trial-eligible the CTA flips to "Subscribe", the gift note hides, and
+  the subtext drops "then". Defaults to eligible; degrades gracefully on SDK error. New
+  `paywall.ctaSubscribe` + `paywall.ctaPriceLine`, all 4 languages.
+- **⚠️ Caveat:** dynamic pricing + trial eligibility **cannot be verified in Expo Go** —
+  they only exercise on a real dev/TestFlight build with configured products. Written
+  defensively; verify on a real build. The remaining blocker to revenue is **store config,
+  not code** — see §5.6.
+
+### 2026-06-25 — Income goal tracker + V1 bug audit
+
+**Income goal tracker built (V1 item: "Income goal tracker"):**
+
+- **`src/db/database.ts`** — new helpers: `getIncomeGoal()`, `setIncomeGoal()`, `getGoalMilestonesHit()`, `markGoalMilestoneHit()`, `goalPeriodKey()`. Goal stored as `income_goal_amount` + `income_goal_period` settings. Milestone tracking uses `income_goal_milestones` + `income_goal_milestone_period` (ISO week or YYYY-MM key) so notifications only fire once per period. All goal settings cleared on `clearAllUserData()`.
+
+- **`src/lib/notifications.ts`** — new `checkAndNotifyGoalMilestone(currentNet, goal)`. Fires an immediate notification at 75% ("75% of your goal — keep going! 🎯") and 100% ("Goal reached! 🎉") of the net pay goal for the period. Only fires each milestone once per period (new week/month resets automatically).
+
+- **`src/components/GoalProgressCard.tsx`** — new component. Progress bar card: WEEKLY GOAL / MONTHLY GOAL eyebrow, fill bar (teal when on track, amber when < 50%, danger when net ≤ 0), current/goal amounts, days left in period. Shows "Goal reached! 🎉" when net ≥ goal.
+
+- **`src/screens/DashboardScreen.tsx`** — `incomeGoal` added to `DashData` (read from `getIncomeGoal()` in `readDashData()`). `GoalProgressCard` renders between the period cards and the Check Load CTA when a goal is set.
+
+- **`src/screens/SettingsScreen.tsx`** — new "Income Goal" section between Break-Even and Language. Inline edit (same pattern as Weekly Miles): taps to show a period toggle (Weekly | Monthly) + dollar amount input + save/cancel. Displays current goal or "Not set".
+
+- **`src/screens/AddLoadScreen.tsx`** — after saving a completed load, checks the goal and calls `checkAndNotifyGoalMilestone` (best-effort, fire-and-forget).
+
+- **i18n** — 12 new keys under `dashboard.goal*` and `settings.goal*`, all 4 languages at parity.
+
+**V1 bug audit (no code changes — found these were already fixed):**
+- B1 (Add Load status defaults to "completed"): `useState(null)` + placeholder text + save guard at line 390. Fixed.
+- B2 (Demo data flash): All screens use synchronous lazy init. No DEMO constants remain. Fixed.
+- B3 (Onboarding formula): `setMonthlyFixed(getTotalMonthlyExpenses())` is called in `useEffect`. Fixed.
+- B4 (Per-session data congruency): ✅ Fixed 2026-06-26 — `data_owner_id` ownership model (see Work Log "B4 fix").
+- Fuel receipt OCR: Fully built — `FuelEntryScreen` has "Scan receipt" button wired to `scanFuelReceipt()` which auto-fills dollars, gallons, state. Edge function exists. User needs to deploy: `supabase functions deploy ocr-fuel-receipt` + `supabase secrets set ANTHROPIC_API_KEY=...`
 
 ### 2026-06-25 — UI Diagnosis: Full Onboarding + Dashboard Review
 

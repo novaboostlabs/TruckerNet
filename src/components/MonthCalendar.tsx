@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import { Colors, FontFamily, FontSize, Radius } from '../theme/theme';
+import { Colors, FontFamily, FontSize, Radius, ThemeColors, sectionLabel } from '../theme/theme';
+import { useTheme } from '../theme/ThemeContext';
 
 const DAY_HEADERS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
 
@@ -20,6 +21,8 @@ function pad(n: number): string {
 export default function MonthCalendar({
   year, month, loadsByDate, selectedDay, onSelectDay, today,
 }: Props) {
+  const { colors: Colors } = useTheme();
+  const styles = useMemo(() => makeStyles(Colors), [Colors]);
   const daysInMonth  = new Date(year, month + 1, 0).getDate();
   const firstWeekday = new Date(year, month, 1).getDay(); // 0=Sun
 
@@ -102,7 +105,7 @@ export default function MonthCalendar({
 
 const CELL_SIZE = 44;
 
-const styles = StyleSheet.create({
+const makeStyles = (Colors: ThemeColors) => StyleSheet.create({
   wrap: { paddingVertical: 8 },
 
   headerRow: { flexDirection: 'row', marginBottom: 4 },
@@ -147,11 +150,11 @@ const styles = StyleSheet.create({
   },
   dayNumSelected: {
     color:      Colors.background,
-    fontFamily: FontFamily.bold,
+    fontFamily: FontFamily.monoBold,
   },
   dayNumToday: {
     color:      Colors.primary,
-    fontFamily: FontFamily.semiBold,
+    fontFamily: FontFamily.monoSemiBold,
   },
   dayNumDim: {
     color: Colors.textTertiary,
@@ -174,12 +177,12 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.background,
   },
   countLabel: {
-    fontFamily: FontFamily.bold,
+    fontFamily: FontFamily.monoBold,
     fontSize:   8,
     color:      Colors.primary,
     lineHeight: 10,
   },
   countLabelSelected: {
-    color: Colors.background,
+    color: Colors.onPrimary,
   },
 });
