@@ -97,14 +97,29 @@ function App() {
   // Init i18n with saved language
   useEffect(() => {
     async function init() {
-      const lang = await getSavedLanguage();
-      await initI18n((lang as SupportedLanguage) ?? 'en');
-      setI18nReady(true);
+      try {
+        const lang = await getSavedLanguage();
+        await initI18n((lang as SupportedLanguage) ?? 'en');
+      } catch (e) {
+        // i18next init failed — proceed anyway with whatever state i18n has so
+        // the app never gets stuck on the splash. Strings may fall back to keys.
+        console.error('i18n init failed:', e);
+      } finally {
+        setI18nReady(true);
+      }
     }
     init();
   }, []);
 
-  if ((!fontsLoaded && !fontError) || !dbReady || !i18nReady) {
+  // Global failsafe: never let the loading gate block forever. If any init path
+  // hangs (font fetch stall, native module wedge, etc.), force-open after 8s.
+  const [failsafe, setFailsafe] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setFailsafe(true), 8000);
+    return () => clearTimeout(t);
+  }, []);
+
+  if (!failsafe && ((!fontsLoaded && !fontError) || !dbReady || !i18nReady)) {
     return (
       <View style={{ flex: 1, backgroundColor: Colors.background, alignItems: 'center', justifyContent: 'center' }}>
         <ActivityIndicator color={Colors.primary} />
