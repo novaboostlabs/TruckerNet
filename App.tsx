@@ -61,7 +61,7 @@ function App() {
   const [dbReady,    setDbReady]    = useState(false);
   const [i18nReady,  setI18nReady]  = useState(false);
 
-  const [fontsLoaded] = useFonts({
+  const [fontsLoaded, fontError] = useFonts({
     // Inter — Latin (English, Spanish)
     Inter_400Regular,
     Inter_500Medium,
@@ -104,7 +104,7 @@ function App() {
     init();
   }, []);
 
-  if (!fontsLoaded || !dbReady || !i18nReady) {
+  if ((!fontsLoaded && !fontError) || !dbReady || !i18nReady) {
     return (
       <View style={{ flex: 1, backgroundColor: Colors.background, alignItems: 'center', justifyContent: 'center' }}>
         <ActivityIndicator color={Colors.primary} />

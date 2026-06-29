@@ -36,6 +36,10 @@ export default function AppSplashScreen({ onDone }: Props) {
   const exitOpacity = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
+    // Safety net: if the animation callback never fires (e.g. native driver bug),
+    // force onDone after 4 seconds so the app never gets permanently stuck.
+    const safetyTimer = setTimeout(onDone, 4000);
+
     const ring = (scale: Animated.Value, opacity: Animated.Value, delay: number) =>
       Animated.sequence([
         Animated.delay(delay),
@@ -104,7 +108,7 @@ export default function AppSplashScreen({ onDone }: Props) {
         Animated.delay(1650),
         Animated.timing(exitOpacity, { toValue: 0, duration: 380, useNativeDriver: true }),
       ]),
-    ]).start(() => onDone());
+    ]).start(() => { clearTimeout(safetyTimer); onDone(); });
   }, []); // eslint-disable-line
 
   return (
