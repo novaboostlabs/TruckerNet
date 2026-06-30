@@ -809,13 +809,25 @@ app has proven product-market fit.
       env-var change must be re-pushed to EAS** — editing `.env` alone does NOT update builds.
       Also hardened the loading gate (i18n try/catch + 8s failsafe) so a single init failure
       can't freeze the splash again.
-- [ ] **Finish RevenueCat Offering** (if not done): Offering id `default`, mark **Current**,
-      add `:monthly`→`truckernet_pro_monthly` + `:annual`→`truckernet_pro_annual` packages.
-- [ ] **Test purchase on device** via sandbox tester: real prices, 7-day trial, purchase →
-      Pro unlock (fair-market, full IFTA, full History), Restore Purchases.
-      ⚠️ Sandbox login on newer iOS: the purchase sheet defaults to the real Apple ID and won't
-      switch — set the sandbox account ahead of time in **Settings → Developer → Sandbox Apple
-      Account** (Option B), then retry the purchase.
+- [x] **RevenueCat Offering complete** ✅ — `default` offering marked Current with monthly + annual packages.
+- [ ] **Test purchase via TestFlight** (do this at home — not a quick phone task).
+      WHY TestFlight, not the preview build: the `preview` profile is `distribution: internal`
+      (ad-hoc), and ad-hoc builds use the **production** StoreKit environment — so the purchase
+      sheet jumps to the real Apple ID, never prompts for sandbox, and the "Sandbox Apple Account"
+      row never appears in Settings → Developer. **TestFlight builds use the sandbox environment
+      automatically** (purchases free, real Apple ID is fine, no sandbox account needed).
+      Steps:
+      1. `eas build --platform ios --profile production` (env vars already pushed to production env;
+         production profile now pinned to the same Xcode image + Sentry-disable as preview).
+      2. `eas submit --platform ios --latest` — provide Apple / ASC API key creds when prompted.
+      3. App Store Connect → TestFlight: wait for processing (~5–30 min), answer **Export
+         Compliance** (standard HTTPS only → "No" to proprietary encryption).
+      4. Install via the **TestFlight app** on the iPhone.
+      5. Verify: real localized prices, "Start 7-Day Free Trial", purchase → Pro unlock
+         (fair-market, full IFTA, full History), Restore Purchases after a reinstall.
+      ⚠️ Pre-check: both subscription products in App Store Connect must be at least
+      **"Ready to Submit"** (NOT "Missing Metadata") or the purchase fails even in TestFlight.
+      ("Prepare for Submission" is the app-version status — that's fine; check the *product* status.)
 - [ ] Android: create matching subscriptions in Google Play Console, add Android app in RevenueCat, paste Android SDK key into `ANDROID_API_KEY` in `SubscriptionContext.tsx`.
 
 **A2. Supabase migrations — ALL APPLIED ✅ (2026-06-29)**
