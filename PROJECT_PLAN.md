@@ -915,6 +915,28 @@ Details for each are in the lettered sections below.
 
 ## 6. Work Log (newest first)
 
+### 2026-06-30 — Xcode 26 build mandate + App Store Connect notes
+
+- **Xcode 26 required for App Store** (Apple mandate, effective 2026-04-28: builds must use the
+  iOS 26 SDK / Xcode 26+). Our 16.4 pin — added when Xcode 26 *beta* broke RN deps — now blocked
+  submission. Moved all EAS profiles to `macos-sequoia-15.6-xcode-26.0` (the SDK-54-validated
+  Xcode 26 image, per Expo infra docs), so **no Expo SDK upgrade needed**. Rebuild + resubmit.
+- **TestFlight learning:** testing does NOT need a second developer account. Add the testing
+  Apple ID as a USER in Nova Boost Labs → Users and Access, then as an Internal Tester; internal
+  builds appear automatically (no redeem code). Simplest: invite the personal Apple ID as a user
+  so you test without switching Apple IDs on the phone. `eas build` only builds — `eas submit
+  --platform ios --latest` (auth as Nova Boost Labs) is what uploads to App Store Connect.
+- **App Privacy questionnaire answers (documented for reuse):** gate = YES. Collected (all
+  linked-to-identity = Yes, used-for-tracking = No):
+  Contact Info → Email + Name; Financial Info → Other Financial Info (loads/pay/expenses/IFTA);
+  User Content → Photos or Videos (BOL stored + fuel receipts transmitted for OCR) + Other User
+  Content (load notes); Identifiers → User ID + Device ID; Purchases → Purchase History
+  (RevenueCat); Usage Data → Product Interaction (PostHog); Diagnostics → Crash + Performance
+  (Sentry). NOT collected: Health, Sensitive, Contacts, Browsing/Search History, Payment/Credit
+  Info, Audio, and Location (no device GPS — addresses are user-entered). Partners: PostHog,
+  Sentry, RevenueCat, Supabase, Anthropic — none used for tracking/ads.
+- **Legal placeholders filled** on truckernet.app/terms + /privacy (effective date + support email). ✅
+
 ### 2026-06-30 — Security: BOL photos → private bucket + signed URLs
 
 Closed the last code-fixable item from the audit. The BOL bucket was world-readable (public URLs);
