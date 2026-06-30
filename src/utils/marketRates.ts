@@ -72,10 +72,10 @@ const EQUIPMENT_MULT: Record<LoadType, number> = {
   dry_van:       1.00,
   reefer:        1.22,   // ~$3.26/mi national vs $2.68 van — temp-control premium
   flatbed:       1.34,   // ~$3.60/mi national vs $2.68 van — tarping/securement labor
-  step_deck:     1.50,   // ~12% over flatbed; fewer capable carriers, taller freight
+  step_deck:     1.40,   // ~5% over flatbed; recalibrated 2026-06-30 (was 1.50 — blind 20-load test overshot real step-deck spot ~25–30%)
   intermodal:    0.88,   // −12%; rail leg reduces carrier cost but limits flexibility
   tanker:        1.13,   // +13%; CDL + tanker endorsement, cleaning requirements
-  hazmat:        1.38,   // +38%; hazmat certification + placard liability
+  hazmat:        1.30,   // +30%; recalibrated 2026-06-30 (was 1.38 — blind test overshot ~20%)
   rgn:           1.80,   // +80% floor; wide range ($3.50–$20+/mi — project-rated)
   power_only:    0.85,   // −15%; no trailer overhead but limited freight options
   auto_transport: 1.10,  // +10%; per-car pricing structure, equivalent FTL RPM
@@ -100,14 +100,21 @@ export type DistanceBand = 'micro' | 'local' | 'short' | 'medium' | 'standard' |
 
 // [miles, multiplier] anchors, ascending. Interpolated linearly between; flat
 // beyond the ends. Anchor at the representative center of each old band.
+//
+// Softened across the short/medium range 2026-06-30: a blind 20-load test vs
+// 2026 market data showed the short-haul premium ran ~10–13% high on van/reefer
+// and stacked badly on flatbed/specialized short hauls (Chicago→Indy flatbed was
+// +23%). The long-haul anchors (750mi+) validated well and are unchanged, so the
+// flatten only pulls down the short/medium end where the overshoot lived. (Truly
+// tiny loads are still protected by MINIMUM_FLOOR below.)
 const DISTANCE_ANCHORS: ReadonlyArray<readonly [number, number]> = [
-  [25,   1.85],   // micro    — floor almost always binding anyway
-  [75,   1.58],   // local    — often flat-rated
-  [175,  1.30],   // short    — per-mile pricing takes over
-  [375,  1.14],   // medium
-  [750,  1.00],   // standard — baseline
-  [1500, 0.90],   // long
-  [2500, 0.84],   // mega     — longest hauls, lowest $/mi
+  [25,   1.70],   // micro    — floor almost always binding anyway (was 1.85)
+  [75,   1.45],   // local    — often flat-rated (was 1.58)
+  [175,  1.20],   // short    — per-mile pricing takes over (was 1.30)
+  [375,  1.08],   // medium   — (was 1.14)
+  [750,  1.00],   // standard — baseline (unchanged — validated)
+  [1500, 0.90],   // long     — (unchanged — validated)
+  [2500, 0.84],   // mega     — longest hauls, lowest $/mi (unchanged)
 ];
 
 export function getDistanceMultiplier(miles: number): number {

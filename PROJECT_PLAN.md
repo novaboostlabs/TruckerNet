@@ -872,6 +872,32 @@ app has proven product-market fit.
 
 ## 6. Work Log (newest first)
 
+### 2026-06-30 — Fair-market formula: blind 20-load validation + calibration pass
+
+**Empirically verified the formula** against current (2026) published market data. Built a
+20-load test (all 10 equipment types, mixed origins/destinations/distances) run through the REAL
+`getFairMarketRate` (Node 26 native TS, baseline $2.50, June seasonal 1.02), then compared each
+midpoint $/mi to DAT / Scale Funding / O Trucking / Freight Sidekick / DrayNow 2026 figures.
+
+**Findings (before fix):** van + reefer medium/long held at 2–8% (the staples are solid). Drift
+was concentrated in (a) the short/medium **distance curve** running ~10–13% high (worst on short
+flatbed, Chicago→Indy +23%), and (b) **step_deck (+30%) / hazmat (+23%)** equipment multipliers.
+Auto-transport + intermodal showed a *definitional* gap (per-car vs per-truck; rail vs drayage),
+not a calibration error — left untouched, flagged for a product decision.
+
+**Fix (`src/utils/marketRates.ts`):**
+- Flattened `DISTANCE_ANCHORS` across the short/medium range (25mi 1.85→1.70, 75mi 1.58→1.45,
+  175mi 1.30→1.20, 375mi 1.14→1.08). 750mi+ anchors **unchanged** (validated), so only the
+  short/medium overshoot is pulled down. Floor still protects tiny loads.
+- `step_deck` 1.50→1.40, `hazmat` 1.38→1.30.
+- Left van/reefer baseline+mult, tanker/power_only/rgn/flatbed mults (within source-data noise),
+  and auto/intermodal (definitional) as-is.
+
+**Result:** mean absolute error **5.2%** across 18 scored lanes (van/reefer now 1–6%, hazmat +10%,
+tanker +7%, intermodal −1%; step_deck +16% and short flatbed +14% remain a touch rich but sit
+inside those equipments' genuinely wide real-world spot ranges — not over-tuned to one data point).
+Nothing previously good regressed. `tsc` clean. Test script kept in scratchpad (not committed).
+
 ### 2026-06-29 — EAS build unblocked (splash-screen hang) + OAuth + website live
 
 **The build installed but froze on the native splash screen.** Root cause (after two wrong
