@@ -790,7 +790,7 @@ app has proven product-market fit.
 
 ---
 
-## 5.7 📌 YOUR PERSONAL TODO — updated 2026-06-29
+## 5.7 📌 YOUR PERSONAL TODO — updated 2026-06-29 (EAS build fixed)
 
 > Status as of this session. ✅ = done, [ ] = still needed.
 
@@ -801,8 +801,21 @@ app has proven product-market fit.
 - [x] RevenueCat: entitlement `pro`, products attached, iOS app connected (Subscription Key uploaded), Offering built ✅
 - [x] Live iOS SDK key `appl_JvoQxWtuPHFOIitrxyHEVEmGuve` pasted into `SubscriptionContext.tsx` ✅
 - [x] iOS Sandbox tester added ✅
-- [ ] **EAS build** → `eas build --platform ios --profile preview` — run from the project directory, install on iPhone, then test: real prices, 7-day trial, purchase → Pro unlock, Restore Purchases.
-- [ ] **Google OAuth** — three steps remaining (see §G below)
+- [x] **EAS build boots** ✅ — `eas build --platform ios --profile preview` now builds AND launches.
+      Was stuck on the splash screen because EAS had **no env vars** (the local `.env` is
+      gitignored, so it never reached EAS servers → empty Supabase URL → `createClient` threw
+      at import → app never mounted). Fixed by pushing env vars to EAS:
+      `eas env:push preview --path .env` (also pushed to production + development). **Any future
+      env-var change must be re-pushed to EAS** — editing `.env` alone does NOT update builds.
+      Also hardened the loading gate (i18n try/catch + 8s failsafe) so a single init failure
+      can't freeze the splash again.
+- [ ] **Finish RevenueCat Offering** (if not done): Offering id `default`, mark **Current**,
+      add `:monthly`→`truckernet_pro_monthly` + `:annual`→`truckernet_pro_annual` packages.
+- [ ] **Test purchase on device** via sandbox tester: real prices, 7-day trial, purchase →
+      Pro unlock (fair-market, full IFTA, full History), Restore Purchases.
+      ⚠️ Sandbox login on newer iOS: the purchase sheet defaults to the real Apple ID and won't
+      switch — set the sandbox account ahead of time in **Settings → Developer → Sandbox Apple
+      Account** (Option B), then retry the purchase.
 - [ ] Android: create matching subscriptions in Google Play Console, add Android app in RevenueCat, paste Android SDK key into `ANDROID_API_KEY` in `SubscriptionContext.tsx`.
 
 **A2. Supabase migrations — ALL APPLIED ✅ (2026-06-29)**
@@ -816,26 +829,59 @@ app has proven product-market fit.
 - [x] `2026-06-29_broker_reports.sql`
 
 **B. Web presence + legal — required for App Store approval**
-- [ ] **Website aesthetics** — get `novaboostlabs.co` / subdomain looking presentable first.
-- [ ] **DNS:** CNAME `truckernet` → host so `truckernet.novaboostlabs.co` resolves.
-- [ ] **Terms** page live at `truckernet.novaboostlabs.co/terms`.
-- [ ] **Privacy Policy** page live at `truckernet.novaboostlabs.co/privacy`.
-  (Apple **will not approve** subscriptions without live Terms/Privacy URLs.)
-- [ ] **Email alias** `truckernet@novaboostlabs.co` in Google Workspace admin.
-- [ ] Set Support URL + Privacy URL on the App Store listing once the above are live.
+- [x] **Website built + live** ✅ — new standalone domain **`truckernet.app`** (replaces the old
+      `truckernet.novaboostlabs.co` subdomain plan). Strong hero ("Stop guessing what a load
+      really pays"), How It Works, features, pricing ($34.99/$297.99), Support + Data Deletion pages.
+- [x] **Terms** page live at `truckernet.app/terms` ✅ (real content — billing, auto-renewal, disclaimers).
+- [x] **Privacy Policy** page live at `truckernet.app/privacy` ✅ (real content — data collected, deletion, third parties).
+- [ ] **⚠️ Fill unfilled placeholders** on BOTH `/terms` and `/privacy` before submitting:
+      `[INSERT EFFECTIVE DATE]` → a real date, and `[INSERT SUPPORT EMAIL]` → a real address.
+      A reviewer seeing `[INSERT SUPPORT EMAIL]` is a credibility / rejection risk.
+- [ ] **Set up a real support email** — recommend `support@truckernet.app` (you own the domain now).
+      Must be a working mailbox/alias: data-deletion + support requests land here. Use the same
+      address in the Terms/Privacy placeholders above and on the App Store listing.
+- [ ] Set Support URL (`truckernet.app`) + Privacy URL (`truckernet.app/privacy`) on the App Store listing.
 
-**G. Google OAuth — 3 steps remaining**
-1. **Google Cloud Console** → find your OAuth Client ID → Authorized Redirect URIs → confirm this URL is listed:
-   `https://yhgluoeivobniifgbazy.supabase.co/auth/v1/callback`
-2. **Supabase** → Authentication → Providers → Google → toggle ON → paste Client ID + Secret → Save.
-3. **Supabase** → Authentication → URL Configuration → Redirect URLs → Add:
-   `truckernet://auth/callback`
-   (This is the mobile deep-link back into the app — the step most people miss.)
-   Note: Google sign-in only works in a real build (EAS), not Expo Go.
+**G. OAuth — DONE ✅ (2026-06-29)**
+- [x] **Google OAuth** — all 3 Supabase steps completed (redirect URI confirmed, provider on with
+      Client ID + Secret, `truckernet://auth/callback` added to Redirect URLs).
+- [x] **Apple Sign In** — App ID capability enabled + Supabase Apple provider on with bundle ID
+      `com.novaboostlabs.truckernet` (native `signInWithIdToken` flow — no secret/redirect needed).
+- [ ] Verify both on the device build (OAuth only works in a real EAS build, not Expo Go).
 
 ---
 
 ## 6. Work Log (newest first)
+
+### 2026-06-29 — EAS build unblocked (splash-screen hang) + OAuth + website live
+
+**The build installed but froze on the native splash screen.** Root cause (after two wrong
+guesses) was **missing EAS environment variables**: the local `.env` is gitignored, so it was
+never uploaded to EAS's build servers. At build time `EXPO_PUBLIC_SUPABASE_URL` was `undefined`
+→ `createClient('', '')` throws `supabaseUrl is required` **at module import** → the
+`supabase.ts → AuthContext → App.tsx` import chain failed before React mounted → JS never ran →
+`SplashScreen.hideAsync()` never called → native splash stayed up forever.
+
+- **Fix:** `eas env:push preview --path .env` (also production + development). Build log now shows
+  all five `EXPO_PUBLIC_*` vars loading. **Future env changes must be re-pushed to EAS.**
+- **Hardening kept (committed `abeb368`, `8e60f2c`):** AuthContext `getSession` now has
+  `.catch/.finally`; i18n init wrapped in try/catch/finally; AppSplashScreen 4s safety timer;
+  App.tsx 8s global failsafe + font-error fallback. None of these were the root cause but they
+  prevent any single init failure from freezing the splash again.
+- **Build config:** corrected Sentry project slug → `truckernet-react-native`;
+  `SENTRY_DISABLE_AUTO_UPLOAD=true` on preview/development; pinned dev profile to the same Xcode
+  image as preview (`abeb368`, `efd98d8`).
+- **`watcher.unstable_workerThreads` validation warning** — benign version skew between
+  `@expo/metro-config@54.0.16` (sets it) and `metro@0.83.7` (doesn't recognize it). Cosmetic;
+  no build/runtime effect. Left as-is.
+
+**OAuth done:** Google (3 Supabase steps) + Apple Sign In (App ID capability + Supabase provider
+with bundle ID). Native Apple flow — no secret/redirect needed. Verify on device build.
+
+**Website live at `truckernet.app`** (new domain, replaces the `truckernet.novaboostlabs.co`
+subdomain plan). Terms + Privacy pages have real content but still contain
+`[INSERT EFFECTIVE DATE]` / `[INSERT SUPPORT EMAIL]` placeholders — must fill before submission,
+and stand up a real `support@truckernet.app` mailbox. Tracked in §5.7 B.
 
 ### 2026-06-28 — Final V1 code gaps closed: profile sync, guest removal, brand icon
 
