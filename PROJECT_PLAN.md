@@ -868,9 +868,51 @@ app has proven product-market fit.
       `com.novaboostlabs.truckernet` (native `signInWithIdToken` flow — no secret/redirect needed).
 - [ ] Verify both on the device build (OAuth only works in a real EAS build, not Expo Go).
 
+**H. Security hardening — 2026-06-30 audit (do these; code side is committed)**
+- [ ] 🔴 **CRITICAL — apply `2026-06-30_core_tables_rls.sql`** in the Supabase SQL Editor, then in
+      Dashboard → Authentication → Policies CONFIRM `loads`, `state_mileage`, `fuel_entries` show
+      "RLS enabled" with only owner policies. The anon key is public (ships in the app), so RLS is
+      the ONLY thing protecting one user's data from another. If any of these tables had RLS OFF,
+      this was an active data-exposure hole. **If you see any policy using `USING (true)`, delete it.**
+- [ ] **Redeploy both edge functions** (now require an authenticated user + cap image size, so the
+      paid Anthropic key can't be abused by anyone holding the public anon key):
+      `supabase functions deploy ocr-fuel-receipt` + `supabase functions deploy ocr-bol`.
+      (Leave `verify_jwt` at its default ON.)
+- [ ] **Restrict the Mapbox token** at mapbox.com → token → URL restriction to the app's bundle ID
+      so a stolen public token can't burn your Mapbox quota.
+- [ ] **BOL photos are in a PUBLIC-read storage bucket** (`bol_read_public`) — BOLs contain broker
+      names, addresses, weights. Decide: switch to per-user read policy + signed URLs (needs a small
+      client change in how `bol_photo_url` is displayed). Flagged; not yet changed.
+- [ ] Optional: rate-limit `rate_reports` / `broker_reports` inserts (crowdsourced, anonymous —
+      CHECK constraints already block garbage values, but a determined user could spam volume).
+
 ---
 
 ## 6. Work Log (newest first)
+
+### 2026-06-30 — Security audit + hardening (XSS / SQLi / RLS / API-key abuse)
+
+Full defensive audit before scaling. **SQL injection: not possible** — the entire SQLite layer
+is parameterized (`?` + bound params); the only string interpolation is internal column-list
+constants and a hardcoded date-filter clause, never user data. **XSS: low surface** — React Native
+`Text` doesn't interpret HTML and there's no WebView; the one HTML generator (IFTA PDF via
+expo-print) interpolates only the user's own data into a local PDF — escaped it anyway (`esc()`).
+**Secrets: clean** — no service_role key or hardcoded secrets in the client; Anthropic key is
+server-side only; tokens in SecureStore (AFTER_FIRST_UNLOCK).
+
+**🔴 Critical finding — core-table RLS unverifiable from repo.** `loads`, `state_mileage`,
+`fuel_entries` were created in the base schema (not in the repo; the migrations only ADD COLUMNS),
+so their RLS status couldn't be confirmed. Since the anon key is public, RLS is the *only* barrier
+between users' data. Wrote `2026-06-30_core_tables_rls.sql` — idempotent, additive, owner-scoped
+(loads/fuel by `user_id`; state_mileage via parent load). **USER must apply + verify in dashboard.**
+
+**Edge functions hardened** (`ocr-fuel-receipt`, `ocr-bol`): added real authenticated-user check
+(`supabase.auth.getUser()` on the caller's JWT — the public anon key alone no longer passes) + an
+8M-char image size cap, so the paid Anthropic key can't be abused. **USER must redeploy both.**
+
+**Other items flagged in §5.7 H:** BOL photos are in a public-read bucket (harden to signed URLs);
+restrict the Mapbox public token to the bundle ID; optional rate-limit on crowdsourced inserts.
+Client `tsc` clean.
 
 ### 2026-06-30 — Fair-market formula: blind 20-load validation + calibration pass
 

@@ -11,8 +11,34 @@
 // Response     : { pickupAddress, deliveryAddress, weightLbs, bolNumber, brokerName } (any may be null)
 
 import { serve } from 'https://deno.land/std@0.224.0/http/server.ts';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.0';
 
 const ANTHROPIC_API_KEY = Deno.env.get('ANTHROPIC_API_KEY') ?? '';
+
+// Largest base64 image we'll forward to the paid vision API. The app downscales
+// BOL photos well under this; the cap stops a malicious caller from running up
+// Anthropic costs with huge payloads. ~8M chars ≈ ~6MB binary.
+const MAX_IMAGE_CHARS = 8_000_000;
+
+// Verify the caller is a REAL authenticated user — not just anyone holding the
+// public anon key (which ships in the app binary). Without this, the paid
+// Anthropic key behind this endpoint is open to abuse by anyone who decompiles
+// the app. getUser() validates the JWT against the auth server.
+async function isAuthedUser(req: Request): Promise<boolean> {
+  const authHeader = req.headers.get('Authorization');
+  if (!authHeader) return false;
+  try {
+    const supabase = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
+      { global: { headers: { Authorization: authHeader } }, auth: { persistSession: false } },
+    );
+    const { data: { user }, error } = await supabase.auth.getUser();
+    return !error && !!user;
+  } catch {
+    return false;
+  }
+}
 // BOLs are denser/more varied than a fuel receipt — Sonnet reads them more
 // reliably (addresses, handwriting, multi-stop layouts) and the volume is low.
 const MODEL = 'claude-sonnet-4-6';
@@ -48,6 +74,7 @@ serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
   if (req.method !== 'POST') return json({ error: 'method_not_allowed' }, 405);
   if (!ANTHROPIC_API_KEY) return json({ error: 'server_not_configured' }, 500);
+  if (!(await isAuthedUser(req))) return json({ error: 'unauthorized' }, 401);
 
   let image: string | undefined;
   try {
@@ -56,6 +83,7 @@ serve(async (req) => {
     return json({ error: 'bad_request' }, 400);
   }
   if (!image || typeof image !== 'string') return json({ error: 'missing_image' }, 400);
+  if (image.length > MAX_IMAGE_CHARS) return json({ error: 'image_too_large' }, 413);
 
   try {
     const resp = await fetch('https://api.anthropic.com/v1/messages', {

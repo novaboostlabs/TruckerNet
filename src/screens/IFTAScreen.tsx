@@ -50,6 +50,19 @@ const QUARTER_MONTHS: Record<Quarter, string> = {
   4: 'Oct 1 – Dec 31',
 };
 
+// Escape any user-derived string before interpolating it into the PDF HTML.
+// The state values originate from user-entered/OCR'd data, so even though the
+// PDF is the user's own, escaping keeps a stray "<" or "&" from corrupting the
+// document (defense-in-depth against HTML injection).
+function esc(s: unknown): string {
+  return String(s ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 function generatePDFHtml(rows: IFTARow[], year: number, q: Quarter): string {
   const totalMiles   = rows.reduce((s, r) => s + r.miles,   0);
   const totalGallons = rows.reduce((s, r) => s + r.gallons, 0);
@@ -59,7 +72,7 @@ function generatePDFHtml(rows: IFTARow[], year: number, q: Quarter): string {
 
   const rowsHtml = rows.map(r => `
     <tr>
-      <td class="state">${r.state}</td>
+      <td class="state">${esc(r.state)}</td>
       <td class="num">${Math.round(r.miles).toLocaleString()}</td>
       <td class="num">${r.gallons.toFixed(1)}</td>
     </tr>`).join('');
