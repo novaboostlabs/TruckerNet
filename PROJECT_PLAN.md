@@ -790,9 +790,33 @@ app has proven product-market fit.
 
 ---
 
-## 5.7 📌 YOUR PERSONAL TODO — updated 2026-06-29 (EAS build fixed)
+## 5.7 📌 YOUR PERSONAL TODO — updated 2026-06-30
 
 > Status as of this session. ✅ = done, [ ] = still needed.
+
+### 🏠 WHEN I GET HOME — do these in order (everything code-side is committed & pushed)
+
+1. **🔴 Apply the security migrations** (Supabase → SQL Editor → run each, then verify):
+   - `2026-06-30_core_tables_rls.sql` — then Dashboard → Authentication → Policies: confirm
+     `loads`, `state_mileage`, `fuel_entries` show **RLS enabled** with only owner policies.
+     **If any policy uses `USING (true)`, delete it.** (This is the most important item — it's
+     what stops one user from reading everyone's data.)
+   - `2026-06-30_bol_private.sql` — makes the BOL photo bucket private.
+2. **Redeploy the edge functions** (now require auth + cap image size):
+   `supabase functions deploy ocr-fuel-receipt` && `supabase functions deploy ocr-bol`
+3. **Restrict the Mapbox token** — mapbox.com → your token → restrict to bundle id
+   `com.novaboostlabs.truckernet` so a stolen public token can't drain your quota.
+4. **Build for TestFlight & test the purchase:**
+   `eas build --platform ios --profile production` → `eas submit --platform ios --latest`
+   → TestFlight (Export Compliance = No) → install → test: real prices, 7-day trial,
+   purchase → Pro unlock, Restore Purchases. (Subscriptions are already "Ready to Submit.")
+5. **Verify Google + Apple sign-in** on that TestFlight build (OAuth doesn't work in Expo Go).
+6. **Fill the legal-page placeholders** on `truckernet.app/terms` and `/privacy`:
+   real effective date + real support email; stand up `support@truckernet.app` as a working inbox.
+7. **Set Support URL + Privacy URL** on the App Store listing; finish screenshots + description.
+8. **Submit the app + subscriptions for review** (only after 4–7 are done).
+
+Details for each are in the lettered sections below.
 
 **A. Monetization — RevenueCat + App Store**
 - [x] Agreements, Tax & Banking in App Store Connect ✅
@@ -880,15 +904,26 @@ app has proven product-market fit.
       (Leave `verify_jwt` at its default ON.)
 - [ ] **Restrict the Mapbox token** at mapbox.com → token → URL restriction to the app's bundle ID
       so a stolen public token can't burn your Mapbox quota.
-- [ ] **BOL photos are in a PUBLIC-read storage bucket** (`bol_read_public`) — BOLs contain broker
-      names, addresses, weights. Decide: switch to per-user read policy + signed URLs (needs a small
-      client change in how `bol_photo_url` is displayed). Flagged; not yet changed.
+- [x] **BOL photos → private bucket + signed URLs** ✅ (code done 2026-06-30). Client now stores the
+      storage PATH and mints a short-lived signed URL on view (`getBolDisplayUri`). **USER must apply
+      `2026-06-30_bol_private.sql`** (flips bucket to private, drops public-read policy, adds owner-only
+      read). Existing public-URL rows are auto-handled by the resolver.
 - [ ] Optional: rate-limit `rate_reports` / `broker_reports` inserts (crowdsourced, anonymous —
       CHECK constraints already block garbage values, but a determined user could spam volume).
 
 ---
 
 ## 6. Work Log (newest first)
+
+### 2026-06-30 — Security: BOL photos → private bucket + signed URLs
+
+Closed the last code-fixable item from the audit. The BOL bucket was world-readable (public URLs);
+BOLs carry broker names, addresses, weights. Now: `uploadBolPhoto` returns the storage PATH (not a
+public URL); `getBolDisplayUri` mints a 1-hour signed URL on demand and handles legacy public-URL
+rows + local fallbacks; `LoadDetailScreen` resolves the signed URL into state and uses it for both
+the thumbnail and full-screen viewer. Migration `2026-06-30_bol_private.sql` flips the bucket to
+private, drops `bol_read_public`, adds owner-only read (so the owner can still sign their files).
+**USER must apply the migration.** `tsc` clean.
 
 ### 2026-06-30 — Security audit + hardening (XSS / SQLi / RLS / API-key abuse)
 

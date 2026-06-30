@@ -13,6 +13,7 @@ import {
 } from '../db/database';
 import { useAuth } from '../contexts/AuthContext';
 import { pushLoads } from '../lib/sync/loadsSync';
+import { getBolDisplayUri } from '../lib/storage';
 import { maybeContributeLoadRate } from '../lib/rateReports';
 import GridBackground from '../components/GridBackground';
 import AccentRule from '../components/AccentRule';
@@ -105,6 +106,7 @@ export default function LoadDetailScreen({ loadId, onClose }: Props) {
   const { user } = useAuth();
   const [load,      setLoad]      = useState<LoadDetail | null>(null);
   const [photoOpen, setPhotoOpen] = useState(false);
+  const [bolUri,    setBolUri]    = useState<string | null>(null);
   const [editingExp, setEditingExp] = useState(false);
 
   // Pending expense being typed in (null = no add row showing)
@@ -115,6 +117,15 @@ export default function LoadDetailScreen({ loadId, onClose }: Props) {
   }, [loadId]);
 
   useEffect(() => { refreshLoad(); }, [refreshLoad]);
+
+  // Resolve the BOL photo (private bucket) to a short-lived signed URL for display.
+  useEffect(() => {
+    let active = true;
+    const stored = load?.bol_photo_url;
+    if (!stored) { setBolUri(null); return; }
+    getBolDisplayUri(stored).then(uri => { if (active) setBolUri(uri); });
+    return () => { active = false; };
+  }, [load?.bol_photo_url]);
 
   function handleAddChip(cat: string, defaultLabel: string, defaultAmt: string) {
     setPending({ label: defaultLabel, amount: defaultAmt, category: cat });
@@ -558,11 +569,11 @@ export default function LoadDetailScreen({ loadId, onClose }: Props) {
         </View>
 
         {/* BOL photo */}
-        {!!load.bol_photo_url && (
+        {!!bolUri && (
           <>
             <Text style={styles.sectionHeader}>{t('loadDetail.bolPhoto')}</Text>
             <TouchableOpacity activeOpacity={0.9} onPress={() => setPhotoOpen(true)}>
-              <Image source={{ uri: load.bol_photo_url }} style={styles.bolPhoto} resizeMode="cover" />
+              <Image source={{ uri: bolUri }} style={styles.bolPhoto} resizeMode="cover" />
             </TouchableOpacity>
           </>
         )}
@@ -636,8 +647,8 @@ export default function LoadDetailScreen({ loadId, onClose }: Props) {
       {/* Full-screen BOL photo viewer */}
       <Modal visible={photoOpen} transparent animationType="fade" onRequestClose={() => setPhotoOpen(false)}>
         <TouchableOpacity style={styles.viewerOverlay} activeOpacity={1} onPress={() => setPhotoOpen(false)}>
-          {!!load.bol_photo_url && (
-            <Image source={{ uri: load.bol_photo_url }} style={styles.viewerImage} resizeMode="contain" />
+          {!!bolUri && (
+            <Image source={{ uri: bolUri }} style={styles.viewerImage} resizeMode="contain" />
           )}
           <View style={styles.viewerClose}>
             <Ionicons name="close" size={22} color="#fff" />
