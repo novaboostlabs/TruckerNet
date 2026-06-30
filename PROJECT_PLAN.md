@@ -810,6 +810,13 @@ app has proven product-market fit.
       Also hardened the loading gate (i18n try/catch + 8s failsafe) so a single init failure
       can't freeze the splash again.
 - [x] **RevenueCat Offering complete** ✅ — `default` offering marked Current with monthly + annual packages.
+- [x] **Subscriptions "Ready to Submit"** ✅ — cleared "Missing Metadata" by adding the
+      subscription-GROUP localization (the field most often missed — it's at the group level, not
+      the individual product) + availability (North America). First-subscription metadata is now complete.
+- [x] **Home-screen app name → "TruckerNet"** ✅ — `app.json` `expo.name` changed from
+      "TruckerNet: Driver Finance" to "TruckerNet" (the long name compacted badly under the icon).
+      App Store *listing* name stays "TruckerNet: Driver Finance" in ASC — the two are independent
+      (icon name is `CFBundleDisplayName`, set from `expo.name`). Takes effect on next build.
 - [ ] **Test purchase via TestFlight** (do this at home — not a quick phone task).
       WHY TestFlight, not the preview build: the `preview` profile is `distribution: internal`
       (ad-hoc), and ad-hoc builds use the **production** StoreKit environment — so the purchase
