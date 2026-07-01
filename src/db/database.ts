@@ -302,8 +302,8 @@ export function getTotalMonthlyExpenses(): number {
  * Priority order — gets more accurate automatically as the driver logs:
  *   1. Actual miles from completed loads in the last 90 days (if ≥ 5 loads).
  *      Rolling 90-day window so a slow month doesn't tank the estimate.
- *   2. Actual miles from the current calendar month only (if 1–4 loads — early data).
- *   3. Onboarding estimate (weekly_miles × 4.333) — fresh accounts / no data.
+ *   2. Onboarding estimate (weekly_miles × 4.333) — until there's enough real
+ *      data. A partial current-month sum is intentionally NOT used (see below).
  *
  * The 90-day window is intentional: one slow month shouldn't crater the
  * break-even; the rolling average is more representative of real operating pace.
@@ -327,18 +327,13 @@ export function getMonthlyMiles(): number {
     return Math.round(rolling.total_miles / 3);
   }
 
-  // ── Option 2: current month actual miles (1–4 loads — low confidence) ──
-  const monthData = db.getFirstSync<{ total_miles: number; load_count: number }>(
-    `SELECT COALESCE(SUM(total_miles), 0) as total_miles, COUNT(*) as load_count
-     FROM loads
-     WHERE status != 'cancelled' AND date >= ?`,
-    [monthStart()],
-  );
-  if (monthData && monthData.load_count >= 1 && monthData.total_miles > 0) {
-    return monthData.total_miles;
-  }
-
-  // ── Option 3: onboarding estimate — no load data yet ──
+  // ── Fallback: onboarding estimate (weekly_miles × 4.333) ──
+  // We deliberately do NOT use a partial current-month sum here. The sum of
+  // 1–4 loads logged so far this month is NOT a monthly mileage total — early in
+  // the month it can be tiny (e.g. one 35-mile load), which would divide fixed
+  // costs by 35 and produce a nonsensical break-even of hundreds of $/mi. Until
+  // the 90-day window has enough real data (Option 1, ≥5 loads), the driver's
+  // stated weekly miles is by far the more representative figure.
   const row = db.getFirstSync<{ value: string }>('SELECT value FROM settings WHERE key = "weekly_miles"');
   const weekly = parseFloat(row?.value ?? '0');
   return weekly * 4.333;
@@ -408,7 +403,9 @@ export function calcBreakEven(): {
   const fuelCPM    = getLatestFuelCPM();
   const totalFixed = getTotalMonthlyExpenses();
 
-  // Determine source before calling getMonthlyMiles so we can tag it.
+  // Determine source before calling getMonthlyMiles so we can tag it. Must mirror
+  // getMonthlyMiles: real data only once the 90-day window has ≥5 loads, else the
+  // onboarding estimate (a partial-month sum is never used — see getMonthlyMiles).
   const ninetyDaysAgo = (() => {
     const d = new Date(); d.setDate(d.getDate() - 90);
     return d.toISOString().split('T')[0];
@@ -417,15 +414,9 @@ export function calcBreakEven(): {
     `SELECT COUNT(*) as load_count FROM loads WHERE status != 'cancelled' AND date >= ?`,
     [ninetyDaysAgo],
   );
-  const monthData = db.getFirstSync<{ load_count: number }>(
-    `SELECT COUNT(*) as load_count FROM loads WHERE status != 'cancelled' AND date >= ?`,
-    [monthStart()],
-  );
 
   const milesSource: BreakEvenSource =
-    (rolling?.load_count ?? 0) >= 5 ? 'loads_90d' :
-    (monthData?.load_count ?? 0) >= 1 ? 'loads_month' :
-    'estimate';
+    (rolling?.load_count ?? 0) >= 5 ? 'loads_90d' : 'estimate';
 
   const monthlyMiles = getMonthlyMiles();
   if (monthlyMiles <= 0) return { breakEvenRPM: 0, fuelCPM, fixedCPM: 0, milesSource };
