@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { View, ActivityIndicator } from 'react-native';
+import { View, ActivityIndicator, StyleSheet } from 'react-native';
 import * as SplashScreen from 'expo-splash-screen';
 import AppSplashScreen from '../screens/AppSplashScreen';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -163,118 +163,126 @@ export default function RootNavigator() {
     setStep('walkthrough');
   }, []);
 
-  // ── Render based on step ──
+  // ── Render ──
+  // The current step screen renders underneath; the launch splash overlays it and
+  // crossfades out on completion (AppSplashScreen fades its own opacity to 0, then
+  // calls onDone → splashDone unmounts the overlay), so the first real screen fades
+  // in beneath it. A returning user with a live session lands on the dashboard, so
+  // the splash literally crossfades into the dashboard per spec.
+  const renderStep = () => {
+    if (step === 'loading') {
+      // Blank branded backdrop beneath the splash until auth resolves.
+      return <View style={{ flex: 1, backgroundColor: Colors.background }} />;
+    }
 
-  if (step === 'loading' || !splashDone) {
-    return (
-      <AppSplashScreen
-        onDone={() => {
-          SplashScreen.hideAsync().catch(() => {});
-          setSplashDone(true);
-        }}
-      />
-    );
-  }
-
-  if (step === 'language') {
-    return (
-      <LanguagePickerScreen
-        onLanguageSelected={() =>
-          setStep(getSetting(WALKTHROUGH_SETTING) === 'true' ? 'signin' : 'walkthrough')
-        }
-      />
-    );
-  }
-
-  if (step === 'walkthrough') {
-    // Replay/review mode (launched from Settings): just return to the app.
-    if (walkthroughReplay) {
+    if (step === 'language') {
       return (
-        <WalkthroughScreen
-          onDone={() => { setWalkthroughReplay(false); setStep('app'); }}
+        <LanguagePickerScreen
+          onLanguageSelected={() =>
+            setStep(getSetting(WALKTHROUGH_SETTING) === 'true' ? 'signin' : 'walkthrough')
+          }
         />
       );
     }
-    // First-launch mode: mark seen, then route appropriately.
-    // "Get Started" (sign up path) goes to onboarding first — auth comes after.
-    // "Already have an account" goes straight to sign-in (returning users skip onboarding).
-    const finishWalkthrough = () => setSetting(WALKTHROUGH_SETTING, 'true');
+
+    if (step === 'walkthrough') {
+      // Replay/review mode (launched from Settings): just return to the app.
+      if (walkthroughReplay) {
+        return (
+          <WalkthroughScreen
+            onDone={() => { setWalkthroughReplay(false); setStep('app'); }}
+          />
+        );
+      }
+      // First-launch mode: mark seen, then route appropriately.
+      // "Get Started" (sign up path) goes to onboarding first — auth comes after.
+      // "Already have an account" goes straight to sign-in (returning users skip onboarding).
+      const finishWalkthrough = () => setSetting(WALKTHROUGH_SETTING, 'true');
+      return (
+        <WalkthroughScreen
+          onSignUp={() => { finishWalkthrough(); setStep('onboarding_fuel'); }}
+          onSignIn={() => { finishWalkthrough(); setStep('signin'); }}
+        />
+      );
+    }
+
+    if (step === 'signin') {
+      return <SignInScreen onGoToSignUp={() => setStep('signup')} />;
+    }
+
+    if (step === 'signup') {
+      return <SignUpScreen onGoToSignIn={() => setStep('signin')} />;
+    }
+
+    if (step === 'onboarding_fuel') {
+      capture('onboarding_started');
+      return <OnboardingFuelScreen onNext={() => setStep('onboarding_expenses')} />;
+    }
+
+    if (step === 'onboarding_expenses') {
+      return (
+        <OnboardingExpensesScreen
+          onNext={() => setStep('onboarding_miles')}
+          onBack={() => setStep('onboarding_fuel')}
+        />
+      );
+    }
+
+    if (step === 'onboarding_miles') {
+      return (
+        <OnboardingMilesScreen
+          onNext={() => setStep('onboarding_result')}
+          onBack={() => setStep('onboarding_expenses')}
+        />
+      );
+    }
+
+    if (step === 'onboarding_result') {
+      return (
+        <OnboardingResultScreen
+          onBack={() => setStep('onboarding_miles')}
+          onComplete={() => {
+            capture('onboarding_completed');
+            // Onboarding now runs before auth. Per-user flag and expense sync
+            // are handled in the session effect when the user signs up.
+            setStep('profile_setup');
+          }}
+        />
+      );
+    }
+
+    if (step === 'profile_setup') {
+      return (
+        <ProfileSetupScreen
+          onBack={() => setStep('onboarding_result')}
+          onContinue={() => setStep('signup')}
+        />
+      );
+    }
+
+    // step === 'app'
     return (
-      <WalkthroughScreen
-        onSignUp={() => { finishWalkthrough(); setStep('onboarding_fuel'); }}
-        onSignIn={() => { finishWalkthrough(); setStep('signin'); }}
-      />
+      <AppFlowContext.Provider value={{ replayOnboarding, replayWalkthrough }}>
+        <Stack.Navigator screenOptions={{ headerShown: false, animation: 'fade' }}>
+          <Stack.Screen name="Main" component={TabNavigator} />
+        </Stack.Navigator>
+      </AppFlowContext.Provider>
     );
-  }
+  };
 
-  if (step === 'signin') {
-    return (
-      <SignInScreen
-        onGoToSignUp={() => setStep('signup')}
-      />
-    );
-  }
-
-  if (step === 'signup') {
-    return (
-      <SignUpScreen
-        onGoToSignIn={() => setStep('signin')}
-      />
-    );
-  }
-
-  if (step === 'onboarding_fuel') {
-    capture('onboarding_started');
-    return <OnboardingFuelScreen onNext={() => setStep('onboarding_expenses')} />;
-  }
-
-  if (step === 'onboarding_expenses') {
-    return (
-      <OnboardingExpensesScreen
-        onNext={() => setStep('onboarding_miles')}
-        onBack={() => setStep('onboarding_fuel')}
-      />
-    );
-  }
-
-  if (step === 'onboarding_miles') {
-    return (
-      <OnboardingMilesScreen
-        onNext={() => setStep('onboarding_result')}
-        onBack={() => setStep('onboarding_expenses')}
-      />
-    );
-  }
-
-  if (step === 'onboarding_result') {
-    return (
-      <OnboardingResultScreen
-        onBack={() => setStep('onboarding_miles')}
-        onComplete={() => {
-          capture('onboarding_completed');
-          // Onboarding now runs before auth. Per-user flag and expense sync
-          // are handled in the session effect when the user signs up.
-          setStep('profile_setup');
-        }}
-      />
-    );
-  }
-
-  if (step === 'profile_setup') {
-    return (
-      <ProfileSetupScreen
-        onBack={() => setStep('onboarding_result')}
-        onContinue={() => setStep('signup')}
-      />
-    );
-  }
-
-  // step === 'app'
   return (
-    <AppFlowContext.Provider value={{ replayOnboarding, replayWalkthrough }}>
-      <Stack.Navigator screenOptions={{ headerShown: false, animation: 'fade' }}>
-        <Stack.Screen name="Main" component={TabNavigator} />
-      </Stack.Navigator>
-    </AppFlowContext.Provider>
+    <View style={{ flex: 1, backgroundColor: Colors.background }}>
+      {renderStep()}
+      {!splashDone && (
+        <View style={StyleSheet.absoluteFill} pointerEvents="none">
+          <AppSplashScreen
+            onDone={() => {
+              SplashScreen.hideAsync().catch(() => {});
+              setSplashDone(true);
+            }}
+          />
+        </View>
+      )}
+    </View>
   );
 }
