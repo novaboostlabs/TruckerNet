@@ -8,8 +8,8 @@
     "userInterfaceStyle": "dark",
     "scheme": "truckernet",
     "splash": {
-      "image": "./assets/splash-icon.png",
-      "resizeMode": "contain",
+      "image": "./assets/splash-screen.png",
+      "resizeMode": "cover",
       "backgroundColor": "#0A0A0B"
     },
     "ios": {
