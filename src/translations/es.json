@@ -115,7 +115,8 @@
     "gross": "bruto",
     "load": "carga",
     "loads": "cargas",
-    "saving": "Guardando..."
+    "saving": "Guardando...",
+    "continue": "Continuar"
   },
   "auth": {
     "welcomeBack": "Bienvenido de nuevo.",
@@ -231,6 +232,21 @@
       "fixedMo": "FIJOS / MES",
       "milesMo": "MILLAS / MES",
       "nudge": "Agrega tus gastos y millas para calcular tu tasa de equilibrio. Puedes hacerlo en cualquier momento en la app."
+    },
+    "goals": {
+      "step": "CASI LISTO",
+      "title": "Define tu meta",
+      "subtitle": "Tu meta de ingresos te mantiene enfocado y tu tasa de impuestos te dice cuánto apartar. Ambos opcionales — cámbialos cuando quieras.",
+      "goalLabel": "META DE INGRESOS (NETO)",
+      "weekly": "Semanal",
+      "monthly": "Mensual",
+      "goalPlaceholder": "2,000",
+      "perWeek": "/ semana",
+      "perMonth": "/ mes",
+      "goalHint": "Tu meta neta después de todos los costos. Veremos tu progreso en el panel.",
+      "taxLabel": "¿CUÁL ES TU TASA DE IMPUESTOS HABITUAL?",
+      "taxHint": "La mayoría de los operadores aparta 25–30% para impuestos. Puedes ajustarlo cuando quieras.",
+      "skip": "Omitir por ahora"
     }
   },
   "dashboard": {
@@ -274,7 +290,8 @@
     "fabAddExpense": "Agregar gasto",
     "milesSource_loads_90d": "de tus cargas",
     "milesSource_loads_month": "de este mes",
-    "milesSource_estimate": "est."
+    "milesSource_estimate": "est.",
+    "setGoalNudge": "Fija una meta de ingresos"
   },
   "checkLoad": {
     "title": "Revisar Carga",
@@ -556,7 +573,16 @@
     "reviewModalEmpty": "Aún no hay gastos recurrentes. Toca Editar para agregar.",
     "reviewModalEdit": "Editar",
     "reviewModalConfirm": "Todo correcto",
-    "reviewModalConfirmed": "Confirmado ✓"
+    "reviewModalConfirmed": "Confirmado ✓",
+    "tax": {
+      "title": "Reserva para Impuestos",
+      "explainer": "El pago neto de cada carga completada menos cada gasto que registras alimenta este estimado — para que siempre sepas cuánto ahorrar para impuestos.",
+      "rateLabel": "TASA",
+      "quarterLabel": "APARTAR ESTE TRIMESTRE",
+      "ofNet": "de {{net}} neto gravable",
+      "ytdLabel": "AÑO ACTUAL",
+      "disclaimer": "Solo un estimado — no es asesoría fiscal. Verifica con un profesional."
+    }
   },
   "settings": {
     "title": "Configuración",

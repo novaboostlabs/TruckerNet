@@ -1,4 +1,5 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
   ScrollView, KeyboardAvoidingView, Platform, Modal, Pressable, Alert,
@@ -10,6 +11,7 @@ import { Colors, FontFamily, FontSize, Spacing, Radius, SectionLabel, ThemeColor
 import { useTheme } from '../theme/ThemeContext';
 import {
   getUserExpenses, replaceUserExpenses, getWeeklyMiles, setMonthlyMiles,
+  getTaxSetAside, setSetting, TaxSetAside,
 } from '../db/database';
 import { toMonthlyAmount, ExpenseFrequency } from '../utils/marketRates';
 import { useAuth } from '../contexts/AuthContext';
@@ -72,6 +74,19 @@ export default function ExpensesScreen() {
   const [monthlyMilesInput, setMonthlyMilesInput] = useState('');
   const [freqTarget, setFreqTarget] = useState<FreqTarget>(null);
   const [saved, setSaved]   = useState(false);
+
+  // ── Tax set-aside (income-tax) — recomputed whenever the tab gains focus so it
+  //    reflects the latest loads + expenses feeding the estimate ──
+  const [taxData, setTaxData] = useState<TaxSetAside>(() => getTaxSetAside());
+  const [taxRate, setTaxRate] = useState<number>(() => Math.round(getTaxSetAside().rate * 100));
+
+  useFocusEffect(useCallback(() => { setTaxData(getTaxSetAside()); }, []));
+
+  const applyTaxRate = useCallback((r: number) => {
+    setSetting('tax_rate', String(r));
+    setTaxRate(r);
+    setTaxData(getTaxSetAside());
+  }, []);
 
   // ── Load existing values from user_expenses on mount ──
   useEffect(() => {
@@ -258,6 +273,48 @@ export default function ExpensesScreen() {
             ) : (
               <Text style={styles.heroSub}>{t('expenses.heroEmpty')}</Text>
             )}
+          </View>
+
+          {/* ── Tax set-aside breakdown ── */}
+          <Text style={styles.sectionTitle}>{t('expenses.tax.title')}</Text>
+          <Text style={styles.sectionHint}>{t('expenses.tax.explainer')}</Text>
+          <View style={styles.taxCard}>
+            {/* Rate selector */}
+            <View style={styles.taxRateRow}>
+              <Text style={styles.taxRateLabel}>{t('expenses.tax.rateLabel')}</Text>
+              <View style={styles.taxChips}>
+                {[15, 20, 25, 30].map((r) => (
+                  <TouchableOpacity
+                    key={r}
+                    style={[styles.taxChip, taxRate === r && styles.taxChipActive]}
+                    onPress={() => applyTaxRate(r)}
+                    activeOpacity={0.85}
+                  >
+                    <Text style={[styles.taxChipText, taxRate === r && styles.taxChipTextActive]}>{r}%</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
+            {/* This-quarter hero set-aside */}
+            <View style={styles.taxHero}>
+              <Text style={styles.taxHeroLabel}>{t('expenses.tax.quarterLabel')}</Text>
+              <Text style={styles.taxHeroValue}>${taxData.quarterSetAside.toLocaleString('en-US')}</Text>
+              <Text style={styles.taxHeroBase}>
+                {t('expenses.tax.ofNet', { net: `$${taxData.quarterNet.toLocaleString('en-US')}` })}
+              </Text>
+            </View>
+
+            {/* YTD row */}
+            <View style={styles.taxYtdRow}>
+              <Text style={styles.taxYtdLabel}>{t('expenses.tax.ytdLabel')}</Text>
+              <Text style={styles.taxYtdValue}>
+                ${taxData.ytdSetAside.toLocaleString('en-US')}
+                <Text style={styles.taxYtdBase}> {t('expenses.tax.ofNet', { net: `$${taxData.ytdNet.toLocaleString('en-US')}` })}</Text>
+              </Text>
+            </View>
+
+            <Text style={styles.taxDisclaimer}>{t('expenses.tax.disclaimer')}</Text>
           </View>
 
           {/* ── Essentials ── */}
@@ -459,6 +516,34 @@ const makeStyles = (Colors: ThemeColors) => StyleSheet.create({
 
   sectionTitle: { fontFamily: FontFamily.monoSemiBold, fontSize: FontSize.body, color: Colors.textPrimary, marginBottom: 4 },
   sectionHint:  { fontFamily: FontFamily.regular, fontSize: FontSize.label, color: Colors.textSecondary, marginBottom: 14, lineHeight: 18 },
+
+  // ── Tax set-aside section ──
+  taxCard: {
+    backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border,
+    borderRadius: Radius.md, padding: Spacing.cardPad, marginBottom: 24,
+  },
+  taxRateRow:   { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, gap: 10 },
+  taxRateLabel: { fontFamily: FontFamily.monoSemiBold, fontSize: 10, color: Colors.labelColor, letterSpacing: 1.2 },
+  taxChips:     { flexDirection: 'row', gap: 6 },
+  taxChip: {
+    paddingHorizontal: 10, paddingVertical: 6, borderRadius: Radius.pill,
+    backgroundColor: Colors.surfaceHigh, borderWidth: 1, borderColor: Colors.border,
+  },
+  taxChipActive:     { backgroundColor: Colors.secondaryDim, borderColor: Colors.secondary },
+  taxChipText:       { fontFamily: FontFamily.monoBold, fontSize: FontSize.caption, color: Colors.textSecondary },
+  taxChipTextActive: { color: Colors.secondary },
+
+  taxHero:      { alignItems: 'center', paddingVertical: 8, marginBottom: 12, borderBottomWidth: 1, borderBottomColor: Colors.border, paddingBottom: 16 },
+  taxHeroLabel: { fontFamily: FontFamily.monoSemiBold, fontSize: 9, color: Colors.labelColor, letterSpacing: 1.2, marginBottom: 6 },
+  taxHeroValue: { fontFamily: FontFamily.monoBold, fontSize: FontSize.cardNumber, color: Colors.secondary, letterSpacing: -1 },
+  taxHeroBase:  { fontFamily: FontFamily.regular, fontSize: FontSize.label, color: Colors.textTertiary, marginTop: 4 },
+
+  taxYtdRow:   { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
+  taxYtdLabel: { fontFamily: FontFamily.monoSemiBold, fontSize: 10, color: Colors.labelColor, letterSpacing: 1.2 },
+  taxYtdValue: { fontFamily: FontFamily.monoBold, fontSize: FontSize.body, color: Colors.textPrimary },
+  taxYtdBase:  { fontFamily: FontFamily.regular, fontSize: FontSize.caption, color: Colors.textTertiary },
+
+  taxDisclaimer: { fontFamily: FontFamily.regular, fontSize: 10, color: Colors.textTertiary, fontStyle: 'italic', lineHeight: 15 },
 
   expenseList: { gap: 12, marginBottom: 24 },
   expenseCard: {

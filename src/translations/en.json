@@ -115,7 +115,8 @@
     "gross": "gross",
     "load": "load",
     "loads": "loads",
-    "saving": "Saving..."
+    "saving": "Saving...",
+    "continue": "Continue"
   },
   "auth": {
     "welcomeBack": "Welcome back.",
@@ -231,6 +232,21 @@
       "fixedMo": "FIXED / MO",
       "milesMo": "MILES / MO",
       "nudge": "Add your expenses and miles to calculate your break-even rate. You can do this anytime in the app."
+    },
+    "goals": {
+      "step": "ALMOST DONE",
+      "title": "Set your target",
+      "subtitle": "Your income goal keeps you on track, and your tax rate tells you what to set aside. Both optional — change them anytime.",
+      "goalLabel": "INCOME GOAL (NET)",
+      "weekly": "Weekly",
+      "monthly": "Monthly",
+      "goalPlaceholder": "2,000",
+      "perWeek": "/ week",
+      "perMonth": "/ month",
+      "goalHint": "Your take-home target after all costs. We’ll track your progress on the dashboard.",
+      "taxLabel": "WHAT’S YOUR USUAL TAX RATE?",
+      "taxHint": "Most owner-operators set aside 25–30% for taxes. You can fine-tune this anytime.",
+      "skip": "Skip for now"
     }
   },
   "dashboard": {
@@ -274,7 +290,8 @@
     "fabAddExpense": "Add Expense",
     "milesSource_loads_90d": "from your loads",
     "milesSource_loads_month": "from this month",
-    "milesSource_estimate": "est."
+    "milesSource_estimate": "est.",
+    "setGoalNudge": "Set an income goal"
   },
   "checkLoad": {
     "title": "Check Load",
@@ -527,7 +544,16 @@
     "reviewModalEmpty": "No recurring expenses yet. Tap Edit to add them.",
     "reviewModalEdit": "Edit",
     "reviewModalConfirm": "All accurate",
-    "reviewModalConfirmed": "Confirmed ✓"
+    "reviewModalConfirmed": "Confirmed ✓",
+    "tax": {
+      "title": "Tax Set-Aside",
+      "explainer": "Every completed load’s net pay minus every expense you log feeds this estimate — so you always know what to save for taxes.",
+      "rateLabel": "RATE",
+      "quarterLabel": "SET ASIDE THIS QUARTER",
+      "ofNet": "of {{net}} taxable net",
+      "ytdLabel": "YEAR TO DATE",
+      "disclaimer": "Estimate only — not tax advice. Verify with a tax professional."
+    }
   },
   "history": {
     "title": "History",

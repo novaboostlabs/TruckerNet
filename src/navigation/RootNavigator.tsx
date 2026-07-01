@@ -14,6 +14,7 @@ import OnboardingFuelScreen from '../screens/onboarding/OnboardingFuelScreen';
 import OnboardingExpensesScreen from '../screens/onboarding/OnboardingExpensesScreen';
 import OnboardingMilesScreen from '../screens/onboarding/OnboardingMilesScreen';
 import OnboardingResultScreen from '../screens/onboarding/OnboardingResultScreen';
+import OnboardingGoalsScreen from '../screens/onboarding/OnboardingGoalsScreen';
 import ProfileSetupScreen from '../screens/onboarding/ProfileSetupScreen';
 import { getSavedLanguage } from '../lib/i18n';
 import { getSetting, setSetting, clearAllUserData, claimDataOwnership } from '../db/database';
@@ -44,6 +45,7 @@ type Step =
   | 'onboarding_expenses'
   | 'onboarding_miles'
   | 'onboarding_result'
+  | 'onboarding_goals'
   | 'profile_setup'
   | 'app';
 
@@ -245,8 +247,17 @@ export default function RootNavigator() {
             capture('onboarding_completed');
             // Onboarding now runs before auth. Per-user flag and expense sync
             // are handled in the session effect when the user signs up.
-            setStep('profile_setup');
+            setStep('onboarding_goals');
           }}
+        />
+      );
+    }
+
+    if (step === 'onboarding_goals') {
+      return (
+        <OnboardingGoalsScreen
+          onNext={() => setStep('profile_setup')}
+          onBack={() => setStep('onboarding_result')}
         />
       );
     }
@@ -254,7 +265,7 @@ export default function RootNavigator() {
     if (step === 'profile_setup') {
       return (
         <ProfileSetupScreen
-          onBack={() => setStep('onboarding_result')}
+          onBack={() => setStep('onboarding_goals')}
           onContinue={() => setStep('signup')}
         />
       );

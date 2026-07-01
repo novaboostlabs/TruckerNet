@@ -115,7 +115,8 @@
     "loads": "单",
     "optional": "可选",
     "required": "必填",
-    "saving": "保存中..."
+    "saving": "保存中...",
+    "continue": "继续"
   },
   "auth": {
     "welcomeBack": "欢迎回来。",
@@ -231,6 +232,21 @@
       "fixedMo": "固定 / 月",
       "milesMo": "里程 / 月",
       "nudge": "添加您的费用和里程以计算盈亏平衡费率。您可以随时在应用中进行此操作。"
+    },
+    "goals": {
+      "step": "即将完成",
+      "title": "设定你的目标",
+      "subtitle": "收入目标让你保持在轨道上，税率告诉你需要预留多少。两者均为可选 — 随时可更改。",
+      "goalLabel": "收入目标（净额）",
+      "weekly": "每周",
+      "monthly": "每月",
+      "goalPlaceholder": "2,000",
+      "perWeek": "/ 周",
+      "perMonth": "/ 月",
+      "goalHint": "扣除所有成本后的到手目标。我们会在仪表板上跟踪你的进度。",
+      "taxLabel": "你通常的税率是多少？",
+      "taxHint": "大多数个体司机预留 25–30% 用于纳税。你可以随时微调。",
+      "skip": "暂时跳过"
     }
   },
   "dashboard": {
@@ -274,7 +290,8 @@
     "fabAddExpense": "添加支出",
     "milesSource_loads_90d": "基于你的货运",
     "milesSource_loads_month": "基于本月",
-    "milesSource_estimate": "估算"
+    "milesSource_estimate": "估算",
+    "setGoalNudge": "设定收入目标"
   },
   "checkLoad": {
     "title": "查看订单",
@@ -556,7 +573,16 @@
     "reviewModalEmpty": "还没有固定费用。点击编辑添加。",
     "reviewModalEdit": "编辑",
     "reviewModalConfirm": "全部正确",
-    "reviewModalConfirmed": "已确认 ✓"
+    "reviewModalConfirmed": "已确认 ✓",
+    "tax": {
+      "title": "税款预留",
+      "explainer": "每笔完成货运的净收入减去你记录的每项开支，构成此估算 — 让你随时知道需要为税款存多少。",
+      "rateLabel": "税率",
+      "quarterLabel": "本季度预留",
+      "ofNet": "应税净额 {{net}} 中",
+      "ytdLabel": "年初至今",
+      "disclaimer": "仅为估算 — 非税务建议。请与税务专业人士核实。"
+    }
   },
   "settings": {
     "title": "设置",

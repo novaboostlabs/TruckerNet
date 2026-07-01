@@ -314,6 +314,13 @@ export default function DashboardScreen() {
                 </View>
               </>
             )}
+
+            {/* Nudge to set an income goal (this fallback only shows when no goal is set) */}
+            <TouchableOpacity style={styles.goalNudge} onPress={() => setShowSettings(true)} activeOpacity={0.7}>
+              <Ionicons name="flag-outline" size={13} color={Colors.primary} />
+              <Text style={styles.goalNudgeText}>{t('dashboard.setGoalNudge')}</Text>
+              <Ionicons name="chevron-forward" size={13} color={Colors.primary} />
+            </TouchableOpacity>
           </View>
         )}
 
@@ -524,6 +531,12 @@ const makeStyles = (Colors: ThemeColors) => StyleSheet.create({
   },
   weekHeroUnit:  { fontFamily: FontFamily.monoRegular, fontSize: FontSize.label, color: Colors.textSecondary, marginBottom: 18, letterSpacing: 0.5 },
   weekHeroEmpty: { fontFamily: FontFamily.regular, fontSize: FontSize.label, color: Colors.textSecondary, marginTop: 6, lineHeight: 20 },
+  goalNudge: {
+    flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start',
+    marginTop: 16, paddingVertical: 8, paddingHorizontal: 12,
+    backgroundColor: Colors.primaryDim, borderWidth: 1, borderColor: Colors.primaryMid, borderRadius: Radius.pill,
+  },
+  goalNudgeText: { fontFamily: FontFamily.monoSemiBold, fontSize: FontSize.caption, color: Colors.primary },
   heroDivider:   { height: 1, backgroundColor: Colors.borderSubtle, marginBottom: 14 },
   weekMetaRow:   { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 6 },
   weekRpm:       { fontFamily: FontFamily.monoBold, fontSize: FontSize.subtitle, color: Colors.textPrimary, letterSpacing: -0.5 },
