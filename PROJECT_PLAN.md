@@ -915,6 +915,24 @@ Details for each are in the lettered sections below.
 
 ## 6. Work Log (newest first)
 
+### 2026-07-01 — Surface income goal + tax set-aside (input + visualization)
+
+Both features existed (DB + dashboard cards) but were only *settable* in Settings and had
+no clear input/visual home, so drivers never engaged with them.
+
+- **Onboarding "Goals & Taxes" step** (`OnboardingGoalsScreen`) — inserted after the break-even
+  reveal, before profile setup (RootNavigator: result → onboarding_goals → profile_setup).
+  Captures income goal (amount + weekly/monthly) + "what's your usual tax rate?" (15/20/25/30
+  chips, default 25). Skippable; writes `income_goal_*` + `tax_rate`.
+- **Expenses tab tax breakdown** (user chose Expenses over IFTA) — inline rate chips (live-update
+  `tax_rate`), this-quarter set-aside of taxable net, YTD, + explainer that every completed load's
+  net minus every logged expense feeds it. Recomputes via `useFocusEffect`. Uses existing
+  `getTaxSetAside()` (already nets loads − general_expenses × rate).
+- **Dashboard** — "Set an income goal" nudge on the no-goal fallback hero; the GoalProgressCard
+  hero (bar + %) already renders once a goal exists, so onboarding capture makes it appear.
+- i18n across en/es/pa/zh, full parity. tsc clean. All previewable in Expo Go.
+
+
 ### 2026-06-30 — Xcode 26 build mandate + App Store Connect notes
 
 - **Xcode 26 required for App Store** (Apple mandate, effective 2026-04-28: builds must use the
