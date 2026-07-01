@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
-  KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator,
+  KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator, Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -139,7 +139,7 @@ export default function SignUpScreen({ onGoToSignIn }: Props) {
 
           {/* Brand */}
           <View style={styles.brand}>
-            <View style={styles.logoMark}><Text style={styles.logoChar}>T</Text></View>
+            <Image source={require('../../../assets/truck-logo-1024.png')} style={styles.logoMark} resizeMode="cover" />
             <View>
               <Text style={styles.appName}>TruckerNet</Text>
               <Text style={styles.tagline}>{t('auth.tagline')}</Text>
@@ -239,8 +239,7 @@ const makeStyles = (Colors: ThemeColors) => StyleSheet.create({
   headerLabel: { fontFamily: FontFamily.monoSemiBold, fontSize: 11, color: Colors.labelColor, letterSpacing: 1.8 },
 
   brand:    { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 36 },
-  logoMark: { width: 40, height: 40, borderRadius: Radius.sm, backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center' },
-  logoChar: { fontFamily: FontFamily.monoBold, fontSize: 22, color: Colors.onPrimary, lineHeight: 26 },
+  logoMark: { width: 40, height: 40, borderRadius: Radius.sm },
   appName:  { fontFamily: FontFamily.monoSemiBold, fontSize: 16, color: Colors.textPrimary, letterSpacing: -0.3 },
   tagline:  { fontFamily: FontFamily.regular, fontSize: FontSize.caption, color: Colors.textSecondary, marginTop: 1 },
 

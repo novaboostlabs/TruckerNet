@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import {
-  View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Modal, Pressable,
+  View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Modal, Pressable, Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -69,6 +69,11 @@ export default function LanguagePickerScreen({ onLanguageSelected }: Props) {
 
         {/* Welcome hero — Freight Terminal mono style */}
         <View style={styles.hero}>
+          <Image
+            source={require('../../assets/truck-logo-1024.png')}
+            style={styles.heroLogo}
+            resizeMode="contain"
+          />
           <Text style={styles.heading}>{t('welcome.title')}</Text>
           <AccentRule width={84} height={6} style={{ marginTop: 8, marginBottom: 18 }} />
           <Text style={styles.slogan}>{t('welcome.slogan')}</Text>
@@ -215,6 +220,7 @@ const makeStyles = (Colors: ThemeColors) => StyleSheet.create({
   headerLabel: { fontFamily: FontFamily.monoSemiBold, fontSize: 11, color: Colors.labelColor, letterSpacing: 1.8 },
 
   hero:    { marginBottom: 48 },
+  heroLogo: { width: 96, height: 96, borderRadius: Radius.md, marginBottom: 20 },
   heading: { fontFamily: FontFamily.monoBold, fontSize: 48, color: Colors.textPrimary, lineHeight: 52, marginBottom: 0, letterSpacing: -0.6 },
   slogan:  { fontFamily: FontFamily.regular, fontSize: FontSize.body, color: Colors.textSecondary, lineHeight: 24 },
 
