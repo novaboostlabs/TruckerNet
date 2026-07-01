@@ -70,7 +70,7 @@ export default function LanguagePickerScreen({ onLanguageSelected }: Props) {
         {/* Welcome hero — Freight Terminal mono style */}
         <View style={styles.hero}>
           <Image
-            source={require('../../assets/truck-logo-1024.png')}
+            source={require('../../assets/truck-logo-transparent.png')}
             style={styles.heroLogo}
             resizeMode="contain"
           />
@@ -220,7 +220,7 @@ const makeStyles = (Colors: ThemeColors) => StyleSheet.create({
   headerLabel: { fontFamily: FontFamily.monoSemiBold, fontSize: 11, color: Colors.labelColor, letterSpacing: 1.8 },
 
   hero:    { marginBottom: 48 },
-  heroLogo: { width: 96, height: 96, borderRadius: Radius.md, marginBottom: 20 },
+  heroLogo: { width: 168, height: 83, marginBottom: 20, alignSelf: 'flex-start' },
   heading: { fontFamily: FontFamily.monoBold, fontSize: 48, color: Colors.textPrimary, lineHeight: 52, marginBottom: 0, letterSpacing: -0.6 },
   slogan:  { fontFamily: FontFamily.regular, fontSize: FontSize.body, color: Colors.textSecondary, lineHeight: 24 },
 

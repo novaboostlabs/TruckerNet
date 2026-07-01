@@ -139,7 +139,7 @@ export default function SignUpScreen({ onGoToSignIn }: Props) {
 
           {/* Brand */}
           <View style={styles.brand}>
-            <Image source={require('../../../assets/truck-logo-1024.png')} style={styles.logoMark} resizeMode="cover" />
+            <Image source={require('../../../assets/truck-logo-transparent.png')} style={styles.logoMark} resizeMode="contain" />
             <View>
               <Text style={styles.appName}>TruckerNet</Text>
               <Text style={styles.tagline}>{t('auth.tagline')}</Text>
@@ -239,7 +239,7 @@ const makeStyles = (Colors: ThemeColors) => StyleSheet.create({
   headerLabel: { fontFamily: FontFamily.monoSemiBold, fontSize: 11, color: Colors.labelColor, letterSpacing: 1.8 },
 
   brand:    { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 36 },
-  logoMark: { width: 40, height: 40, borderRadius: Radius.sm },
+  logoMark: { width: 48, height: 24 },
   appName:  { fontFamily: FontFamily.monoSemiBold, fontSize: 16, color: Colors.textPrimary, letterSpacing: -0.3 },
   tagline:  { fontFamily: FontFamily.regular, fontSize: FontSize.caption, color: Colors.textSecondary, marginTop: 1 },
 
