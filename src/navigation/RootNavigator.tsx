@@ -20,11 +20,7 @@ import { getSavedLanguage } from '../lib/i18n';
 import { getSetting, setSetting, clearAllUserData, claimDataOwnership } from '../db/database';
 import { capture } from '../lib/analytics';
 import { AppFlowContext } from '../contexts/AppFlowContext';
-import { syncExpensesOnSignIn } from '../lib/sync/expensesSync';
-import { syncFuelOnSignIn } from '../lib/sync/fuelSync';
-import { syncLoadsOnSignIn } from '../lib/sync/loadsSync';
-import { syncProfileOnSignIn } from '../lib/sync/profileSync';
-import { syncGeneralExpensesOnSignIn } from '../lib/sync/generalExpensesSync';
+import { syncAll } from '../lib/sync';
 import { setupNotifications } from '../lib/notifications';
 
 const Stack = createNativeStackNavigator();
@@ -94,6 +90,10 @@ export default function RootNavigator() {
       claimDataOwnership(session.user.id);
       const onboarded = getSetting(onboardingKey(session.user.id)) === 'true';
       if (!onboarded) { setStep('onboarding_fuel'); return; }
+      // Returning user with a live session — reconcile with the cloud on every
+      // cold start (not just at the sign-in transition), so a device that was
+      // offline for a while pulls the latest and pushes its own local edits.
+      syncAll(session.user.id);
       setStep('app');
     }
 
@@ -124,11 +124,7 @@ export default function RootNavigator() {
 
     // Reconcile with the cloud. Push expenses captured during pre-auth onboarding
     // now that we have a user ID. Fire-and-forget, never blocks navigation.
-    syncExpensesOnSignIn(session.user.id);
-    syncFuelOnSignIn(session.user.id);
-    syncLoadsOnSignIn(session.user.id);
-    syncProfileOnSignIn(session.user.id);
-    syncGeneralExpensesOnSignIn(session.user.id);
+    syncAll(session.user.id);
 
     setStep('app');
   }, [session]); // eslint-disable-line

@@ -10,7 +10,7 @@ import { FontFamily, FontSize, Spacing, Radius, ThemeColors, sectionLabel } from
 import { useTheme } from '../theme/ThemeContext';
 import { getDateLocale } from '../lib/i18n';
 import {
-  addGeneralExpense, addSingleLoadExpense, getRecentLoads, LoadSummary,
+  addGeneralExpense, addSingleLoadExpense, getRecentLoads, LoadSummary, localDateISO,
 } from '../db/database';
 import { useAuth } from '../contexts/AuthContext';
 import { pushLoads } from '../lib/sync/loadsSync';
@@ -50,7 +50,7 @@ export default function AddExpenseScreen({ onClose, onSaved }: Props) {
   const [amount,   setAmount]   = useState('');
   const [category, setCategory] = useState('repair');
   const [note,     setNote]     = useState('');
-  const [date,     setDate]     = useState(() => new Date().toISOString().split('T')[0]);
+  const [date,     setDate]     = useState(() => localDateISO());
   const [loadSel,  setLoadSel]  = useState<LoadSummary | null>(null);
   const [loadPickerOpen, setLoadPickerOpen] = useState(false);
   const [saving,   setSaving]   = useState(false);
@@ -59,7 +59,7 @@ export default function AddExpenseScreen({ onClose, onSaved }: Props) {
   const amt = parseFloat(amount) || 0;
   const canSave = amt > 0;
 
-  const isToday = date === new Date().toISOString().split('T')[0];
+  const isToday = date === localDateISO();
   const dateDisplay = new Date(date + 'T12:00:00').toLocaleDateString(getDateLocale(), {
     weekday: 'short', month: 'short', day: 'numeric', year: 'numeric',
   });
@@ -67,8 +67,8 @@ export default function AddExpenseScreen({ onClose, onSaved }: Props) {
   function shiftDate(days: number) {
     const d = new Date(date + 'T12:00:00');
     d.setDate(d.getDate() + days);
-    const iso = d.toISOString().split('T')[0];
-    if (iso <= new Date().toISOString().split('T')[0]) setDate(iso);
+    const iso = localDateISO(d);
+    if (iso <= localDateISO()) setDate(iso);
   }
 
   function handleSave() {

@@ -10,7 +10,8 @@
 
 import { supabase, isSupabaseConfigured } from '../supabase';
 import {
-  getUserExpenses, replaceUserExpenses, getWeeklyMiles, getSetting, setSetting,
+  getUserExpenses, mergeUserExpenses, getWeeklyMiles, getSetting, setSetting,
+  getQueuedDeletes, clearQueuedDeletes,
 } from '../../db/database';
 
 interface SyncResult {
@@ -36,7 +37,6 @@ export async function pushExpenses(userId: string): Promise<SyncResult> {
     const rows    = getUserExpenses();
     const weekly  = getWeeklyMiles();
     const now     = new Date().toISOString();
-    const localIds = rows.map((r) => r.id);
 
     if (rows.length > 0) {
       // rows arrive ordered by sort_order asc, so the index preserves ordering
@@ -57,13 +57,17 @@ export async function pushExpenses(userId: string): Promise<SyncResult> {
       if (error) return { error: error.message };
     }
 
-    // Remove cloud rows the user has deleted locally.
-    let del = supabase.from(TABLE).delete().eq('user_id', userId);
-    del = localIds.length > 0
-      ? del.not('id', 'in', `(${localIds.join(',')})`)
-      : del; // no local rows → delete all cloud rows for this user
-    const { error: delError } = await del;
-    if (delError) return { error: delError.message };
+    // Propagate only expenses the user explicitly deleted (drain the tombstone
+    // queue, populated by the editor's diff + deleteGeneralExpense). Never the
+    // old "delete every cloud row not present locally" — a stale device would
+    // wipe expenses another device just added.
+    const deletedIds = getQueuedDeletes(TABLE);
+    if (deletedIds.length > 0) {
+      const { error: delError } = await supabase
+        .from(TABLE).delete().eq('user_id', userId).in('id', deletedIds);
+      if (delError) return { error: delError.message };
+      clearQueuedDeletes(TABLE, deletedIds);
+    }
 
     // Persist weekly miles + fuel estimate on the profile row.
     // Use upsert (not update) so a missing profile row is created rather than
@@ -100,7 +104,7 @@ export async function pullExpenses(userId: string): Promise<PullResult> {
 
     const rows = data ?? [];
     if (rows.length > 0) {
-      replaceUserExpenses(
+      mergeUserExpenses(
         rows.map((r) => ({
           id:                 r.id,
           label:              r.label ?? '',
@@ -137,10 +141,12 @@ export async function pullExpenses(userId: string): Promise<PullResult> {
  * local data up instead so nothing is lost. A pull error (offline) is left
  * alone — never overwrite or push on uncertain state.
  */
-export async function syncExpensesOnSignIn(userId: string): Promise<void> {
-  if (!isSupabaseConfigured() || !userId) return;
+export async function syncExpensesOnSignIn(userId: string): Promise<SyncResult> {
+  if (!isSupabaseConfigured() || !userId) return { error: null };
 
-  const { found, error } = await pullExpenses(userId);
-  if (error) return;            // transient/offline — don't risk a bad push
-  if (!found) await pushExpenses(userId);
+  // Pull merges cloud into local (keeping unpushed local expenses); then push
+  // sends the union + queued deletes up. Offline pull error skips the push.
+  const { error } = await pullExpenses(userId);
+  if (error) return { error };  // transient/offline — don't risk a bad push
+  return await pushExpenses(userId);
 }

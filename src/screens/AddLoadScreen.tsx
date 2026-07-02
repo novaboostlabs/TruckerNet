@@ -14,7 +14,7 @@ import { useTheme } from '../theme/ThemeContext';
 import { getDateLocale } from '../lib/i18n';
 import {
   calcBreakEven, saveLoad, getPersonalLaneHistory, LaneHistory, LoadExpenseInsert,
-  getIncomeGoal, getWeekPnL, getMonthPnL, getSetting, setSetting, getLoadCount,
+  getIncomeGoal, getWeekPnL, getMonthPnL, getSetting, setSetting, getLoadCount, localDateISO,
 } from '../db/database';
 import { useAuth } from '../contexts/AuthContext';
 import { useSubscription } from '../contexts/SubscriptionContext';
@@ -149,16 +149,16 @@ export default function AddLoadScreen({ onClose, onSaved, onFirstLoad, prefill }
   const stateInitialized = useRef(false);
 
   // ── Load date (defaults to today; user can go back to backlog past loads) ──
-  const [loadDate, setLoadDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [loadDate, setLoadDate] = useState(() => localDateISO());
 
   function shiftLoadDate(days: number) {
     const d = new Date(loadDate + 'T12:00:00');
     d.setDate(d.getDate() + days);
-    const iso = d.toISOString().split('T')[0];
-    if (iso <= new Date().toISOString().split('T')[0]) setLoadDate(iso);
+    const iso = localDateISO(d);
+    if (iso <= localDateISO()) setLoadDate(iso);
   }
 
-  const isToday = loadDate === new Date().toISOString().split('T')[0];
+  const isToday = loadDate === localDateISO();
   const loadDateDisplay = new Date(loadDate + 'T12:00:00').toLocaleDateString(getDateLocale(), {
     weekday: 'short', month: 'short', day: 'numeric', year: 'numeric',
   });
@@ -168,6 +168,9 @@ export default function AddLoadScreen({ onClose, onSaved, onFirstLoad, prefill }
   const [loadType, setLoadType] = useState<LoadType>(prefill?.loadType ?? defaultLoadTypeFromProfile());
   const [status,   setStatus]   = useState<LoadStatus | null>(null);
   const [backhaul, setBackhaul] = useState(prefill?.backhaul ?? false);
+  // Deadhead = empty/unpaid reposition leg. Miles still count for IFTA, so it's
+  // savable with $0 gross (the gross requirement is waived when this is on).
+  const [deadhead, setDeadhead] = useState(false);
 
   // ── Load expenses (scale, toll, lumper, etc.) ──
   const [loadExpenses, setLoadExpenses] = useState<{ id: string; label: string; amount: string; category: string }[]>([]);
@@ -456,7 +459,9 @@ export default function AddLoadScreen({ onClose, onSaved, onFirstLoad, prefill }
   }
 
   async function handleSave() {
-    if (!gross || !loadMi) {
+    // Deadhead legs are unpaid by definition — miles alone are enough to save
+    // (the miles still need to reach IFTA). Every other load needs gross + miles.
+    if (!loadMi || (!gross && !deadhead)) {
       Alert.alert(t('addLoad.missingInfoTitle'), t('addLoad.missingInfo'));
       return;
     }
@@ -520,6 +525,7 @@ export default function AddLoadScreen({ onClose, onSaved, onFirstLoad, prefill }
           total_miles:     loadMi,
           gross_pay:       gross,
           is_backhaul:     backhaul ? 1 : 0,
+          is_deadhead:     deadhead ? 1 : 0,
           status,
           benchmark_fair_pay_min: fair?.minTotal,
           benchmark_fair_pay_max: fair?.maxTotal,
@@ -968,6 +974,20 @@ export default function AddLoadScreen({ onClose, onSaved, onFirstLoad, prefill }
             />
           </View>
 
+          {/* ── Deadhead toggle (empty miles — savable with $0 gross for IFTA) ── */}
+          <View style={styles.toggleCard}>
+            <View style={styles.toggleText}>
+              <Text style={styles.toggleLabel}>{t('addLoad.deadhead')}</Text>
+              <Text style={styles.toggleHint}>{t('addLoad.deadheadHint')}</Text>
+            </View>
+            <Switch
+              value={deadhead}
+              onValueChange={setDeadhead}
+              trackColor={{ false: Colors.surfaceHigh, true: Colors.primaryMid }}
+              thumbColor={deadhead ? Colors.primary : Colors.textTertiary}
+            />
+          </View>
+
           {/* ── Optional details ── */}
           <TouchableOpacity
             style={styles.optionalToggle}
@@ -1076,7 +1096,7 @@ export default function AddLoadScreen({ onClose, onSaved, onFirstLoad, prefill }
                   <Text style={styles.dateTodayBadgeText}>{t('addLoad.today')}</Text>
                 </View>
               ) : (
-                <TouchableOpacity onPress={() => setLoadDate(new Date().toISOString().split('T')[0])} activeOpacity={0.7}>
+                <TouchableOpacity onPress={() => setLoadDate(localDateISO())} activeOpacity={0.7}>
                   <Text style={styles.dateTodayLink}>{t('addLoad.backToToday')}</Text>
                 </TouchableOpacity>
               )}

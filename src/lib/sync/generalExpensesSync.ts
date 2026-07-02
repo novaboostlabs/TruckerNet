@@ -3,7 +3,9 @@
 // back on a new device / fresh login. Fire-and-forget; never blocks the UI.
 
 import { supabase, isSupabaseConfigured } from '../supabase';
-import { getAllGeneralExpenses, replaceGeneralExpenses } from '../../db/database';
+import {
+  getAllGeneralExpenses, mergeGeneralExpenses, getQueuedDeletes, clearQueuedDeletes,
+} from '../../db/database';
 
 interface SyncResult { error: string | null; }
 interface PullResult extends SyncResult { found: boolean; }
@@ -16,7 +18,6 @@ export async function pushGeneralExpenses(userId: string): Promise<SyncResult> {
   if (!isSupabaseConfigured() || !userId) return { error: null };
   try {
     const rows = getAllGeneralExpenses();
-    const localIds = rows.map((r) => r.id);
 
     if (rows.length > 0) {
       const payload = rows.map((r) => ({
@@ -27,10 +28,15 @@ export async function pushGeneralExpenses(userId: string): Promise<SyncResult> {
       if (error) return { error: error.message };
     }
 
-    let del = supabase.from(TABLE).delete().eq('user_id', userId);
-    if (localIds.length > 0) del = del.not('id', 'in', `(${localIds.map((id) => `"${id}"`).join(',')})`);
-    const { error: delErr } = await del;
-    return { error: delErr?.message ?? null };
+    // Propagate only rows the user explicitly deleted (tombstone queue).
+    const deletedIds = getQueuedDeletes(TABLE);
+    if (deletedIds.length > 0) {
+      const { error: delErr } = await supabase
+        .from(TABLE).delete().eq('user_id', userId).in('id', deletedIds);
+      if (delErr) return { error: delErr.message };
+      clearQueuedDeletes(TABLE, deletedIds);
+    }
+    return { error: null };
   } catch (e: any) {
     return { error: e?.message ?? 'Unknown general-expenses push error' };
   }
@@ -51,7 +57,7 @@ export async function pullGeneralExpenses(userId: string): Promise<PullResult> {
       id: r.id, label: r.label ?? '', category: r.category ?? 'other',
       amount: Number(r.amount) || 0, date: String(r.date),
     }));
-    if (rows.length > 0) replaceGeneralExpenses(rows);
+    if (rows.length > 0) mergeGeneralExpenses(rows);
     return { error: null, found: rows.length > 0 };
   } catch (e: any) {
     return { error: e?.message ?? 'Unknown general-expenses pull error', found: false };
@@ -59,9 +65,10 @@ export async function pullGeneralExpenses(userId: string): Promise<PullResult> {
 }
 
 /** Reconcile on sign-in: pull cloud; if empty (e.g. data created pre-auth), push local. */
-export async function syncGeneralExpensesOnSignIn(userId: string): Promise<void> {
-  if (!isSupabaseConfigured() || !userId) return;
-  const { found, error } = await pullGeneralExpenses(userId);
-  if (error) return;
-  if (!found) await pushGeneralExpenses(userId);
+export async function syncGeneralExpensesOnSignIn(userId: string): Promise<SyncResult> {
+  if (!isSupabaseConfigured() || !userId) return { error: null };
+  // Pull merges cloud into local; then push sends the union + queued deletes up.
+  const { error } = await pullGeneralExpenses(userId);
+  if (error) return { error };
+  return await pushGeneralExpenses(userId);
 }

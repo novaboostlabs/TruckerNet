@@ -1,7 +1,7 @@
 import React, { useCallback, useContext, useEffect, useRef, useState, useMemo } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView,
-  Alert, TextInput, KeyboardAvoidingView, Platform, Linking, Switch,
+  Alert, TextInput, KeyboardAvoidingView, Platform, Linking, Switch, ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -15,6 +15,7 @@ import { useSubscription } from '../contexts/SubscriptionContext';
 import { usePaywall } from '../contexts/PaywallContext';
 import { getWeeklyMiles, getSetting, setSetting, getIncomeGoal, setIncomeGoal, getRateContributionCount } from '../db/database';
 import { getNetworkReportCount } from '../lib/rateReports';
+import { getSyncStatus, syncAll } from '../lib/sync';
 import { setupNotifications, cancelAllNotifications } from '../lib/notifications';
 import { capture } from '../lib/analytics';
 import * as haptics from '../lib/haptics';
@@ -115,6 +116,26 @@ export default function SettingsScreen({ onClose, onNavigateToExpenses }: Props)
   const { replayOnboarding, replayWalkthrough } = useContext(AppFlowContext);
   const { mode: themeMode, setMode: setThemeMode, colors: Colors } = useTheme();
   const styles = useMemo(() => makeStyles(Colors), [Colors]);
+
+  // ── Cloud-backup status (so the driver can SEE their data is safe) ──
+  const [syncStatus, setSyncStatus] = useState(() => getSyncStatus());
+  const [syncing, setSyncing]       = useState(false);
+
+  const handleSyncNow = useCallback(async () => {
+    if (!user || syncing) return;
+    setSyncing(true);
+    await syncAll(user.id);
+    setSyncStatus(getSyncStatus());
+    setSyncing(false);
+  }, [user, syncing]);
+
+  const backupSublabel = syncing
+    ? t('settings.backupSyncing')
+    : syncStatus.lastError
+      ? t('settings.backupFailed')
+      : syncStatus.lastSyncAt
+        ? t('settings.backupOk', { time: new Date(syncStatus.lastSyncAt).toLocaleString(i18n.language) })
+        : t('settings.backupNever');
 
   const THEME_OPTIONS: { value: ThemeMode; icon: React.ComponentProps<typeof Ionicons>['name'] }[] = [
     { value: 'system', icon: 'phone-portrait-outline' },
@@ -398,6 +419,25 @@ export default function SettingsScreen({ onClose, onNavigateToExpenses }: Props)
               </>
             )}
           </View>
+
+          {/* ── Cloud backup status (signed-in only) ── */}
+          {!isGuest && (
+            <>
+              <SectionHeader label={t('settings.backupSection')} />
+              <View style={styles.card}>
+                <Row
+                  icon={syncStatus.lastError ? 'cloud-offline-outline' : 'cloud-done-outline'}
+                  iconBg={syncStatus.lastError ? Colors.dangerDim : Colors.primaryDim}
+                  iconColor={syncStatus.lastError ? Colors.danger : Colors.primary}
+                  label={t('settings.backupTitle')}
+                  sublabel={backupSublabel}
+                  chevron={false}
+                  onPress={handleSyncNow}
+                  rightElement={syncing ? <ActivityIndicator size="small" color={Colors.primary} /> : undefined}
+                />
+              </View>
+            </>
+          )}
 
           {/* ── Break-Even Setup ── */}
           <SectionHeader label={t('settings.breakEvenSetup')} />

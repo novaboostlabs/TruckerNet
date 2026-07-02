@@ -31,8 +31,19 @@ try {
   INTRO_ELIGIBILITY_STATUS = rc.INTRO_ELIGIBILITY_STATUS;
 } catch { /* Expo Go — native module unavailable, mock mode active */ }
 
-// True when running in the Expo Go client (native modules unavailable).
-const IS_EXPO_GO = Constants.appOwnership === 'expo' || Purchases === null;
+// The RC native module is unavailable in Expo Go, or if autolinking failed.
+const NATIVE_MODULE_MISSING = Purchases === null;
+const IS_EXPO_GO = Constants.appOwnership === 'expo';
+
+// Mock entitlement mode (the Settings dev toggle grants Pro) is DEV-ONLY.
+// In a PRODUCTION build we must never enter mock mode — otherwise a failed
+// native-module load would silently hand out free Pro. In prod with no module,
+// isPro stays false and purchase/restore surface a clear error instead.
+const MOCK_MODE = __DEV__ && (IS_EXPO_GO || NATIVE_MODULE_MISSING);
+
+// Public SDK key for the current platform. Empty string until configured — on
+// Android this is still blank pending the RevenueCat Android app + Play billing.
+const PLATFORM_API_KEY = Platform.OS === 'ios' ? IOS_API_KEY : ANDROID_API_KEY;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Context types
@@ -115,9 +126,17 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
   const [trialEligible, setTrialEligible] = useState<TrialEligibility>({ monthly: true, annual: true });
 
   useEffect(() => {
-    if (IS_EXPO_GO) {
-      // ── MOCK PATH (Expo Go) ───────────────────────────────────────────────
+    if (MOCK_MODE) {
+      // ── MOCK PATH (dev only: Expo Go or missing native module) ────────────
       try { setIsPro(getSetting(MOCK_PRO_KEY) === 'true'); } catch { setIsPro(false); }
+      setLoading(false);
+      return;
+    }
+
+    // Production build but the native module didn't load — never grant Pro.
+    // isPro stays false; purchase/restore return a clear error below.
+    if (NATIVE_MODULE_MISSING) {
+      console.error('[TruckerNet] RevenueCat native module unavailable in a production build.');
       setLoading(false);
       return;
     }
@@ -125,12 +144,12 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
     // ── REAL REVENUECAT PATH (dev / production build) ─────────────────────
     async function initRC() {
       try {
-        const apiKey = Platform.OS === 'ios' ? IOS_API_KEY : ANDROID_API_KEY;
-        if (!apiKey) {
+        if (!PLATFORM_API_KEY) {
           console.warn('[TruckerNet] RevenueCat: no API key for platform', Platform.OS);
           setLoading(false);
           return;
         }
+        const apiKey = PLATFORM_API_KEY;
 
         // Enable verbose logging in dev builds for easier debugging.
         if (__DEV__) {
@@ -191,15 +210,18 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
 
   // ── Mock toggle (dev only, no-op in production) ───────────────────────────
   function setMockPro(value: boolean) {
-    if (!IS_EXPO_GO) return; // guard: never mutate real entitlement state
+    if (!MOCK_MODE) return; // guard: dev-only — never mutate real entitlement state
     setSetting(MOCK_PRO_KEY, value ? 'true' : 'false');
     setIsPro(value);
   }
 
   // ── Purchase ──────────────────────────────────────────────────────────────
   async function purchase(plan: 'monthly' | 'annual'): Promise<{ error: string | null }> {
-    if (IS_EXPO_GO) {
+    if (MOCK_MODE) {
       return { error: 'Subscriptions require a dev or production build — not available in Expo Go.' };
+    }
+    if (NATIVE_MODULE_MISSING || !PLATFORM_API_KEY) {
+      return { error: 'Subscriptions aren’t available on this device yet. Please update to the latest version.' };
     }
     try {
       const offerings = await Purchases.getOfferings();
@@ -232,8 +254,11 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
 
   // ── Restore purchases ─────────────────────────────────────────────────────
   async function restore(): Promise<{ error: string | null }> {
-    if (IS_EXPO_GO) {
+    if (MOCK_MODE) {
       return { error: 'Restore requires a dev or production build — not available in Expo Go.' };
+    }
+    if (NATIVE_MODULE_MISSING || !PLATFORM_API_KEY) {
+      return { error: 'Subscriptions aren’t available on this device yet. Please update to the latest version.' };
     }
     try {
       const customerInfo = await Purchases.restorePurchases();
@@ -250,7 +275,7 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
 
   return (
     <SubscriptionContext.Provider
-      value={{ isPro, loading, pricing, trialEligible, isMock: IS_EXPO_GO, setMockPro, purchase, restore }}
+      value={{ isPro, loading, pricing, trialEligible, isMock: MOCK_MODE, setMockPro, purchase, restore }}
     >
       {children}
     </SubscriptionContext.Provider>

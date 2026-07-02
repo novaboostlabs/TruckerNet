@@ -7,7 +7,9 @@
 // no-op for guests / unconfigured Supabase.
 
 import { supabase, isSupabaseConfigured } from '../supabase';
-import { getAllFuelEntries, replaceFuelEntries, FuelEntryRow } from '../../db/database';
+import {
+  getAllFuelEntries, mergeFuelEntries, getQueuedDeletes, clearQueuedDeletes, FuelEntryRow,
+} from '../../db/database';
 
 interface SyncResult { error: string | null; }
 interface PullResult extends SyncResult { found: boolean; }
@@ -18,8 +20,7 @@ export async function pushFuel(userId: string): Promise<SyncResult> {
   if (!isSupabaseConfigured() || !userId) return { error: null };
 
   try {
-    const rows     = getAllFuelEntries();
-    const localIds = rows.map((r) => r.id);
+    const rows = getAllFuelEntries();
 
     if (rows.length > 0) {
       const payload = rows.map((r) => ({
@@ -39,13 +40,15 @@ export async function pushFuel(userId: string): Promise<SyncResult> {
       if (error) return { error: error.message };
     }
 
-    // Remove cloud rows deleted locally.
-    let del = supabase.from(TABLE).delete().eq('user_id', userId);
-    del = localIds.length > 0
-      ? del.not('id', 'in', `(${localIds.join(',')})`)
-      : del;
-    const { error: delError } = await del;
-    if (delError) return { error: delError.message };
+    // Propagate only fill-ups the user explicitly deleted (tombstone queue),
+    // never "delete every cloud row not present locally".
+    const deletedIds = getQueuedDeletes(TABLE);
+    if (deletedIds.length > 0) {
+      const { error: delError } = await supabase
+        .from(TABLE).delete().eq('user_id', userId).in('id', deletedIds);
+      if (delError) return { error: delError.message };
+      clearQueuedDeletes(TABLE, deletedIds);
+    }
 
     return { error: null };
   } catch (e: any) {
@@ -66,7 +69,7 @@ export async function pullFuel(userId: string): Promise<PullResult> {
 
     const rows = data ?? [];
     if (rows.length > 0) {
-      replaceFuelEntries(
+      mergeFuelEntries(
         rows.map((r): FuelEntryRow => ({
           id:               r.id,
           // Remote `date` is a timestamptz; local stores a YYYY-MM-DD string.
@@ -94,10 +97,12 @@ export async function pullFuel(userId: string): Promise<PullResult> {
  * logged fill-ups then created an account), push local up instead. A pull error
  * (offline) is left alone — never overwrite or push on uncertain state.
  */
-export async function syncFuelOnSignIn(userId: string): Promise<void> {
-  if (!isSupabaseConfigured() || !userId) return;
+export async function syncFuelOnSignIn(userId: string): Promise<SyncResult> {
+  if (!isSupabaseConfigured() || !userId) return { error: null };
 
-  const { found, error } = await pullFuel(userId);
-  if (error) return;
-  if (!found) await pushFuel(userId);
+  // Pull merges cloud into local (keeping unpushed local fill-ups); then push
+  // sends the union + queued deletes up. Offline pull error skips the push.
+  const { error } = await pullFuel(userId);
+  if (error) return { error };
+  return await pushFuel(userId);
 }

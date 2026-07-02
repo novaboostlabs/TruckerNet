@@ -2,6 +2,21 @@ import 'react-native-get-random-values';
 import { v4 as uuidv4 } from 'uuid';
 import { db } from './sqlite';
 
+/**
+ * Today's date as YYYY-MM-DD in the device's LOCAL timezone.
+ *
+ * Never use `new Date().toISOString().split('T')[0]` for a calendar date — that
+ * is UTC, so an evening entry in any US timezone rolls to "tomorrow" and can
+ * land a load in the wrong IFTA quarter / week / month. All date-stamping and
+ * period-boundary math must go through this helper.
+ */
+export function localDateISO(d: Date = new Date()): string {
+  const y   = d.getFullYear();
+  const m   = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
 export function initDatabase(): void {
   db.execSync(`
     PRAGMA journal_mode = WAL;
@@ -119,6 +134,16 @@ export function initDatabase(): void {
       date       TEXT NOT NULL,
       created_at TEXT NOT NULL
     );
+
+    -- Local tombstones for rows the user deleted while offline (or on this
+    -- device). Push drains this to delete the same rows in the cloud, so a
+    -- delete propagates WITHOUT letting a stale device blanket-wipe the cloud.
+    -- No Supabase migration needed — this table is local-only.
+    CREATE TABLE IF NOT EXISTS sync_deletes (
+      entity  TEXT NOT NULL,
+      row_id  TEXT NOT NULL,
+      PRIMARY KEY (entity, row_id)
+    );
   `);
 
   // ── Migrations: add new columns to existing tables safely ──
@@ -203,6 +228,32 @@ export function setSetting(key: string, value: string): void {
   );
 }
 
+// ── Pending-delete queue (offline-safe delete propagation) ──
+//
+// When the user deletes a syncable row locally we record a tombstone here
+// instead of relying on "delete every cloud row not present locally" (which
+// let a stale device wipe another device's data). Push drains the queue.
+
+export function queueDelete(entity: string, id: string): void {
+  if (!id) return;
+  db.runSync(
+    'INSERT OR IGNORE INTO sync_deletes (entity, row_id) VALUES (?, ?)',
+    [entity, id]
+  );
+}
+
+export function getQueuedDeletes(entity: string): string[] {
+  return db
+    .getAllSync<{ row_id: string }>('SELECT row_id FROM sync_deletes WHERE entity = ?', [entity])
+    .map((r) => r.row_id);
+}
+
+export function clearQueuedDeletes(entity: string, ids: string[]): void {
+  if (ids.length === 0) return;
+  const placeholders = ids.map(() => '?').join(',');
+  db.runSync(`DELETE FROM sync_deletes WHERE entity = ? AND row_id IN (${placeholders})`, [entity, ...ids]);
+}
+
 // ── Fuel CPM helpers ──
 
 export function getLatestFuelCPM(): number {
@@ -232,7 +283,7 @@ export function getLatestFuelCPM(): number {
 }
 
 export function hasFuelEntryToday(): boolean {
-  const today = new Date().toISOString().split('T')[0];
+  const today = localDateISO();
   const row   = db.getFirstSync<{ count: number }>(
     'SELECT COUNT(*) as count FROM fuel_entries WHERE date = ?',
     [today]
@@ -269,19 +320,37 @@ export function getAllFuelEntries(): FuelEntryRow[] {
   );
 }
 
-/** Replace all local fuel entries with the given set (used by cloud pull). */
+/** Replace all local fuel entries with the given set. Transactional so a
+ *  mid-loop failure rolls back rather than leaving an empty table. */
 export function replaceFuelEntries(rows: FuelEntryRow[]): void {
-  db.runSync('DELETE FROM fuel_entries');
-  for (const r of rows) {
-    db.runSync(
-      `INSERT INTO fuel_entries (${FUEL_COLUMNS})
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        r.id, r.date, r.dollars_spent, r.gallons, r.miles_driven,
-        r.cost_per_mile, r.price_per_gallon, r.mpg, r.odometer_reading, r.state_purchased,
-      ]
-    );
-  }
+  db.withTransactionSync(() => {
+    db.runSync('DELETE FROM fuel_entries');
+    for (const r of rows) insertOrReplaceFuel(r);
+  });
+}
+
+/** Merge cloud fuel entries into the local set: upsert by id, KEEP local-only
+ *  rows (unpushed local fill-ups). Non-destructive — used by cloud pull. */
+export function mergeFuelEntries(rows: FuelEntryRow[]): void {
+  db.withTransactionSync(() => {
+    for (const r of rows) insertOrReplaceFuel(r);
+  });
+}
+
+function insertOrReplaceFuel(r: FuelEntryRow): void {
+  db.runSync(
+    `INSERT INTO fuel_entries (${FUEL_COLUMNS})
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT(id) DO UPDATE SET
+       date=excluded.date, dollars_spent=excluded.dollars_spent, gallons=excluded.gallons,
+       miles_driven=excluded.miles_driven, cost_per_mile=excluded.cost_per_mile,
+       price_per_gallon=excluded.price_per_gallon, mpg=excluded.mpg,
+       odometer_reading=excluded.odometer_reading, state_purchased=excluded.state_purchased`,
+    [
+      r.id, r.date, r.dollars_spent, r.gallons, r.miles_driven,
+      r.cost_per_mile, r.price_per_gallon, r.mpg, r.odometer_reading, r.state_purchased,
+    ]
+  );
 }
 
 // ── Expense helpers ──
@@ -313,7 +382,7 @@ export function getMonthlyMiles(): number {
   const ninetyDaysAgo = (() => {
     const d = new Date();
     d.setDate(d.getDate() - 90);
-    return d.toISOString().split('T')[0];
+    return localDateISO(d);
   })();
 
   const rolling = db.getFirstSync<{ total_miles: number; load_count: number }>(
@@ -378,16 +447,49 @@ export function getUserExpenses(): UserExpenseRow[] {
 export function replaceUserExpenses(
   expenses: { id: string; label: string; category: string; amount: number; frequency: string; monthly_equivalent: number }[]
 ): void {
-  db.runSync('DELETE FROM user_expenses');
-  const now = new Date().toISOString();
-  for (let i = 0; i < expenses.length; i++) {
-    const e = expenses[i];
-    db.runSync(
-      `INSERT INTO user_expenses (id, label, category, amount, frequency, monthly_equivalent, is_active, sort_order, created_at, confirmed_at)
-       VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, ?)`,
-      [e.id, e.label, e.category, e.amount, e.frequency, e.monthly_equivalent, i, now, now]
-    );
-  }
+  db.withTransactionSync(() => {
+    // Any row present locally but absent from the new set is a real user
+    // deletion — queue a tombstone so push removes it from the cloud too
+    // (rather than the old "delete every cloud row not present locally").
+    const newIds = new Set(expenses.map((e) => e.id));
+    const existing = db.getAllSync<{ id: string }>('SELECT id FROM user_expenses');
+    for (const row of existing) {
+      if (!newIds.has(row.id)) queueDelete('user_expenses', row.id);
+    }
+
+    db.runSync('DELETE FROM user_expenses');
+    const now = new Date().toISOString();
+    for (let i = 0; i < expenses.length; i++) {
+      const e = expenses[i];
+      db.runSync(
+        `INSERT INTO user_expenses (id, label, category, amount, frequency, monthly_equivalent, is_active, sort_order, created_at, confirmed_at)
+         VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, ?)`,
+        [e.id, e.label, e.category, e.amount, e.frequency, e.monthly_equivalent, i, now, now]
+      );
+    }
+  });
+}
+
+/** Merge cloud expenses into the local set: upsert by id, KEEP local-only rows.
+ *  Non-destructive — used by cloud pull so an unpushed local expense survives. */
+export function mergeUserExpenses(
+  expenses: { id: string; label: string; category: string; amount: number; frequency: string; monthly_equivalent: number }[]
+): void {
+  db.withTransactionSync(() => {
+    const now = new Date().toISOString();
+    for (let i = 0; i < expenses.length; i++) {
+      const e = expenses[i];
+      db.runSync(
+        `INSERT INTO user_expenses (id, label, category, amount, frequency, monthly_equivalent, is_active, sort_order, created_at, confirmed_at)
+         VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, ?)
+         ON CONFLICT(id) DO UPDATE SET
+           label=excluded.label, category=excluded.category, amount=excluded.amount,
+           frequency=excluded.frequency, monthly_equivalent=excluded.monthly_equivalent,
+           is_active=1, sort_order=excluded.sort_order`,
+        [e.id, e.label, e.category, e.amount, e.frequency, e.monthly_equivalent, i, now, now]
+      );
+    }
+  });
 }
 
 // ── Break-even calculation ──
@@ -408,7 +510,7 @@ export function calcBreakEven(): {
   // onboarding estimate (a partial-month sum is never used — see getMonthlyMiles).
   const ninetyDaysAgo = (() => {
     const d = new Date(); d.setDate(d.getDate() - 90);
-    return d.toISOString().split('T')[0];
+    return localDateISO(d);
   })();
   const rolling = db.getFirstSync<{ load_count: number }>(
     `SELECT COUNT(*) as load_count FROM loads WHERE status != 'cancelled' AND date >= ?`,
@@ -433,7 +535,7 @@ function weekStart(): string {
   const diff = d.getDate() - day + (day === 0 ? -6 : 1); // back to Monday
   const mon = new Date(d);
   mon.setDate(diff);
-  return mon.toISOString().split('T')[0];
+  return localDateISO(mon);
 }
 
 function monthStart(): string {
@@ -485,7 +587,7 @@ function nextDeadlineISO(): string {
     const [m, d] = TAX_DEADLINES[i];
     const due = new Date(i === 3 ? year + 1 : year, m, d);
     if (due.getTime() > now.getTime()) {
-      return due.toISOString().split('T')[0];
+      return localDateISO(due);
     }
   }
   // Fallback: Jan 15 next year
@@ -551,7 +653,7 @@ export interface ValueMissedStats {
 export function getValueMissedStats(periodDays = 90): ValueMissedStats {
   const since = (() => {
     const d = new Date(); d.setDate(d.getDate() - periodDays);
-    return d.toISOString().split('T')[0];
+    return localDateISO(d);
   })();
 
   const rows = db.getAllSync<{
@@ -660,7 +762,7 @@ export function getWeeklyNetTrend(weeks = 12): WeekTrendPoint[] {
 
   const firstMonday = new Date(thisMonday);
   firstMonday.setDate(thisMonday.getDate() - (weeks - 1) * 7);
-  const startISO = firstMonday.toISOString().split('T')[0];
+  const startISO = localDateISO(firstMonday);
 
   // Query: group by ISO week Monday (date(date,'weekday 0','-6 days'))
   const rows = db.getAllSync<{ week_start: string; net: number; gross: number }>(
@@ -691,7 +793,7 @@ export function getWeeklyNetTrend(weeks = 12): WeekTrendPoint[] {
   for (let i = 0; i < weeks; i++) {
     const d = new Date(firstMonday);
     d.setDate(firstMonday.getDate() + i * 7);
-    const iso = d.toISOString().split('T')[0];
+    const iso = localDateISO(d);
     const wk = map[iso] ?? { net: 0, gross: 0 };
     result.push({ weekStart: iso, net: wk.net - (genMap[iso] ?? 0), gross: wk.gross });
   }
@@ -775,8 +877,8 @@ export function consecutiveWeeksOverBreakEven(): number {
     const sun = new Date(weekMon);
     sun.setDate(weekMon.getDate() + 6);
 
-    const start = weekMon.toISOString().split('T')[0];
-    const end   = sun.toISOString().split('T')[0];
+    const start = localDateISO(weekMon);
+    const end   = localDateISO(sun);
 
     const row = db.getFirstSync<{ miles: number; net: number }>(
       `SELECT COALESCE(SUM(total_miles), 0) as miles,
@@ -808,7 +910,7 @@ export function getLastLoadDate(): string | null {
 export function avgLoadsPerWeek(): number {
   const fourWeeksAgo = (() => {
     const d = new Date(); d.setDate(d.getDate() - 28);
-    return d.toISOString().split('T')[0];
+    return localDateISO(d);
   })();
   const row = db.getFirstSync<{ n: number }>(
     `SELECT COUNT(*) as n FROM loads WHERE status != 'cancelled' AND date >= ?`,
@@ -1100,6 +1202,7 @@ export interface LoadInsert {
   total_miles:         number;
   gross_pay:           number;
   is_backhaul:         number;
+  is_deadhead?:        number;   // empty/unpaid reposition leg (miles still count for IFTA)
   status:              string;
   benchmark_fair_pay_min?: number;
   benchmark_fair_pay_max?: number;
@@ -1279,6 +1382,7 @@ export function addGeneralExpense(e: GeneralExpenseInsert): string {
 
 export function deleteGeneralExpense(id: string): void {
   db.runSync('DELETE FROM general_expenses WHERE id = ?', [id]);
+  queueDelete('general_expenses', id); // propagate the delete to the cloud on next push
 }
 
 export function getGeneralExpensesDateRange(start: string, end: string): GeneralExpense[] {
@@ -1296,17 +1400,32 @@ export function getAllGeneralExpenses(): GeneralExpense[] {
   );
 }
 
-/** Replace the entire local general-expenses set (used on cloud pull). */
+/** Replace the entire local general-expenses set. Transactional. */
 export function replaceGeneralExpenses(rows: GeneralExpense[]): void {
-  db.runSync('DELETE FROM general_expenses');
+  db.withTransactionSync(() => {
+    db.runSync('DELETE FROM general_expenses');
+    for (const r of rows) insertOrReplaceGeneralExpense(r);
+  });
+}
+
+/** Merge cloud general-expenses into the local set: upsert by id, KEEP
+ *  local-only rows. Non-destructive — used by cloud pull. */
+export function mergeGeneralExpenses(rows: GeneralExpense[]): void {
+  db.withTransactionSync(() => {
+    for (const r of rows) insertOrReplaceGeneralExpense(r);
+  });
+}
+
+function insertOrReplaceGeneralExpense(r: GeneralExpense): void {
   const now = new Date().toISOString();
-  for (const r of rows) {
-    db.runSync(
-      `INSERT INTO general_expenses (id, label, category, amount, date, created_at)
-       VALUES (?, ?, ?, ?, ?, ?)`,
-      [r.id, r.label, r.category, r.amount, r.date, now]
-    );
-  }
+  db.runSync(
+    `INSERT INTO general_expenses (id, label, category, amount, date, created_at)
+     VALUES (?, ?, ?, ?, ?, ?)
+     ON CONFLICT(id) DO UPDATE SET
+       label=excluded.label, category=excluded.category,
+       amount=excluded.amount, date=excluded.date`,
+    [r.id, r.label, r.category, r.amount, r.date, now]
+  );
 }
 
 /** Remove one expense from an existing load and update its financials immediately. */
@@ -1405,7 +1524,7 @@ const REVIEW_INTERVAL_DAYS = 30;
  * Stamps today's date; resets the stale timer.
  */
 export function markExpensesReviewed(): void {
-  setSetting(REVIEW_KEY, new Date().toISOString().split('T')[0]);
+  setSetting(REVIEW_KEY, localDateISO());
 }
 
 /**
@@ -1470,8 +1589,9 @@ export function saveLoad(
 ): string {
   const id   = uuidv4();
   const now  = new Date().toISOString();
-  const date = load.date ?? now.split('T')[0];
+  const date = load.date ?? localDateISO();
 
+  db.withTransactionSync(() => {
   db.runSync(
     `INSERT INTO loads (
       id, date,
@@ -1497,7 +1617,7 @@ export function saveLoad(
       load.gross_rate_per_mile, load.net_rate_per_mile, load.verdict ?? null,
       load.weight_lbs ?? 0, load.bol_number ?? '', load.bol_photo_url ?? '', load.broker_name ?? '',
       load.broker_mc ?? '', load.notes ?? '',
-      0, now,
+      load.is_deadhead ?? 0, now,
       load.pickup_lat ?? null, load.pickup_lng ?? null, load.delivery_lat ?? null, load.delivery_lng ?? null,
     ]
   );
@@ -1519,6 +1639,7 @@ export function saveLoad(
       );
     }
   }
+  });
 
   return id;
 }
@@ -1590,47 +1711,96 @@ export function getAllStateMileage(): StateMileageRow[] {
   );
 }
 
-/** Replace all local loads (+ their state_mileage rows) with the given sets. */
+/** Replace all local loads (+ their state_mileage rows) with the given sets.
+ *  Transactional: a mid-loop failure rolls back rather than emptying the table. */
 export function replaceLoads(
   loads: LoadRow[],
   stateMileage: StateMileageRow[]
 ): void {
-  // DELETE loads first — CASCADE removes child state_mileage rows automatically.
-  db.runSync('DELETE FROM loads');
+  db.withTransactionSync(() => {
+    // DELETE loads first — CASCADE removes child state_mileage rows automatically.
+    db.runSync('DELETE FROM loads');
+    for (const l of loads) upsertLoadRow(l);
+    for (const sm of stateMileage) {
+      db.runSync(
+        'INSERT INTO state_mileage (load_id, state, miles, is_manually_edited) VALUES (?,?,?,?)',
+        [sm.load_id, sm.state, sm.miles, sm.is_manually_edited]
+      );
+    }
+  });
+}
 
-  for (const l of loads) {
-    db.runSync(
-      `INSERT INTO loads (
-        id, date, pickup_address, pickup_city, pickup_state,
-        delivery_address, delivery_city, delivery_state,
-        equipment_type, total_miles, gross_pay, additional_costs,
-        weight_lbs, bol_number, bol_photo_url, broker_name, broker_mc,
-        is_deadhead, is_backhaul, status, notes,
-        benchmark_fair_pay_min, benchmark_fair_pay_max,
-        fuel_cost_for_load, fixed_cost_for_load, net_pay,
-        gross_rate_per_mile, net_rate_per_mile, verdict, created_at,
-        pickup_lat, pickup_lng, delivery_lat, delivery_lng
-      ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-      [
-        l.id, l.date, l.pickup_address, l.pickup_city, l.pickup_state,
-        l.delivery_address, l.delivery_city, l.delivery_state,
-        l.equipment_type, l.total_miles, l.gross_pay, l.additional_costs,
-        l.weight_lbs, l.bol_number, l.bol_photo_url, l.broker_name, l.broker_mc,
-        l.is_deadhead, l.is_backhaul, l.status, l.notes,
-        l.benchmark_fair_pay_min ?? null, l.benchmark_fair_pay_max ?? null,
-        l.fuel_cost_for_load, l.fixed_cost_for_load, l.net_pay,
-        l.gross_rate_per_mile, l.net_rate_per_mile, l.verdict ?? null, l.created_at,
-        l.pickup_lat ?? null, l.pickup_lng ?? null, l.delivery_lat ?? null, l.delivery_lng ?? null,
-      ]
-    );
-  }
+/** Merge cloud loads into the local set: upsert each load by id and KEEP
+ *  local-only loads (unpushed local saves survive). For every merged load we
+ *  refresh its state_mileage rows from the cloud set. Non-destructive — this
+ *  is what cloud pull uses so re-authenticating never destroys local data. */
+export function mergeLoads(
+  loads: LoadRow[],
+  stateMileage: StateMileageRow[]
+): void {
+  db.withTransactionSync(() => {
+    const smByLoad = new Map<string, StateMileageRow[]>();
+    for (const sm of stateMileage) {
+      const arr = smByLoad.get(sm.load_id) ?? [];
+      arr.push(sm);
+      smByLoad.set(sm.load_id, arr);
+    }
+    for (const l of loads) {
+      upsertLoadRow(l);
+      // Refresh this load's state rows to match the cloud (delete + reinsert).
+      db.runSync('DELETE FROM state_mileage WHERE load_id = ?', [l.id]);
+      for (const sm of smByLoad.get(l.id) ?? []) {
+        db.runSync(
+          'INSERT INTO state_mileage (load_id, state, miles, is_manually_edited) VALUES (?,?,?,?)',
+          [sm.load_id, sm.state, sm.miles, sm.is_manually_edited]
+        );
+      }
+    }
+  });
+}
 
-  for (const sm of stateMileage) {
-    db.runSync(
-      'INSERT INTO state_mileage (load_id, state, miles, is_manually_edited) VALUES (?,?,?,?)',
-      [sm.load_id, sm.state, sm.miles, sm.is_manually_edited]
-    );
-  }
+// Upsert a single load by id (ON CONFLICT DO UPDATE — never INSERT OR REPLACE,
+// which would CASCADE-delete the load's state_mileage rows).
+function upsertLoadRow(l: LoadRow): void {
+  db.runSync(
+    `INSERT INTO loads (
+      id, date, pickup_address, pickup_city, pickup_state,
+      delivery_address, delivery_city, delivery_state,
+      equipment_type, total_miles, gross_pay, additional_costs,
+      weight_lbs, bol_number, bol_photo_url, broker_name, broker_mc,
+      is_deadhead, is_backhaul, status, notes,
+      benchmark_fair_pay_min, benchmark_fair_pay_max,
+      fuel_cost_for_load, fixed_cost_for_load, net_pay,
+      gross_rate_per_mile, net_rate_per_mile, verdict, created_at,
+      pickup_lat, pickup_lng, delivery_lat, delivery_lng
+    ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+    ON CONFLICT(id) DO UPDATE SET
+      date=excluded.date, pickup_address=excluded.pickup_address, pickup_city=excluded.pickup_city,
+      pickup_state=excluded.pickup_state, delivery_address=excluded.delivery_address,
+      delivery_city=excluded.delivery_city, delivery_state=excluded.delivery_state,
+      equipment_type=excluded.equipment_type, total_miles=excluded.total_miles,
+      gross_pay=excluded.gross_pay, additional_costs=excluded.additional_costs,
+      weight_lbs=excluded.weight_lbs, bol_number=excluded.bol_number, bol_photo_url=excluded.bol_photo_url,
+      broker_name=excluded.broker_name, broker_mc=excluded.broker_mc, is_deadhead=excluded.is_deadhead,
+      is_backhaul=excluded.is_backhaul, status=excluded.status, notes=excluded.notes,
+      benchmark_fair_pay_min=excluded.benchmark_fair_pay_min, benchmark_fair_pay_max=excluded.benchmark_fair_pay_max,
+      fuel_cost_for_load=excluded.fuel_cost_for_load, fixed_cost_for_load=excluded.fixed_cost_for_load,
+      net_pay=excluded.net_pay, gross_rate_per_mile=excluded.gross_rate_per_mile,
+      net_rate_per_mile=excluded.net_rate_per_mile, verdict=excluded.verdict, created_at=excluded.created_at,
+      pickup_lat=excluded.pickup_lat, pickup_lng=excluded.pickup_lng,
+      delivery_lat=excluded.delivery_lat, delivery_lng=excluded.delivery_lng`,
+    [
+      l.id, l.date, l.pickup_address, l.pickup_city, l.pickup_state,
+      l.delivery_address, l.delivery_city, l.delivery_state,
+      l.equipment_type, l.total_miles, l.gross_pay, l.additional_costs,
+      l.weight_lbs, l.bol_number, l.bol_photo_url, l.broker_name, l.broker_mc,
+      l.is_deadhead, l.is_backhaul, l.status, l.notes,
+      l.benchmark_fair_pay_min ?? null, l.benchmark_fair_pay_max ?? null,
+      l.fuel_cost_for_load, l.fixed_cost_for_load, l.net_pay,
+      l.gross_rate_per_mile, l.net_rate_per_mile, l.verdict ?? null, l.created_at,
+      l.pickup_lat ?? null, l.pickup_lng ?? null, l.delivery_lat ?? null, l.delivery_lng ?? null,
+    ]
+  );
 }
 
 // ── Load detail (for Load Detail screen) ──

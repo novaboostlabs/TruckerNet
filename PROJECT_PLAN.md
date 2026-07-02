@@ -915,6 +915,86 @@ Details for each are in the lettered sections below.
 
 ## 6. Work Log (newest first)
 
+### 2026-07-01 — Pre-launch review fixes: sync data-loss, IFTA/date correctness, RevenueCat hardening
+Branch: `design/trust-polish-punchlist`. Addressed the 11-item pre-launch review
+punch list (4 BLOCKS + 7 FIX). All changes typecheck clean; all 4 locales valid.
+
+**Sync — the two data-loss blockers (safe-merge model, no schema change):**
+- `pushLoads`/`pushFuel`/`pushExpenses`/`pushGeneralExpenses` no longer
+  mirror-delete the cloud ("delete every row not present locally" let a stale
+  device wipe another device's data). They now drain a **local `sync_deletes`
+  tombstone queue** — only rows the user explicitly deleted are removed remotely.
+- Pull now **merges** instead of replacing: new `mergeLoads` / `mergeFuelEntries`
+  / `mergeUserExpenses` / `mergeGeneralExpenses` upsert by id and KEEP local-only
+  rows, so re-authenticating or an offline edit can never destroy unpushed local
+  data. `replace*` (still used by the expense editor) are now transactional.
+- Editor/row deletes populate the queue: `replaceUserExpenses` diffs removed ids,
+  `deleteGeneralExpense` queues its id.
+- New `src/lib/sync/index.ts` — `syncAll()` runs all slices (pull-merge → push),
+  records `last_sync_at` + `last_sync_error`; `getSyncStatus()` classifies
+  schema/migration errors. RootNavigator now syncs on **app start** (returning
+  session), not only the sign-in transition.
+- Settings gained a **"Cloud backup"** row: shows last-backup time, flips to red
+  "Backup failed — tap to retry" on error, re-syncs on tap. (Surfaces errors that
+  were previously swallowed — covers the migration self-check ask.)
+
+**IFTA / correctness:**
+- **UTC date bug fixed everywhere:** new `localDateISO()` replaces all
+  `toISOString().split('T')[0]` date-stamping (evening entries were rolling to
+  the next day and could land in the wrong IFTA quarter). Applied across
+  `database.ts` period math + AddLoad/AddExpense/Fuel/History screens.
+- **Deadhead legs now loggable:** `is_deadhead` wired through `saveLoad`; AddLoad
+  has a Deadhead toggle; the gross>0 requirement is waived when deadhead so empty
+  reposition miles reach `state_mileage` → IFTA. Rate-pool contribution already
+  guards `gross_pay<=0`, so $0 deadheads never poison community data.
+- All `saveLoad` / `replace*` writes wrapped in `withTransactionSync` (a failed
+  pull can no longer leave an empty local DB).
+
+**RevenueCat:**
+- Mock-Pro mode is now `__DEV__`-gated (`MOCK_MODE`), so a failed native-module
+  load in a production build can never silently grant free Pro. In prod with no
+  module, `isPro` stays false and purchase/restore return a clear error.
+- Empty Android key handled gracefully (clear message instead of a confusing
+  generic error). **USER ACTION still required — see below.**
+- Purchase/restore failures now use a proper `purchaseFailedTitle` instead of the
+  "Almost there / coming soon" title.
+
+**Verified, no change needed:**
+- Guest cold-start wipe: there is NO "continue as guest" path into the app and
+  loads can't be logged without a session, so no load data can be lost. The
+  cold-start wipe only clears abandoned pre-auth onboarding scratch (intended).
+
+**⚠️ USER ACTIONS before launch:**
+1. **Apply the Supabase migrations** in `supabase/migrations/` (through
+   2026-06-30) to the hosted project. If unapplied, pushes fail — now VISIBLE via
+   the Settings backup row (was silent).
+2. **Android RevenueCat:** create the RC Android app + Play Console billing and
+   set `ANDROID_API_KEY` in `SubscriptionContext.tsx`. Until then Android has no
+   working purchases.
+
+**Deferred to V1.1 (from the review, not blocking launch):**
+- Cross-device delete propagation of expenses/general is best-effort (no server
+  tombstones) — a row deleted on device A can reappear if device B re-pushes it
+  before pulling. Acceptable vs. data loss; a proper `deleted_at` tombstone model
+  is the real fix.
+- Verdict boundary at `netRPM == breakEven` differs between AddLoad (amber) and
+  CheckLoad (red).
+- `is_manually_edited` on state_mileage never set on save.
+- `.not('id','in',(...))` URL-length ceiling is gone (queue-based deletes), but
+  large full-table upserts should move to batched/delta pushes eventually.
+- BOL photo falls back to a local cache URI on failed upload (can vanish).
+- Dead `BreakEvenSource='loads_month'` enum + `isGuest` defensive branch.
+
+### 2026-07-01 — Design/trust polish (first-60-seconds punch list)
+Branch: `design/trust-polish-punchlist`. Dashboard zero-state (neutral $0, no
+green +$0; "Set up your costs" instead of $0.00 break-even); Fuel onboarding CTA
+(Skip → top-right link, solid "Next"); secondary/label grays raised above WCAG AA
+for cab-sunlight legibility; Create-Account CTA always live (focuses name field
+on empty); amber = Pro/locked everywhere (analytics upgrade button), "Live" pill
+demoted from teal; walkthrough verdict-card route line + net size bumped for
+screenshots. Splash first-frame + Check-Load-primary-action findings verified as
+already-correct (stale screenshots). See design-review thread.
+
 ### 2026-07-01 — Surface income goal + tax set-aside (input + visualization)
 
 Both features existed (DB + dashboard cards) but were only *settable* in Settings and had

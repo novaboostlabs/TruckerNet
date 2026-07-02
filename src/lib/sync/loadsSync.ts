@@ -13,8 +13,9 @@
 
 import { supabase, isSupabaseConfigured } from '../supabase';
 import {
-  getAllLoads, getAllStateMileage, replaceLoads,
+  getAllLoads, getAllStateMileage, mergeLoads,
   getAllLoadExpenses, replaceLoadExpenses,
+  getQueuedDeletes, clearQueuedDeletes,
   LoadRow, StateMileageRow, LoadExpenseRow,
 } from '../../db/database';
 
@@ -114,13 +115,16 @@ export async function pushLoads(userId: string): Promise<SyncResult> {
       }
     }
 
-    // Remove cloud load rows deleted locally.
-    let del = supabase.from('loads').delete().eq('user_id', userId);
-    del = localIds.length > 0
-      ? del.not('id', 'in', `(${localIds.join(',')})`)
-      : del;
-    const { error: delLoadsErr } = await del;
-    if (delLoadsErr) return { error: delLoadsErr.message };
+    // Propagate only loads the user explicitly deleted (drain the tombstone
+    // queue). The old "delete every cloud row not present locally" let a stale
+    // device wipe another device's loads — never do that.
+    const deletedIds = getQueuedDeletes('loads');
+    if (deletedIds.length > 0) {
+      const { error: delLoadsErr } = await supabase
+        .from('loads').delete().eq('user_id', userId).in('id', deletedIds);
+      if (delLoadsErr) return { error: delLoadsErr.message };
+      clearQueuedDeletes('loads', deletedIds);
+    }
 
     return { error: null };
   } catch (e: any) {
@@ -213,7 +217,7 @@ export async function pullLoads(userId: string): Promise<PullResult> {
         }))
       );
 
-      replaceLoads(loads, stateMileage);
+      mergeLoads(loads, stateMileage);
 
       // Restore load expenses — replace per-load rather than wiping all.
       const loadIds = loads.map(l => l.id);
@@ -229,10 +233,13 @@ export async function pullLoads(userId: string): Promise<PullResult> {
   }
 }
 
-export async function syncLoadsOnSignIn(userId: string): Promise<void> {
-  if (!isSupabaseConfigured() || !userId) return;
+export async function syncLoadsOnSignIn(userId: string): Promise<SyncResult> {
+  if (!isSupabaseConfigured() || !userId) return { error: null };
 
-  const { found, error } = await pullLoads(userId);
-  if (error) return;
-  if (!found) await pushLoads(userId);
+  // Pull merges the cloud into local (keeping unpushed local loads); then push
+  // sends the merged union (+ any queued deletes) back up so all devices
+  // converge. A pull error (offline) skips the push — never act on uncertain state.
+  const { error } = await pullLoads(userId);
+  if (error) return { error };
+  return await pushLoads(userId);
 }

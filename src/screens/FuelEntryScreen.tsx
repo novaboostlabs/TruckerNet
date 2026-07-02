@@ -8,7 +8,7 @@ import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
 import { FontFamily, FontSize, Spacing, Radius, ThemeColors, sectionLabel } from '../theme/theme';
 import { useTheme } from '../theme/ThemeContext';
-import db, { getLatestOdometer } from '../db/database';
+import db, { getLatestOdometer, localDateISO } from '../db/database';
 import { useAuth } from '../contexts/AuthContext';
 import { pushFuel } from '../lib/sync/fuelSync';
 import { scanFuelReceipt } from '../lib/ocr';
@@ -101,7 +101,7 @@ export default function FuelEntryScreen({ onSaved, onCancel }: Props) {
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           uuid(),
-          new Date().toISOString().split('T')[0],
+          localDateISO(),
           dollars,
           gals,
           milesDriven,

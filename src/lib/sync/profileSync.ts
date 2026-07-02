@@ -72,9 +72,10 @@ export async function pullProfile(userId: string): Promise<PullResult> {
  * driver who set up their profile pre-auth and just created an account), push
  * the local profile up so it isn't lost. Offline/pull error → leave it alone.
  */
-export async function syncProfileOnSignIn(userId: string): Promise<void> {
-  if (!isSupabaseConfigured() || !userId) return;
+export async function syncProfileOnSignIn(userId: string): Promise<SyncResult> {
+  if (!isSupabaseConfigured() || !userId) return { error: null };
   const { found, error } = await pullProfile(userId);
-  if (error) return;          // transient/offline — never risk a bad push
-  if (!found) await pushProfile(userId);
+  if (error) return { error };          // transient/offline — never risk a bad push
+  if (!found) return await pushProfile(userId);
+  return { error: null };
 }

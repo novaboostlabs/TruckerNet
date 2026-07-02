@@ -13,7 +13,7 @@ import { usePaywall } from '../contexts/PaywallContext';
 import {
   getHistoryLoads, getHistoryTotals, getHistoryLoadsDateRange, getHistoryTotalsDateRange,
   searchHistoryLoads, getGeneralExpensesDateRange, getAllGeneralExpenses, deleteGeneralExpense,
-  HistoryFilter, HistoryLoad, HistoryTotals, GeneralExpense,
+  HistoryFilter, HistoryLoad, HistoryTotals, GeneralExpense, localDateISO,
 } from '../db/database';
 import { useAuth } from '../contexts/AuthContext';
 import { pushGeneralExpenses } from '../lib/sync/generalExpensesSync';
@@ -25,7 +25,7 @@ import AccentRule from '../components/AccentRule';
 
 // ── Date helpers ─────────────────────────────────────────────────────────────
 
-function isoDate(d: Date): string { return d.toISOString().split('T')[0]; }
+function isoDate(d: Date): string { return localDateISO(d); }
 const TODAY = isoDate(new Date());
 
 interface PeriodBounds { start: string; end: string; label: string; }
@@ -210,7 +210,7 @@ export default function HistoryScreen() {
     const dates: string[] = [];
     const d = new Date(bounds.start + 'T12:00:00');
     for (let i = 0; i < 7; i++) {
-      dates.push(d.toISOString().split('T')[0]);
+      dates.push(localDateISO(d));
       d.setDate(d.getDate() + 1);
     }
     return dates;

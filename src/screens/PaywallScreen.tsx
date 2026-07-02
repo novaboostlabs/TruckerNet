@@ -123,7 +123,7 @@ export default function PaywallScreen({ onClose, reason = 'generic' }: Props) {
     const { error } = await purchase(plan);
     setBusy(false);
     if (error) {
-      Alert.alert(t('paywall.comingSoonTitle'), error);
+      Alert.alert(t('paywall.purchaseFailedTitle'), error);
       return;
     }
     capture('subscription_purchased', { plan, reason });
@@ -133,7 +133,7 @@ export default function PaywallScreen({ onClose, reason = 'generic' }: Props) {
   async function handleRestore() {
     const { error } = await restore();
     Alert.alert(
-      error ? t('paywall.comingSoonTitle') : t('paywall.restoredTitle'),
+      error ? t('paywall.purchaseFailedTitle') : t('paywall.restoredTitle'),
       error ?? t('paywall.restoredBody'),
     );
     if (!error) {
