@@ -17,6 +17,7 @@ import { getBolDisplayUri } from '../lib/storage';
 import { maybeContributeLoadRate } from '../lib/rateReports';
 import GridBackground from '../components/GridBackground';
 import AccentRule from '../components/AccentRule';
+import ShareLoadCard from '../components/ShareLoadCard';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -151,6 +152,9 @@ export default function LoadDetailScreen({ loadId, onClose }: Props) {
     if (user) pushLoads(user.id);
   }
 
+  // ── Share card ────────────────────────────────────────────────────────────
+  const [showShare, setShowShare] = useState(false);
+
   // ── Full load edit mode ───────────────────────────────────────────────────
   const [editingLoad,  setEditingLoad]  = useState(false);
   const [editGross,    setEditGross]    = useState('');
@@ -232,6 +236,22 @@ export default function LoadDetailScreen({ loadId, onClose }: Props) {
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
       <GridBackground />
 
+      {/* Branded shareable load card */}
+      <ShareLoadCard
+        visible={showShare}
+        onClose={() => setShowShare(false)}
+        data={{
+          from:     `${load.pickup_city}, ${load.pickup_state}`,
+          to:       `${load.delivery_city}, ${load.delivery_state}`,
+          miles:    load.total_miles,
+          grossPay: load.gross_pay,
+          netPay:   load.net_pay,
+          netRPM:   load.net_rate_per_mile,
+          verdict:  load.verdict,
+          date:     fmt(load.date),
+        }}
+      />
+
       {/* Header — edit mode swaps close+edit for cancel+save */}
       <View style={styles.header}>
         {editingLoad ? (
@@ -258,6 +278,9 @@ export default function LoadDetailScreen({ loadId, onClose }: Props) {
               </Text>
               <AccentRule style={{ marginTop: 7 }} />
             </View>
+            <TouchableOpacity style={styles.editIconBtn} onPress={() => setShowShare(true)} activeOpacity={0.7}>
+              <Ionicons name="share-outline" size={18} color={Colors.textSecondary} />
+            </TouchableOpacity>
             <TouchableOpacity style={styles.editIconBtn} onPress={startEditLoad} activeOpacity={0.7}>
               <Ionicons name="pencil-outline" size={18} color={Colors.textSecondary} />
             </TouchableOpacity>

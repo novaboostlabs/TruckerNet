@@ -915,6 +915,46 @@ Details for each are in the lettered sections below.
 
 ## 6. Work Log (newest first)
 
+### 2026-07-02 — The three launch wedge features (differentiation build)
+Branch: `design/trust-polish-punchlist`. Built the top-3 stand-out features from
+the strategy review — each designed to be a 30-second TikTok/Facebook story.
+
+**1. "Where to Fuel" — tax-adjusted fuel-stop optimizer (all plans, free included):**
+- `src/lib/fuelOptimizer.ts`: effective price = pump price − state diesel tax
+  (IFTA credits pump tax against miles driven). Seeded state tax + state avg
+  price tables (labeled estimates, `FUEL_DATA_AS_OF`, refresh with benchmark
+  cadence). Ranks on-route states (≥30 mi), flags when the tax math FLIPS the
+  answer away from the cheapest-looking pump, estimates $/fill savings (120 gal).
+- `src/components/FuelStopCard.tsx` rendered in Add Load under the state-mileage
+  section for ALL users (word-of-mouth hook; IFTA table stays Pro-gated).
+- Logic sanity-tested: IN/IL corridor flips correctly (~$16/fill), 1-state and
+  unknown-state routes return null, tiny border clips (<30 mi) ignored.
+
+**2. Broker Check — FMCSA authority verification (scam shield):**
+- `src/lib/brokerCheck.ts`: QCMobile docket-number lookup → verified / caution
+  (inactive, not allowed to operate, OOS) / not-found ("could be a typo — or a
+  number that doesn't exist"). OBJECTIVE DATA ONLY (no crowdsourced opinions —
+  defamation discipline). Network errors show nothing (never cast suspicion on
+  a timeout). Hidden entirely when unconfigured.
+- `src/components/BrokerCheckCard.tsx` under the MC field in Add Load, debounced.
+- **USER ACTION: register a free FMCSA webKey**
+  (https://mobile.fmcsa.dot.gov/QCDevsite/) → set `EXPO_PUBLIC_FMCSA_WEBKEY`
+  in `.env` (placeholder added to `.env.example`).
+
+**3. Shareable load card (built-in virality):**
+- `src/components/ShareLoadCard.tsx`: branded Freight Terminal card (fixed dark
+  palette regardless of theme — it's a brand asset), grid motif, route, NET PAY
+  hero in verdict color, $/mi, verdict pill, "truckernet.app" footer. Captured
+  via `react-native-view-shot` (installed, 4.0.3) → native share sheet
+  (`expo-sharing`). PostHog event `load_card_shared`.
+- Entry point: share icon in Load Detail header. (Check Load result share:
+  good V1.1 follow-up.)
+- i18n for all three features across en/es/pa/zh.
+
+**Next (per strategy review):** re-capture store/TikTok screenshots from a seeded
+account on-device; detention timer is the next candidate if time allows before
+the September freeze.
+
 ### 2026-07-01 — Pre-launch review fixes: sync data-loss, IFTA/date correctness, RevenueCat hardening
 Branch: `design/trust-polish-punchlist`. Addressed the 11-item pre-launch review
 punch list (4 BLOCKS + 7 FIX). All changes typecheck clean; all 4 locales valid.

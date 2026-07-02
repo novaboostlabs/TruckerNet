@@ -429,6 +429,27 @@
     "backhaul": "Backhaul",
     "deadhead": "Deadhead (unpaid)",
     "deadheadHint": "Unpaid reposition leg — logs the miles for IFTA",
+    "fuelStop": {
+      "title": "WHERE TO FUEL",
+      "fuelIn": "Fuel in",
+      "afterTax": "after tax credit",
+      "savings": "vs. the cheaper-looking pump in {{naive}}: save ~{{amount}} on a fill",
+      "colState": "State",
+      "colPump": "Pump",
+      "colTax": "Tax",
+      "colReal": "Real",
+      "disclaimer": "IFTA credits pump tax against miles driven, so price minus tax is what a gallon really costs you. State averages as of {{asOf}} — not station prices. Estimates only."
+    },
+    "brokerCheck": {
+      "verified": "FMCSA record verified",
+      "caution": "Authority issue — check before booking",
+      "notFound": "No FMCSA record for this MC",
+      "notFoundHint": "Could be a typo — or a number that doesn't exist. Verify with the broker before booking.",
+      "oos": "Out of service since {{date}}",
+      "notAllowed": "Not allowed to operate",
+      "inactive": "Authority inactive",
+      "source": "SOURCE: FMCSA · LIVE LOOKUP"
+    },
     "notes": "NOTES",
     "netPayPreview": "Estimated Net Pay",
     "saveLoad": "Save Load",
@@ -671,6 +692,10 @@
     "estRough": "rough est. · varies by lane",
     "aboveUsual": "{{amount}} above your usual for this lane",
     "belowUsual": "{{amount}} below your usual for this lane"
+  },
+  "shareCard": {
+    "share": "Share",
+    "tagline": "Know your real number."
   },
   "loadDetail": {
     "eyebrow": "LOAD DETAILS",

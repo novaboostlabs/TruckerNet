@@ -427,6 +427,27 @@
     "backhaul": "Carga de regreso",
     "deadhead": "Viaje en vacío (sin pago)",
     "deadheadHint": "Tramo de reposición sin pago — registra las millas para IFTA",
+    "fuelStop": {
+      "title": "DÓNDE CARGAR DIÉSEL",
+      "fuelIn": "Carga en",
+      "afterTax": "después del crédito fiscal",
+      "savings": "vs. la bomba que parece más barata en {{naive}}: ahorra ~{{amount}} por llenado",
+      "colState": "Estado",
+      "colPump": "Bomba",
+      "colTax": "Imp.",
+      "colReal": "Real",
+      "disclaimer": "IFTA acredita el impuesto pagado en la bomba contra las millas recorridas: precio menos impuesto es el costo real del galón. Promedios estatales a {{asOf}} — no precios de estación. Solo estimaciones."
+    },
+    "brokerCheck": {
+      "verified": "Registro FMCSA verificado",
+      "caution": "Problema de autoridad — revisa antes de aceptar",
+      "notFound": "Sin registro FMCSA para este MC",
+      "notFoundHint": "Puede ser un error de tipeo — o un número que no existe. Verifica con el broker antes de aceptar.",
+      "oos": "Fuera de servicio desde {{date}}",
+      "notAllowed": "No autorizado para operar",
+      "inactive": "Autoridad inactiva",
+      "source": "FUENTE: FMCSA · CONSULTA EN VIVO"
+    },
     "brokerName": "Nombre del broker",
     "brokerMC": "Número MC",
     "netPayPreview": "Pago neto estimado",
@@ -671,6 +692,10 @@
     "estRough": "est. aprox. · varía por ruta",
     "aboveUsual": "{{amount}} más de lo habitual en esta ruta",
     "belowUsual": "{{amount}} menos de lo habitual en esta ruta"
+  },
+  "shareCard": {
+    "share": "Compartir",
+    "tagline": "Conoce tu número real."
   },
   "loadDetail": {
     "eyebrow": "DETALLES DE LA CARGA",

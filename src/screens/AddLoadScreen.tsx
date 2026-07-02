@@ -32,9 +32,13 @@ import GridBackground from '../components/GridBackground';
 import AccentRule from '../components/AccentRule';
 import { getRouteData, geocodeAddress, AddressSuggestion } from '../lib/mapbox';
 import { splitRouteByState } from '../lib/stateSplit';
+import { planFuelStops } from '../lib/fuelOptimizer';
+import FuelStopCard from '../components/FuelStopCard';
 import { maybeContributeLoadRate, getCommunityRate, CommunityRate, CommunityTier } from '../lib/rateReports';
 import { getBrokerScorecard, BrokerScorecard } from '../lib/brokerScorecard';
 import BrokerScorecardCard from '../components/BrokerScorecardCard';
+import { lookupBrokerAuthority, isBrokerCheckConfigured, BrokerCheckResult } from '../lib/brokerCheck';
+import BrokerCheckCard from '../components/BrokerCheckCard';
 import { scheduleLoadReminder, cancelLoadReminder, checkAndNotifyGoalMilestone, checkAndNotifyStreak, scheduleIdleNudge } from '../lib/notifications';
 import { capture } from '../lib/analytics';
 
@@ -209,6 +213,21 @@ export default function AddLoadScreen({ onClose, onSaved, onFirstLoad, prefill }
   const [brokerScorecard,   setBrokerScorecard]   = useState<BrokerScorecard | null>(null);
   const [brokerSCLoading,   setBrokerSCLoading]   = useState(false);
 
+  // ── Broker Check (FMCSA authority verification) ──
+  const [brokerCheck, setBrokerCheck] = useState<BrokerCheckResult | null>(null);
+
+  useEffect(() => {
+    const mc = brokerMC.trim();
+    setBrokerCheck(null);
+    if (!isBrokerCheckConfigured() || mc.replace(/\D/g, '').length < 4) return;
+    const ctrl  = new AbortController();
+    const timer = setTimeout(async () => {
+      try { setBrokerCheck(await lookupBrokerAuthority(mc, ctrl.signal)); }
+      catch { setBrokerCheck(null); }
+    }, 700);
+    return () => { clearTimeout(timer); ctrl.abort(); };
+  }, [brokerMC]);
+
   useEffect(() => {
     const name = brokerName.trim();
     const mc   = brokerMC.trim();
@@ -338,6 +357,16 @@ export default function AddLoadScreen({ onClose, onSaved, onFirstLoad, prefill }
 
   const stateMilesTotal = stateMiles.reduce((s, r) => s + (parseFloat(r.miles) || 0), 0);
   const stateMilesDiff  = loadMi > 0 ? Math.abs(Math.round(stateMilesTotal) - Math.round(loadMi)) : 0;
+
+  // Tax-adjusted fuel-stop plan for the on-route states (null for 1-state routes).
+  const fuelPlan = useMemo(
+    () => planFuelStops(
+      stateMiles
+        .map(r => ({ state: r.state, miles: parseFloat(r.miles) || 0 }))
+        .filter(r => r.state.length === 2 && r.miles > 0)
+    ),
+    [stateMiles]
+  );
 
   function updateStateRow(idx: number, field: 'state' | 'miles', value: string) {
     setStateMiles(prev => prev.map((r, i) =>
@@ -781,6 +810,14 @@ export default function AddLoadScreen({ onClose, onSaved, onFirstLoad, prefill }
             </TouchableOpacity>
           )}
 
+          {/* ── Where to Fuel — tax-adjusted stop recommendation (all plans:
+                 this is the word-of-mouth hook; the IFTA table stays gated) ── */}
+          {fuelPlan && (
+            <View style={{ marginTop: 16 }}>
+              <FuelStopCard plan={fuelPlan} />
+            </View>
+          )}
+
           {/* ── Gross pay ── */}
           <View style={styles.sectionDivider} />
           <Text style={styles.fieldLabel}>{t('addLoad.grossPay')}</Text>
@@ -1062,6 +1099,9 @@ export default function AddLoadScreen({ onClose, onSaved, onFirstLoad, prefill }
                 placeholder={t('addLoad.brokerMC')}
                 placeholderTextColor={Colors.textTertiary}
               />
+
+              {/* Broker Check — FMCSA authority verification from the MC number */}
+              {brokerCheck && <BrokerCheckCard result={brokerCheck} />}
 
               {/* Broker scorecard — appears when broker info is entered */}
               {(brokerScorecard || brokerSCLoading) && (

@@ -424,6 +424,27 @@
     "backhaul": "回程货",
     "deadhead": "空跑（无报酬）",
     "deadheadHint": "无收入的调车行程 — 为 IFTA 记录里程",
+    "fuelStop": {
+      "title": "在哪加油",
+      "fuelIn": "建议在",
+      "afterTax": "扣除税收抵免后",
+      "savings": "对比 {{naive}} 看似更便宜的油站：每箱约省 {{amount}}",
+      "colState": "州",
+      "colPump": "油价",
+      "colTax": "税",
+      "colReal": "实际",
+      "disclaimer": "IFTA 按行驶里程结算燃油税，油价减税才是每加仑的真实成本。州均价截至 {{asOf}} — 非油站实价，仅供估算。"
+    },
+    "brokerCheck": {
+      "verified": "FMCSA 记录已验证",
+      "caution": "资质异常 — 接单前请核实",
+      "notFound": "此 MC 号无 FMCSA 记录",
+      "notFoundHint": "可能是输入错误 — 也可能该号码不存在。接单前请与经纪人核实。",
+      "oos": "自 {{date}} 起停业",
+      "notAllowed": "无运营许可",
+      "inactive": "资质未激活",
+      "source": "来源：FMCSA · 实时查询"
+    },
     "brokerName": "经纪人名称",
     "brokerMC": "MC号码",
     "weight": "重量（磅）",
@@ -671,6 +692,10 @@
     "estRough": "粗略估算 · 因线路而异",
     "aboveUsual": "比你这条线路的平常高 {{amount}}",
     "belowUsual": "比你这条线路的平常低 {{amount}}"
+  },
+  "shareCard": {
+    "share": "分享",
+    "tagline": "看清你的真实收入。"
   },
   "loadDetail": {
     "eyebrow": "订单详情",
