@@ -157,7 +157,7 @@ function RouteLabel({ from, to }: { from: string; to: string }) {
   const styles = useMemo(() => makeStyles(Colors), [Colors]);
   return (
     <View style={styles.routeRow}>
-      <Ionicons name="navigate" size={11} color={Colors.textSecondary} />
+      <Ionicons name="navigate" size={13} color={Colors.textSecondary} />
       <Text style={styles.routeText} numberOfLines={1}>{from}  →  {to}</Text>
     </View>
   );
@@ -404,7 +404,7 @@ const makeStyles = (Colors: ThemeColors) => StyleSheet.create({
 
   // Sample-lane route label (shared across slides)
   routeRow:  { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  routeText: { fontFamily: FontFamily.monoRegular, fontSize: FontSize.caption, color: Colors.textSecondary, flexShrink: 1, letterSpacing: 0.3 },
+  routeText: { fontFamily: FontFamily.monoSemiBold, fontSize: FontSize.label, color: Colors.textPrimary, flexShrink: 1, letterSpacing: 0.3 },
   routeDivider: { height: 1, backgroundColor: Colors.borderSubtle, marginTop: 12, marginBottom: 16 },
   flowRouteWrap: { marginBottom: 8 },
 
@@ -426,7 +426,7 @@ const makeStyles = (Colors: ThemeColors) => StyleSheet.create({
     paddingHorizontal: 12, paddingVertical: 7,
   },
   verdictPillText: { fontFamily: FontFamily.bold, fontSize: FontSize.label, color: Colors.primary },
-  flowNetAmount: { fontFamily: FontFamily.monoBold, fontSize: FontSize.label, color: Colors.primary },
+  flowNetAmount: { fontFamily: FontFamily.monoBold, fontSize: FontSize.body, color: Colors.primary },
 
   // ── Slide 2: result card (mirrors CheckLoad) ──
   resultCard: {

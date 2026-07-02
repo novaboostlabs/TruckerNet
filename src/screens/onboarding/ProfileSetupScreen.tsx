@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
   KeyboardAvoidingView, Platform, ScrollView,
@@ -57,11 +57,14 @@ export default function ProfileSetupScreen({ onContinue, onBack }: Props) {
   const [truckNum,  setTruckNum]  = useState('');
   const [homeBaseInput, setHomeBaseInput] = useState('');
   const [homeBaseSel,   setHomeBaseSel]   = useState<AddressSuggestion | null>(null);
-
-  const canContinue = name.trim().length > 0;
+  const nameRef = useRef<TextInput>(null);
 
   function handleContinue() {
-    if (name.trim()) setSetting('profile_name', name.trim());
+    // Name is the one field that personalizes everything downstream. Rather than
+    // dead-disabling the CTA (reads as broken), keep it live and nudge focus back
+    // to the name field if it's empty.
+    if (!name.trim()) { nameRef.current?.focus(); return; }
+    setSetting('profile_name', name.trim());
     if (equipment)   setSetting('profile_equipment_type', equipment);
     if (truckNum.trim()) setSetting('profile_truck_number', truckNum.trim());
 
@@ -114,6 +117,7 @@ export default function ProfileSetupScreen({ onContinue, onBack }: Props) {
           <View style={styles.fieldBlock}>
             <Text style={styles.fieldLabel}>{t('profile.nameLabel')}</Text>
             <TextInput
+              ref={nameRef}
               style={styles.input}
               value={name}
               onChangeText={setName}
@@ -187,19 +191,12 @@ export default function ProfileSetupScreen({ onContinue, onBack }: Props) {
         {/* Continue button */}
         <View style={styles.buttonWrap}>
           <TouchableOpacity
-            style={[styles.button, !canContinue && styles.buttonDim]}
+            style={styles.button}
             onPress={handleContinue}
             activeOpacity={0.85}
-            disabled={!canContinue}
           >
-            <Text style={[styles.buttonText, !canContinue && styles.buttonTextDim]}>
-              {t('profile.continue')}
-            </Text>
-            <Ionicons
-              name="arrow-forward"
-              size={18}
-              color={canContinue ? Colors.background : Colors.textSecondary}
-            />
+            <Text style={styles.buttonText}>{t('profile.continue')}</Text>
+            <Ionicons name="arrow-forward" size={18} color={Colors.onPrimary} />
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
@@ -255,7 +252,5 @@ const makeStyles = (Colors: ThemeColors) => StyleSheet.create({
     backgroundColor: Colors.primary, borderRadius: Radius.md, paddingVertical: 17,
     shadowColor: Colors.primary, shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.4, shadowRadius: 12, elevation: 12,
   },
-  buttonDim:     { backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border, shadowOpacity: 0, elevation: 0 },
   buttonText:    { fontFamily: FontFamily.semiBold, fontSize: FontSize.body, color: Colors.onPrimary },
-  buttonTextDim: { color: Colors.textSecondary },
 });

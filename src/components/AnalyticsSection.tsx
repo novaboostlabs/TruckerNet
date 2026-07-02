@@ -308,7 +308,10 @@ const makeStyles = (Colors: ThemeColors) => StyleSheet.create({
     marginBottom: 14,
   },
   gateBtn: {
-    backgroundColor: Colors.primary,
+    // Amber = the Pro/locked signal app-wide (matches the amber lock icon above,
+    // FairMarketLock, and FreeUsageMeter). Teal is reserved for positive money
+    // and the primary in-app action, so upgrade CTAs never wear it.
+    backgroundColor: Colors.secondary,
     borderRadius:    Radius.pill,
     paddingVertical: 9,
     paddingHorizontal: 20,

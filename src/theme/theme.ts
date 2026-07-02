@@ -20,8 +20,12 @@ export const darkColors = {
   borderStrong: '#505050',
 
   // Text
+  // Secondary/label raised for cab-in-sunlight legibility: #9A9A9A ≈ 7:1 and
+  // #8A8A8A ≈ 5.8:1 on the #080808 background (both clear WCAG AA; the old
+  // #767676/#606060 sat at 4.4:1 and 3.2:1 — under AA). Tertiary stays dim: it's
+  // reserved for genuinely decorative use (chevrons, dividers, placeholders).
   textPrimary:   '#F0EDE8',
-  textSecondary: '#767676',
+  textSecondary: '#9A9A9A',
   textTertiary:  '#4A4A4A',
 
   // Accents
@@ -40,7 +44,7 @@ export const darkColors = {
   dangerDim: '#EF444412',
   success:   '#00C896',
 
-  labelColor:  '#606060',
+  labelColor:  '#8A8A8A',
   // Grid background line (Freight Terminal motif)
   grid:        'rgba(130, 150, 150, 0.16)',
   // App-chrome surfaces that were previously hardcoded

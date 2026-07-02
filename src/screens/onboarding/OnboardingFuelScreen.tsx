@@ -58,7 +58,12 @@ export default function OnboardingFuelScreen({ onNext }: Props) {
             ))}
           </View>
 
-          <Text style={styles.stepLabel}>{t('onboarding.step', { current: 1, total: 4 })}</Text>
+          <View style={styles.stepRow}>
+            <Text style={styles.stepLabel}>{t('onboarding.step', { current: 1, total: 4 })}</Text>
+            <TouchableOpacity onPress={onNext} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+              <Text style={styles.skipLink}>{t('common.skip')}</Text>
+            </TouchableOpacity>
+          </View>
 
           <View style={styles.iconCircle}>
             <Ionicons name="flash" size={32} color={Colors.primary} />
@@ -103,18 +108,12 @@ export default function OnboardingFuelScreen({ onNext }: Props) {
         {/* Button sits OUTSIDE the ScrollView but INSIDE KAV — keyboard pushes it up */}
         <View style={styles.buttonWrap}>
           <TouchableOpacity
-            style={[styles.button, !amount && styles.buttonDim]}
+            style={styles.button}
             onPress={handleNext}
             activeOpacity={0.85}
           >
-            <Text style={[styles.buttonText, !amount && styles.buttonTextDim]}>
-              {amount ? t('common.next') : t('common.skip')}
-            </Text>
-            <Ionicons
-              name="arrow-forward"
-              size={18}
-              color={amount ? Colors.background : Colors.textSecondary}
-            />
+            <Text style={styles.buttonText}>{t('common.next')}</Text>
+            <Ionicons name="arrow-forward" size={18} color={Colors.onPrimary} />
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
@@ -132,7 +131,9 @@ const makeStyles = (Colors: ThemeColors) => StyleSheet.create({
   progressDot:      { flex: 1, height: 3, borderRadius: 2, backgroundColor: Colors.surface },
   progressDotActive:{ backgroundColor: Colors.primary },
 
-  stepLabel: { fontFamily: FontFamily.monoSemiBold, fontSize: FontSize.caption, color: Colors.labelColor, letterSpacing: 1.4, textTransform: 'uppercase', marginBottom: 32 },
+  stepRow:   { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 32 },
+  stepLabel: { fontFamily: FontFamily.monoSemiBold, fontSize: FontSize.caption, color: Colors.labelColor, letterSpacing: 1.4, textTransform: 'uppercase' },
+  skipLink:  { fontFamily: FontFamily.semiBold, fontSize: FontSize.label, color: Colors.textSecondary },
 
   iconCircle: {
     width: 64, height: 64, borderRadius: Radius.md,
@@ -176,7 +177,5 @@ const makeStyles = (Colors: ThemeColors) => StyleSheet.create({
     backgroundColor: Colors.primary, borderRadius: Radius.md, paddingVertical: 17,
     shadowColor: Colors.primary, shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.4, shadowRadius: 12, elevation: 12,
   },
-  buttonDim:     { backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border, shadowOpacity: 0, elevation: 0 },
   buttonText:    { fontFamily: FontFamily.semiBold, fontSize: FontSize.body, color: Colors.onPrimary },
-  buttonTextDim: { color: Colors.textSecondary },
 });

@@ -153,7 +153,11 @@ export default function DashboardScreen() {
   }
 
   const d = data;
-  const signedNet = (n: number) => (n >= 0 ? `+$${fmt(n)}` : `-$${fmt(Math.abs(n))}`);
+  // Zero is neutral, not a win: never render +$0 in success-green. The +/green
+  // treatment is earned only by a genuinely positive number.
+  const signedNet = (n: number) => (n > 0 ? `+$${fmt(n)}` : n < 0 ? `-$${fmt(Math.abs(n))}` : `$${fmt(0)}`);
+  const netColor  = (n: number) => (n > 0 ? Colors.primary : n < 0 ? Colors.danger : Colors.textSecondary);
+  const beReady   = d.breakEvenRPM > 0;
 
   // Weekly avg gross RPM vs break-even — powers the fallback hero's verdict line.
   const weekGrossRpm = d.weekMiles > 0 ? d.weekGross / d.weekMiles : 0;
@@ -282,7 +286,7 @@ export default function DashboardScreen() {
               </View>
             </View>
 
-            <Text style={[styles.weekHeroNet, { color: d.weekNet >= 0 ? Colors.primary : Colors.danger }]}>
+            <Text style={[styles.weekHeroNet, { color: netColor(d.weekNet) }]}>
               {signedNet(d.weekNet)}
             </Text>
             <Text style={styles.weekHeroUnit}>{t('dashboard.netPay')}</Text>
@@ -307,7 +311,7 @@ export default function DashboardScreen() {
                 <View style={styles.heroDivider} />
                 <View style={styles.heroMonthRow}>
                   <Text style={styles.heroMonthLabel}>{t('dashboard.thisMonth')}</Text>
-                  <Text style={[styles.heroMonthNet, { color: d.monthNet >= 0 ? Colors.primary : Colors.danger }]}>
+                  <Text style={[styles.heroMonthNet, { color: netColor(d.monthNet) }]}>
                     {signedNet(d.monthNet)}
                   </Text>
                   <Text style={styles.heroMonthGross}>{t('dashboard.ofGross', { amount: `$${fmt(d.monthGross)}` })}</Text>
@@ -347,9 +351,10 @@ export default function DashboardScreen() {
                 {d.breakEvenRPM > 0 ? `$${d.breakEvenRPM.toFixed(3)}/mi` : '—'}
               </Text>
             </Text>
-            <Text style={styles.beSub}>
-              {t('dashboard.fuelCPM')} ${d.fuelCPM.toFixed(2)} · {t('dashboard.fixedCPM')} ${d.fixedCPM.toFixed(2)}
-              {' · '}{t(`dashboard.milesSource_${d.milesSource}`)}
+            <Text style={beReady ? styles.beSub : styles.beSetup}>
+              {beReady
+                ? `${t('dashboard.fuelCPM')} $${d.fuelCPM.toFixed(2)} · ${t('dashboard.fixedCPM')} $${d.fixedCPM.toFixed(2)} · ${t(`dashboard.milesSource_${d.milesSource}`)}`
+                : t('dashboard.breakEvenSetup')}
             </Text>
           </View>
           <Ionicons name="chevron-forward" size={16} color={Colors.textTertiary} />
@@ -517,14 +522,16 @@ const makeStyles = (Colors: ThemeColors) => StyleSheet.create({
   },
   heroTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
   heroEyebrow: { ...sectionLabel(Colors), fontFamily: FontFamily.monoSemiBold, marginBottom: 0 },
+  // Neutral status chip — teal is reserved for the net number + primary action.
+  // A small teal dot preserves the "live" semantic without competing for attention.
   livePill: {
     flexDirection: 'row', alignItems: 'center', gap: 5,
-    backgroundColor: Colors.primaryDim, borderRadius: Radius.pill,
+    backgroundColor: Colors.surfaceHigh, borderRadius: Radius.pill,
     paddingHorizontal: 10, paddingVertical: 4,
-    borderWidth: 1, borderColor: Colors.primaryMid,
+    borderWidth: 1, borderColor: Colors.border,
   },
   liveDot:  { width: 6, height: 6, borderRadius: 3, backgroundColor: Colors.primary },
-  liveText: { fontFamily: FontFamily.monoSemiBold, fontSize: FontSize.caption, color: Colors.primary, letterSpacing: 0.5 },
+  liveText: { fontFamily: FontFamily.monoSemiBold, fontSize: FontSize.caption, color: Colors.textSecondary, letterSpacing: 0.5 },
   weekHeroNet: {
     fontFamily: FontFamily.monoBold, fontSize: FontSize.heroLarge,
     lineHeight: 60, letterSpacing: -2, marginTop: 4,
@@ -566,6 +573,7 @@ const makeStyles = (Colors: ThemeColors) => StyleSheet.create({
   beLabel:    { fontFamily: FontFamily.monoSemiBold, fontSize: FontSize.micro, color: Colors.labelColor, letterSpacing: 1.2 },
   beValue:    { fontFamily: FontFamily.monoBold, fontSize: FontSize.body, color: Colors.textPrimary },
   beSub:      { fontFamily: FontFamily.monoRegular, fontSize: FontSize.caption, color: Colors.textSecondary, marginTop: 2 },
+  beSetup:    { fontFamily: FontFamily.monoSemiBold, fontSize: FontSize.caption, color: Colors.primary, marginTop: 2 },
 
   // Check Load CTA
   evalButton: {
