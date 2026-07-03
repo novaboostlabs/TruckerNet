@@ -16,7 +16,12 @@ import 'react-native-get-random-values'
 import { capture } from '../../lib/analytics';;
 import { v4 as uuid } from 'uuid';
 
-interface Props { onNext: () => void; onBack: () => void; }
+interface Props {
+  onNext: () => void;
+  onBack: () => void;
+  /** Signed-in review mode (Replay Setup): "Review…" heading for prefilled data. */
+  replay?: boolean;
+}
 
 type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
 
@@ -56,7 +61,7 @@ function emptyDraft(): Draft {
 // Which row the frequency dropdown is currently editing.
 type FreqTarget = { kind: 'fixed'; id: string } | { kind: 'draft' } | null;
 
-export default function OnboardingExpensesScreen({ onNext, onBack }: Props) {
+export default function OnboardingExpensesScreen({ onNext, onBack, replay = false }: Props) {
   const { colors: Colors } = useTheme();
   const styles = useMemo(() => makeStyles(Colors), [Colors]);
   const { t } = useTranslation();
@@ -257,9 +262,13 @@ export default function OnboardingExpensesScreen({ onNext, onBack }: Props) {
             <Ionicons name="wallet" size={32} color={Colors.primary} />
           </View>
 
-          <Text style={styles.heading}>{t('onboarding.expenses.title')}</Text>
+          <Text style={styles.heading}>
+            {replay ? t('onboarding.expenses.reviewTitle') : t('onboarding.expenses.title')}
+          </Text>
           <AccentRule style={{ marginTop: 10, marginBottom: 16 }} />
-          <Text style={styles.subheading}>{t('onboarding.expenses.subtitle')}</Text>
+          <Text style={styles.subheading}>
+            {replay ? t('onboarding.reviewSubtitle') : t('onboarding.expenses.subtitle')}
+          </Text>
 
           {/* ── Essentials ── */}
           <Text style={styles.sectionTitle}>{t('onboarding.expenses.fixedSection')}</Text>

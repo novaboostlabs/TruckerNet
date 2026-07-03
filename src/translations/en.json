@@ -156,7 +156,8 @@
       "hint": "Think about your last few fill-ups",
       "perWeek": "/ week",
       "estMonthly": "ESTIMATED MONTHLY FUEL",
-      "perMo": "/ mo"
+      "perMo": "/ mo",
+      "reviewTitle": "Review your fuel spend"
     },
     "expenses": {
       "title": "What are your monthly expenses?",
@@ -208,7 +209,8 @@
       },
       "emptyHint": "Tap \"+ Add Expense\" to get started",
       "totalMonthly": "TOTAL MONTHLY EXPENSES",
-      "perMo": "/mo"
+      "perMo": "/mo",
+      "reviewTitle": "Review your expenses"
     },
     "miles": {
       "title": "How many miles per week?",
@@ -218,7 +220,8 @@
       "hint": "Average over a typical week",
       "perWeek": "mi / week",
       "estMonthly": "ESTIMATED MONTHLY MILES",
-      "perMo": " mi / mo"
+      "perMo": " mi / mo",
+      "reviewTitle": "Review your weekly miles"
     },
     "result": {
       "title": "Your break-even rate",
@@ -247,7 +250,8 @@
       "taxLabel": "WHAT’S YOUR USUAL TAX RATE?",
       "taxHint": "Most owner-operators set aside 25–30% for taxes. You can fine-tune this anytime.",
       "skip": "Skip for now"
-    }
+    },
+    "reviewSubtitle": "Your current numbers are loaded — adjust anything that's changed, then continue."
   },
   "dashboard": {
     "title": "Dashboard",

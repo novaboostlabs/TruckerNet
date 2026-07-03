@@ -13,9 +13,14 @@ import { capture } from '../../lib/analytics';
 import GridBackground from '../../components/GridBackground';
 import AccentRule from '../../components/AccentRule';
 
-interface Props { onNext: () => void; onBack: () => void; }
+interface Props {
+  onNext: () => void;
+  onBack: () => void;
+  /** Signed-in review mode (Replay Setup): "Review…" heading for prefilled data. */
+  replay?: boolean;
+}
 
-export default function OnboardingMilesScreen({ onNext, onBack }: Props) {
+export default function OnboardingMilesScreen({ onNext, onBack, replay = false }: Props) {
   const { colors: Colors } = useTheme();
   const styles = useMemo(() => makeStyles(Colors), [Colors]);
   const { t }  = useTranslation();
@@ -73,9 +78,13 @@ export default function OnboardingMilesScreen({ onNext, onBack }: Props) {
             <Ionicons name="navigate" size={32} color={Colors.primary} />
           </View>
 
-          <Text style={styles.heading}>{t('onboarding.miles.title')}</Text>
+          <Text style={styles.heading}>
+            {replay ? t('onboarding.miles.reviewTitle') : t('onboarding.miles.title')}
+          </Text>
           <AccentRule style={{ marginTop: 10, marginBottom: 16 }} />
-          <Text style={styles.subheading}>{t('onboarding.miles.subtitle')}</Text>
+          <Text style={styles.subheading}>
+            {replay ? t('onboarding.reviewSubtitle') : t('onboarding.miles.subtitle')}
+          </Text>
 
           {/* Input */}
           <View style={styles.inputBlock}>

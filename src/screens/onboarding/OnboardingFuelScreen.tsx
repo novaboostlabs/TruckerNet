@@ -13,9 +13,14 @@ import { capture } from '../../lib/analytics';
 import GridBackground from '../../components/GridBackground';
 import AccentRule from '../../components/AccentRule';
 
-interface Props { onNext: () => void; }
+interface Props {
+  onNext: () => void;
+  /** Signed-in review mode (Replay Setup): heading reads "Review…" so the
+   *  prefilled numbers clearly mean "edit your setup", not stale data. */
+  replay?: boolean;
+}
 
-export default function OnboardingFuelScreen({ onNext }: Props) {
+export default function OnboardingFuelScreen({ onNext, replay = false }: Props) {
   const { colors: Colors } = useTheme();
   const styles = useMemo(() => makeStyles(Colors), [Colors]);
   const { t } = useTranslation();
@@ -69,9 +74,13 @@ export default function OnboardingFuelScreen({ onNext }: Props) {
             <Ionicons name="flash" size={32} color={Colors.primary} />
           </View>
 
-          <Text style={styles.heading}>{t('onboarding.fuel.title')}</Text>
+          <Text style={styles.heading}>
+            {replay ? t('onboarding.fuel.reviewTitle') : t('onboarding.fuel.title')}
+          </Text>
           <AccentRule style={{ marginTop: 10, marginBottom: 16 }} />
-          <Text style={styles.subheading}>{t('onboarding.fuel.subtitle')}</Text>
+          <Text style={styles.subheading}>
+            {replay ? t('onboarding.reviewSubtitle') : t('onboarding.fuel.subtitle')}
+          </Text>
 
           {/* Big input */}
           <View style={styles.inputBlock}>

@@ -53,6 +53,7 @@ export default function RootNavigator() {
   const [step, setStep]           = useState<Step>('loading');
   const [splashDone, setSplashDone] = useState(false);
   const [walkthroughReplay, setWalkthroughReplay] = useState(false);
+  const [onboardingReplay, setOnboardingReplay] = useState(false);
   const initialized               = useRef(false);
 
   // ── Determine starting point ONCE when auth finishes loading ──
@@ -146,13 +147,14 @@ export default function RootNavigator() {
     setupNotifications().catch(() => {});
   }, [step]);
 
-  // ── Replay onboarding from inside the app ──
+  // ── Replay onboarding from inside the app (review/edit mode) ──
+  // The onboarded flag stays SET: a force-quit mid-replay must land back in the
+  // app on next launch, never strand a signed-in user in the pre-auth flow.
+  // (The old approach cleared the flag and could dead-end on the signup screen.)
   const replayOnboarding = useCallback(() => {
-    // Clear this account's flag so the flow is consistent if the app restarts
-    // mid-replay; OnboardingResult re-sets it on completion. (Guests have none.)
-    if (session) setSetting(onboardingKey(session.user.id), '');
+    setOnboardingReplay(true);
     setStep('onboarding_fuel');
-  }, [session]);
+  }, []);
 
   // ── Replay the walkthrough from inside the app (review mode) ──
   // Returns to the app when finished instead of routing to auth.
@@ -213,13 +215,19 @@ export default function RootNavigator() {
     }
 
     if (step === 'onboarding_fuel') {
-      capture('onboarding_started');
-      return <OnboardingFuelScreen onNext={() => setStep('onboarding_expenses')} />;
+      capture(onboardingReplay ? 'onboarding_replayed' : 'onboarding_started');
+      return (
+        <OnboardingFuelScreen
+          replay={onboardingReplay}
+          onNext={() => setStep('onboarding_expenses')}
+        />
+      );
     }
 
     if (step === 'onboarding_expenses') {
       return (
         <OnboardingExpensesScreen
+          replay={onboardingReplay}
           onNext={() => setStep('onboarding_miles')}
           onBack={() => setStep('onboarding_fuel')}
         />
@@ -229,6 +237,7 @@ export default function RootNavigator() {
     if (step === 'onboarding_miles') {
       return (
         <OnboardingMilesScreen
+          replay={onboardingReplay}
           onNext={() => setStep('onboarding_result')}
           onBack={() => setStep('onboarding_expenses')}
         />
@@ -261,8 +270,19 @@ export default function RootNavigator() {
     if (step === 'profile_setup') {
       return (
         <ProfileSetupScreen
+          replay={onboardingReplay}
           onBack={() => setStep('onboarding_goals')}
-          onContinue={() => setStep('signup')}
+          onContinue={() => {
+            // Replay (signed-in user reviewing setup): return to the app —
+            // never route an authenticated user to the signup screen.
+            if (onboardingReplay) {
+              setOnboardingReplay(false);
+              if (session) syncAll(session.user.id); // push the updated setup
+              setStep('app');
+            } else {
+              setStep('signup');
+            }
+          }}
         />
       );
     }

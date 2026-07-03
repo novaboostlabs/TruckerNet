@@ -156,7 +156,8 @@
       "hint": "Piensa en tus últimas recargas",
       "perWeek": "/ semana",
       "estMonthly": "COMBUSTIBLE MENSUAL ESTIMADO",
-      "perMo": "/ mes"
+      "perMo": "/ mes",
+      "reviewTitle": "Revisa tu gasto en gasolina"
     },
     "expenses": {
       "title": "¿Cuáles son tus gastos mensuales?",
@@ -208,7 +209,8 @@
       },
       "emptyHint": "Toca \"+ Agregar Gasto\" para comenzar",
       "totalMonthly": "GASTOS MENSUALES TOTALES",
-      "perMo": "/mes"
+      "perMo": "/mes",
+      "reviewTitle": "Revisa tus gastos"
     },
     "miles": {
       "title": "¿Cuántas millas por semana?",
@@ -218,7 +220,8 @@
       "hint": "Promedio de una semana típica",
       "perWeek": "mi / semana",
       "estMonthly": "MILLAS MENSUALES ESTIMADAS",
-      "perMo": " mi / mes"
+      "perMo": " mi / mes",
+      "reviewTitle": "Revisa tus millas semanales"
     },
     "result": {
       "title": "Tu tasa de equilibrio",
@@ -247,7 +250,8 @@
       "taxLabel": "¿CUÁL ES TU TASA DE IMPUESTOS HABITUAL?",
       "taxHint": "La mayoría de los operadores aparta 25–30% para impuestos. Puedes ajustarlo cuando quieras.",
       "skip": "Omitir por ahora"
-    }
+    },
+    "reviewSubtitle": "Tus números actuales ya están cargados — ajusta lo que haya cambiado y continúa."
   },
   "dashboard": {
     "title": "Panel",

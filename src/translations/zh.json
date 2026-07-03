@@ -156,7 +156,8 @@
       "hint": "想想您最近几次加油的费用",
       "perWeek": "/ 周",
       "estMonthly": "预计每月燃油",
-      "perMo": "/ 月"
+      "perMo": "/ 月",
+      "reviewTitle": "检查您的燃油费用"
     },
     "expenses": {
       "title": "您每月有哪些费用？",
@@ -208,7 +209,8 @@
       },
       "emptyHint": "点击\"+ 添加费用\"开始",
       "totalMonthly": "每月总费用",
-      "perMo": "/月"
+      "perMo": "/月",
+      "reviewTitle": "检查您的费用"
     },
     "miles": {
       "title": "您每周行驶多少英里？",
@@ -218,7 +220,8 @@
       "hint": "典型一周的平均里程",
       "perWeek": "英里 / 周",
       "estMonthly": "预计每月里程",
-      "perMo": " 英里 / 月"
+      "perMo": " 英里 / 月",
+      "reviewTitle": "检查您的每周里程"
     },
     "result": {
       "title": "您的盈亏平衡费率",
@@ -247,7 +250,8 @@
       "taxLabel": "你通常的税率是多少？",
       "taxHint": "大多数个体司机预留 25–30% 用于纳税。你可以随时微调。",
       "skip": "暂时跳过"
-    }
+    },
+    "reviewSubtitle": "已加载您当前的数据 — 修改有变动的部分后继续。"
   },
   "dashboard": {
     "title": "仪表盘",

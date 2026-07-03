@@ -213,15 +213,15 @@ export default function LanguagePickerScreen({ onLanguageSelected }: Props) {
 
 const makeStyles = (Colors: ThemeColors) => StyleSheet.create({
   safe:      { flex: 1, backgroundColor: Colors.background },
-  container: { flex: 1, paddingHorizontal: Spacing.screenH, paddingTop: 32, paddingBottom: 24 },
+  container: { flex: 1, paddingHorizontal: Spacing.screenH, paddingTop: 24, paddingBottom: 24 },
 
   // Freight Terminal header
-  header: { borderBottomWidth: 2, borderBottomColor: Colors.borderStrong, paddingBottom: 18, marginBottom: 48 },
+  header: { borderBottomWidth: 2, borderBottomColor: Colors.borderStrong, paddingBottom: 16, marginBottom: 32 },
   headerLabel: { fontFamily: FontFamily.monoSemiBold, fontSize: 11, color: Colors.labelColor, letterSpacing: 1.8 },
 
-  hero:    { marginBottom: 48 },
-  heroLogo: { width: 168, height: 83, marginBottom: 20, alignSelf: 'flex-start' },
-  heading: { fontFamily: FontFamily.monoBold, fontSize: 48, color: Colors.textPrimary, lineHeight: 52, marginBottom: 0, letterSpacing: -0.6 },
+  hero:    { marginBottom: 36 },
+  heroLogo: { width: 148, height: 73, marginBottom: 16, alignSelf: 'flex-start' },
+  heading: { fontFamily: FontFamily.monoBold, fontSize: 40, color: Colors.textPrimary, lineHeight: 46, marginBottom: 0, letterSpacing: -0.6 },
   slogan:  { fontFamily: FontFamily.regular, fontSize: FontSize.body, color: Colors.textSecondary, lineHeight: 24 },
 
   dropdownBlock: { },
@@ -242,7 +242,9 @@ const makeStyles = (Colors: ThemeColors) => StyleSheet.create({
   dropdownNative:  { fontFamily: FontFamily.semiBold, fontSize: FontSize.body, color: Colors.textPrimary, marginBottom: 2 },
   dropdownEnglish: { fontFamily: FontFamily.regular, fontSize: FontSize.label, color: Colors.textSecondary },
 
-  spacer: { flex: 1 },
+  // minHeight guarantees breathing room between the theme dropdown and the CTA
+  // even on short screens where flex would otherwise collapse to zero.
+  spacer: { flex: 1, minHeight: 28 },
 
   button: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,

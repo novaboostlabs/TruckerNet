@@ -18,6 +18,9 @@ import { AddressSuggestion } from '../../lib/mapbox';
 interface Props {
   onContinue: () => void;
   onBack:     () => void;
+  /** Signed-in review mode (Replay Setup): the CTA saves and returns to the
+   *  app instead of reading "Create My Account". */
+  replay?:    boolean;
 }
 
 // Pull "City" and "ST" out of a Mapbox place label (e.g. "Dallas, TX, United States").
@@ -47,7 +50,7 @@ const EQUIPMENT_TYPES = [
 ] as const;
 type EquipmentType = typeof EQUIPMENT_TYPES[number];
 
-export default function ProfileSetupScreen({ onContinue, onBack }: Props) {
+export default function ProfileSetupScreen({ onContinue, onBack, replay = false }: Props) {
   const { colors: Colors } = useTheme();
   const styles = useMemo(() => makeStyles(Colors), [Colors]);
   const { t } = useTranslation();
@@ -195,7 +198,9 @@ export default function ProfileSetupScreen({ onContinue, onBack }: Props) {
             onPress={handleContinue}
             activeOpacity={0.85}
           >
-            <Text style={styles.buttonText}>{t('profile.continue')}</Text>
+            <Text style={styles.buttonText}>
+              {replay ? t('common.save') : t('profile.continue')}
+            </Text>
             <Ionicons name="arrow-forward" size={18} color={Colors.onPrimary} />
           </TouchableOpacity>
         </View>

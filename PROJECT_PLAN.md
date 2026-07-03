@@ -915,6 +915,28 @@ Details for each are in the lettered sections below.
 
 ## 6. Work Log (newest first)
 
+### 2026-07-02 — Replay Setup flow fixes + welcome screen layout
+User-reported bugs, branch `design/trust-polish-punchlist`:
+- **Replay Setup dead-ended on the signup screen.** The onboarding flow was
+  built pre-auth (profile_setup → "Create My Account" → signup); replaying as a
+  signed-in user routed down the same path and stranded them (the advance-to-app
+  effect only fires on session *change*). Fix: `onboardingReplay` mode in
+  RootNavigator — profile_setup's continue returns to the app (+ syncAll push)
+  and its CTA reads "Save" instead of "Create My Account".
+- **Onboarded flag no longer cleared on replay.** The old code cleared it and
+  relied on a re-set that never happened — a force-quit mid-replay would boot a
+  signed-in user back into onboarding (and into the same signup dead-end) on
+  next launch. The flag now stays set for the whole replay.
+- **Prefilled data reframed as intentional (user decision):** kept the existing
+  prefill (blank-start caused a data-conflict bug per the code note in
+  OnboardingExpensesScreen) but replay now shows "Review your…" headings +
+  "Your current numbers are loaded — adjust anything that's changed" subtitle
+  on fuel/expenses/miles, so it reads as edit-in-place, not stale data.
+  New analytics event: `onboarding_replayed` (vs `onboarding_started`).
+- **Welcome screen breathing room:** hero tightened (heading 48→40, margins
+  48→32/36, logo scaled down) and the flex spacer got `minHeight: 28` so the
+  theme dropdown never crowds the Continue button on short screens.
+
 ### 2026-07-02 — The three launch wedge features (differentiation build)
 Branch: `design/trust-polish-punchlist`. Built the top-3 stand-out features from
 the strategy review — each designed to be a 30-second TikTok/Facebook story.
