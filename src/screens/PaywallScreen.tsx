@@ -22,8 +22,8 @@ export type PaywallReason =
   | 'export'
   | 'analytics';
 
-const URL_TERMS   = 'https://truckernet.novaboostlabs.co/terms';
-const URL_PRIVACY = 'https://truckernet.novaboostlabs.co/privacy';
+const URL_TERMS   = 'https://truckernet.app/terms';
+const URL_PRIVACY = 'https://truckernet.app/privacy';
 
 // Fallbacks only — real prices come live from RevenueCat (see useSubscription).
 // Used in Expo Go / before offerings load so the screen never renders blank.

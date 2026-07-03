@@ -25,8 +25,8 @@ import { useTheme, ThemeMode } from '../theme/ThemeContext';
 // ── Constants ──────────────────────────────────────────────────────────────
 
 const APP_VERSION  = '1.0.0 (Beta)';
-const URL_TERMS    = 'https://truckernet.novaboostlabs.co/terms';
-const URL_PRIVACY  = 'https://truckernet.novaboostlabs.co/privacy';
+const URL_TERMS    = 'https://truckernet.app/terms';
+const URL_PRIVACY  = 'https://truckernet.app/privacy';
 
 const LANGUAGES = [
   { code: 'en', label: 'English',  native: 'English' },
