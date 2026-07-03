@@ -1644,6 +1644,18 @@ export function saveLoad(
   return id;
 }
 
+/**
+ * Delete a load and everything attached to it. The FK CASCADE removes its
+ * state_mileage + load_expenses rows; we queue a tombstone so the delete
+ * propagates to the cloud on the next push (instead of resurrecting on pull).
+ */
+export function deleteLoad(id: string): void {
+  db.withTransactionSync(() => {
+    db.runSync('DELETE FROM loads WHERE id = ?', [id]);
+    queueDelete('loads', id);
+  });
+}
+
 // ── Loads + state_mileage sync helpers ──
 
 export interface LoadRow {

@@ -915,6 +915,26 @@ Details for each are in the lettered sections below.
 
 ## 6. Work Log (newest first)
 
+### 2026-07-02 — Recent Loads tap fix + swipe-to-edit/delete
+- **Bug: Recent Loads didn't open from the Dashboard.** The `loadRow` had
+  `activeOpacity` but NO `onPress`, and the Dashboard had no LoadDetail modal at
+  all (only History did). Added a LoadDetail modal to the Dashboard and wired
+  each row's onPress → open detail (with refresh on close).
+- **New: swipe-left a load row to reveal Edit + Delete** (Dashboard Recent Loads
+  + History timeline + History search results). New reusable
+  `src/components/SwipeableRow.tsx` (classic Swipeable from
+  react-native-gesture-handler 2.28, installed this session; App root wrapped in
+  GestureHandlerRootView + the `react-native-gesture-handler` side-effect import).
+  Edit opens LoadDetail directly in edit mode (new `startInEdit` prop on
+  LoadDetailScreen). Delete confirms via Alert, then removes + resyncs.
+- **New DB fn `deleteLoad(id)`** — there was NO way to delete a load before.
+  Transactional DELETE (CASCADE clears state_mileage + load_expenses) +
+  `queueDelete('loads', id)` so the delete propagates to the cloud via the
+  tombstone queue (never resurrects on the next merge-pull).
+- i18n `loadDetail.deleteTitle/deleteBody` across en/es/pa/zh.
+- **NOTE:** gesture-handler is a native dep → the user must rebuild the dev/prod
+  client (not just reload JS) for swipe to work.
+
 ### 2026-07-02 — Replay Setup flow fixes + welcome screen layout
 User-reported bugs, branch `design/trust-polish-punchlist`:
 - **Replay Setup dead-ended on the signup screen.** The onboarding flow was

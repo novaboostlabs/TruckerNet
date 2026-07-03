@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Modal, TextInput, Switch, Pressable,
 } from 'react-native';
@@ -87,6 +87,8 @@ function Divider() {
 interface Props {
   loadId: string;
   onClose: () => void;
+  /** Open directly in edit mode (used by the swipe-to-edit action). */
+  startInEdit?: boolean;
 }
 
 // Quick-add expense categories (matches AddLoadScreen chips)
@@ -98,7 +100,7 @@ const EXPENSE_CATS = [
   { cat: 'other',     labelKey: 'addLoad.expCat.other',      defaultAmt: '' },
 ];
 
-export default function LoadDetailScreen({ loadId, onClose }: Props) {
+export default function LoadDetailScreen({ loadId, onClose, startInEdit = false }: Props) {
   const { t } = useTranslation();
   const { colors: Colors } = useTheme();
   const styles = useMemo(() => makeStyles(Colors), [Colors]);
@@ -118,6 +120,15 @@ export default function LoadDetailScreen({ loadId, onClose }: Props) {
   }, [loadId]);
 
   useEffect(() => { refreshLoad(); }, [refreshLoad]);
+
+  // Swipe-to-edit entry: jump straight into edit mode once the load resolves.
+  const didAutoEdit = useRef(false);
+  useEffect(() => {
+    if (startInEdit && load && !didAutoEdit.current) {
+      didAutoEdit.current = true;
+      startEditLoad();
+    }
+  }, [startInEdit, load]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Resolve the BOL photo (private bucket) to a short-lived signed URL for display.
   useEffect(() => {

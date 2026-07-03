@@ -713,6 +713,8 @@
     "deductions": "Deductions",
     "addExpense": "Add expense",
     "editTitle": "Edit Load",
+    "deleteTitle": "Delete this load?",
+    "deleteBody": "{{route}} will be permanently removed. This can't be undone.",
     "grossRPM": "Gross RPM",
     "netRPM": "Net RPM",
     "fairMarketRange": "Fair market range",

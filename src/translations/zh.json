@@ -713,6 +713,8 @@
     "deductions": "扣款",
     "addExpense": "添加费用",
     "editTitle": "编辑运单",
+    "deleteTitle": "删除此运单？",
+    "deleteBody": "{{route}} 将被永久删除，此操作无法撤销。",
     "grossRPM": "总每英里收入",
     "netRPM": "净每英里收入",
     "fairMarketRange": "市场公允价区间",

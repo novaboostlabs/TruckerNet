@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState, useMemo, useRef } from 'react';
 import {
-  View, Text, StyleSheet, TouchableOpacity, ScrollView, StatusBar, Modal, Animated, Pressable,
+  View, Text, StyleSheet, TouchableOpacity, ScrollView, StatusBar, Modal, Animated, Pressable, Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -13,7 +13,7 @@ import {
   getTaxSetAside, TaxSetAside,
   getRecentLoads, getActiveLoad, LoadSummary, getIncomeGoal,
   getWeeklyNetTrend, getCostBreakdown, WeekTrendPoint, CostBreakdown,
-  getSetting,
+  getSetting, deleteLoad,
 } from '../db/database';
 import GoalProgressCard from '../components/GoalProgressCard';
 import AnalyticsSection from '../components/AnalyticsSection';
@@ -33,6 +33,9 @@ import AddLoadScreen, { AddLoadPrefill } from './AddLoadScreen';
 import FuelEntryScreen from './FuelEntryScreen';
 import AddExpenseScreen from './AddExpenseScreen';
 import SettingsScreen from './SettingsScreen';
+import LoadDetailScreen from './LoadDetailScreen';
+import SwipeableRow from '../components/SwipeableRow';
+import { pushLoads } from '../lib/sync/loadsSync';
 
 
 interface LoadRow {
@@ -109,6 +112,8 @@ export default function DashboardScreen() {
   const [showAddExpense, setShowAddExpense] = useState(false);
   const [showSettings,   setShowSettings]   = useState(false);
   const [showReview,     setShowReview]     = useState(false);
+  const [detailLoadId,   setDetailLoadId]   = useState<string | null>(null);
+  const [detailEdit,     setDetailEdit]     = useState(false);
   const [expensesStale,  setExpensesStale]  = useState(() => expensesAreStale());
   const [daysSinceReview, setDaysSinceReview] = useState(() => daysSinceExpenseReview());
   const [staleAlerts,    setStaleAlerts]    = useState<StaleCategoryAlert[]>(() => getStaleCategoryAlerts());
@@ -152,6 +157,30 @@ export default function DashboardScreen() {
     setShowAddLoad(true);
   }
 
+  function openLoad(id: string, edit = false) {
+    setDetailEdit(edit);
+    setDetailLoadId(id);
+  }
+
+  function confirmDeleteLoad(row: LoadRow) {
+    Alert.alert(
+      t('loadDetail.deleteTitle'),
+      t('loadDetail.deleteBody', { route: `${row.from.split(',')[0]} → ${row.to.split(',')[0]}` }),
+      [
+        { text: t('common.cancel'), style: 'cancel' },
+        {
+          text: t('common.delete'),
+          style: 'destructive',
+          onPress: () => {
+            deleteLoad(row.id);
+            refresh();
+            if (user) pushLoads(user.id);
+          },
+        },
+      ],
+    );
+  }
+
   const d = data;
   // Zero is neutral, not a win: never render +$0 in success-green. The +/green
   // treatment is earned only by a genuinely positive number.
@@ -176,6 +205,16 @@ export default function DashboardScreen() {
             navigation.navigate('Expenses');
           }}
         />
+      </Modal>
+
+      <Modal visible={detailLoadId !== null} animationType="slide" presentationStyle="pageSheet">
+        {detailLoadId && (
+          <LoadDetailScreen
+            loadId={detailLoadId}
+            startInEdit={detailEdit}
+            onClose={() => { setDetailLoadId(null); refresh(); }}
+          />
+        )}
       </Modal>
 
       <Modal visible={showCheckLoad} animationType="slide" presentationStyle="pageSheet">
@@ -388,21 +427,30 @@ export default function DashboardScreen() {
             <View style={styles.loadsCard}>
               {d.loads.map((load, i) => (
                 <React.Fragment key={load.id}>
-                  <TouchableOpacity style={styles.loadRow} activeOpacity={0.7}>
-                    <View style={styles.loadLeft}>
-                      <Text style={styles.loadRoute} numberOfLines={1}>
-                        {load.from.split(',')[0]} → {load.to.split(',')[0]}
-                      </Text>
-                      <Text style={styles.loadMeta}>{fmt(load.miles)} mi · ${load.rpm.toFixed(2)}/mi</Text>
-                    </View>
-                    <View style={styles.loadRight}>
-                      <Text style={[styles.loadNet, { color: load.positive ? Colors.primary : Colors.danger }]}>
-                        {load.positive ? '+' : '-'}${fmt(Math.abs(load.net))}
-                      </Text>
-                      <Text style={styles.loadGross}>${fmt(load.gross)} {t('common.gross')}</Text>
-                    </View>
-                    <Ionicons name="chevron-forward" size={14} color={Colors.textTertiary} style={{ marginLeft: 8 }} />
-                  </TouchableOpacity>
+                  <SwipeableRow
+                    onEdit={() => openLoad(load.id, true)}
+                    onDelete={() => confirmDeleteLoad(load)}
+                  >
+                    <TouchableOpacity
+                      style={[styles.loadRow, { backgroundColor: Colors.surface }]}
+                      activeOpacity={0.7}
+                      onPress={() => openLoad(load.id)}
+                    >
+                      <View style={styles.loadLeft}>
+                        <Text style={styles.loadRoute} numberOfLines={1}>
+                          {load.from.split(',')[0]} → {load.to.split(',')[0]}
+                        </Text>
+                        <Text style={styles.loadMeta}>{fmt(load.miles)} mi · ${load.rpm.toFixed(2)}/mi</Text>
+                      </View>
+                      <View style={styles.loadRight}>
+                        <Text style={[styles.loadNet, { color: load.positive ? Colors.primary : Colors.danger }]}>
+                          {load.positive ? '+' : '-'}${fmt(Math.abs(load.net))}
+                        </Text>
+                        <Text style={styles.loadGross}>${fmt(load.gross)} {t('common.gross')}</Text>
+                      </View>
+                      <Ionicons name="chevron-forward" size={14} color={Colors.textTertiary} style={{ marginLeft: 8 }} />
+                    </TouchableOpacity>
+                  </SwipeableRow>
                   {i < d.loads.length - 1 && <View style={styles.loadDivider} />}
                 </React.Fragment>
               ))}

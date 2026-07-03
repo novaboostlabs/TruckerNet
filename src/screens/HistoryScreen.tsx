@@ -13,8 +13,11 @@ import { usePaywall } from '../contexts/PaywallContext';
 import {
   getHistoryLoads, getHistoryTotals, getHistoryLoadsDateRange, getHistoryTotalsDateRange,
   searchHistoryLoads, getGeneralExpensesDateRange, getAllGeneralExpenses, deleteGeneralExpense,
+  deleteLoad,
   HistoryFilter, HistoryLoad, HistoryTotals, GeneralExpense, localDateISO,
 } from '../db/database';
+import { pushLoads } from '../lib/sync/loadsSync';
+import SwipeableRow from '../components/SwipeableRow';
 import { useAuth } from '../contexts/AuthContext';
 import { pushGeneralExpenses } from '../lib/sync/generalExpensesSync';
 import MonthCalendar from '../components/MonthCalendar';
@@ -137,6 +140,7 @@ export default function HistoryScreen() {
   });
   const [selectedDay,   setSelectedDay]   = useState<string | null>(null);
   const [selectedLoadId, setSelectedLoadId] = useState<string | null>(null);
+  const [selectedEdit,   setSelectedEdit]   = useState(false);
 
   // ── Search ────────────────────────────────────────────────────────────────────
   const [searchActive,  setSearchActive]  = useState(false);
@@ -164,6 +168,29 @@ export default function HistoryScreen() {
     setTotals(result.totals);
     setGenExpenses(result.expenses);
   }, []);
+
+  function openLoad(id: string, edit = false) {
+    setSelectedEdit(edit);
+    setSelectedLoadId(id);
+  }
+
+  function confirmDeleteLoad(load: { id: string; from: string; to: string }) {
+    Alert.alert(
+      t('loadDetail.deleteTitle'),
+      t('loadDetail.deleteBody', { route: `${load.from.split(',')[0]} → ${load.to.split(',')[0]}` }),
+      [
+        { text: t('common.cancel'), style: 'cancel' },
+        {
+          text: t('common.delete'), style: 'destructive',
+          onPress: () => {
+            deleteLoad(load.id);
+            if (user) pushLoads(user.id);
+            refresh(filter, periodDate);
+          },
+        },
+      ],
+    );
+  }
 
   function handleDeleteExpense(id: string) {
     Alert.alert(t('history.deleteExpenseTitle'), t('history.deleteExpenseBody'), [
@@ -294,7 +321,8 @@ export default function HistoryScreen() {
         {selectedLoadId && (
           <LoadDetailScreen
             loadId={selectedLoadId}
-            onClose={() => setSelectedLoadId(null)}
+            startInEdit={selectedEdit}
+            onClose={() => { setSelectedLoadId(null); refresh(filter, periodDate); }}
           />
         )}
       </Modal>
@@ -448,27 +476,32 @@ export default function HistoryScreen() {
                   <View style={styles.loadsCard}>
                     {searchResults.map((load, i) => (
                       <React.Fragment key={load.id}>
-                        <TouchableOpacity
-                          style={styles.loadRow}
-                          activeOpacity={0.7}
-                          onPress={() => setSelectedLoadId(load.id)}
+                        <SwipeableRow
+                          onEdit={() => openLoad(load.id, true)}
+                          onDelete={() => confirmDeleteLoad(load)}
                         >
-                          <View style={styles.loadLeft}>
-                            <Text style={styles.loadRoute} numberOfLines={1}>
-                              {load.from.split(',')[0]} → {load.to.split(',')[0]}
-                            </Text>
-                            <Text style={styles.loadMeta}>
-                              {load.date} · {Math.round(load.miles).toLocaleString()} mi · ${load.rpm.toFixed(2)}/mi
-                            </Text>
-                          </View>
-                          <View style={styles.loadRight}>
-                            <Text style={[styles.loadNet, { color: load.positive ? Colors.primary : Colors.danger }]}>
-                              {load.positive ? '+' : '-'}${Math.abs(load.net).toLocaleString()}
-                            </Text>
-                            <Text style={styles.loadGross}>${load.gross.toLocaleString()} {t('common.gross')}</Text>
-                          </View>
-                          <Ionicons name="chevron-forward" size={14} color={Colors.textTertiary} style={{ marginLeft: 8 }} />
-                        </TouchableOpacity>
+                          <TouchableOpacity
+                            style={[styles.loadRow, { backgroundColor: Colors.surface }]}
+                            activeOpacity={0.7}
+                            onPress={() => openLoad(load.id)}
+                          >
+                            <View style={styles.loadLeft}>
+                              <Text style={styles.loadRoute} numberOfLines={1}>
+                                {load.from.split(',')[0]} → {load.to.split(',')[0]}
+                              </Text>
+                              <Text style={styles.loadMeta}>
+                                {load.date} · {Math.round(load.miles).toLocaleString()} mi · ${load.rpm.toFixed(2)}/mi
+                              </Text>
+                            </View>
+                            <View style={styles.loadRight}>
+                              <Text style={[styles.loadNet, { color: load.positive ? Colors.primary : Colors.danger }]}>
+                                {load.positive ? '+' : '-'}${Math.abs(load.net).toLocaleString()}
+                              </Text>
+                              <Text style={styles.loadGross}>${load.gross.toLocaleString()} {t('common.gross')}</Text>
+                            </View>
+                            <Ionicons name="chevron-forward" size={14} color={Colors.textTertiary} style={{ marginLeft: 8 }} />
+                          </TouchableOpacity>
+                        </SwipeableRow>
                         {i < searchResults.length - 1 && <View style={styles.loadDivider} />}
                       </React.Fragment>
                     ))}
@@ -503,27 +536,32 @@ export default function HistoryScreen() {
               {timeline.map((item, i) => (
                 <React.Fragment key={item.key}>
                   {item.kind === 'load' ? (
-                    <TouchableOpacity
-                      style={styles.loadRow}
-                      activeOpacity={0.7}
-                      onPress={() => setSelectedLoadId(item.load.id)}
+                    <SwipeableRow
+                      onEdit={() => openLoad(item.load.id, true)}
+                      onDelete={() => confirmDeleteLoad(item.load)}
                     >
-                      <View style={styles.loadLeft}>
-                        <Text style={styles.loadRoute} numberOfLines={1}>
-                          {item.load.from.split(',')[0]} → {item.load.to.split(',')[0]}
-                        </Text>
-                        <Text style={styles.loadMeta}>
-                          {item.load.date} · {Math.round(item.load.miles).toLocaleString()} mi · ${item.load.rpm.toFixed(2)}/mi
-                        </Text>
-                      </View>
-                      <View style={styles.loadRight}>
-                        <Text style={[styles.loadNet, { color: item.load.positive ? Colors.primary : Colors.danger }]}>
-                          {item.load.positive ? '+' : '-'}${Math.abs(item.load.net).toLocaleString()}
-                        </Text>
-                        <Text style={styles.loadGross}>${item.load.gross.toLocaleString()} {t('common.gross')}</Text>
-                      </View>
-                      <Ionicons name="chevron-forward" size={14} color={Colors.textTertiary} style={{ marginLeft: 8 }} />
-                    </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[styles.loadRow, { backgroundColor: Colors.surface }]}
+                        activeOpacity={0.7}
+                        onPress={() => openLoad(item.load.id)}
+                      >
+                        <View style={styles.loadLeft}>
+                          <Text style={styles.loadRoute} numberOfLines={1}>
+                            {item.load.from.split(',')[0]} → {item.load.to.split(',')[0]}
+                          </Text>
+                          <Text style={styles.loadMeta}>
+                            {item.load.date} · {Math.round(item.load.miles).toLocaleString()} mi · ${item.load.rpm.toFixed(2)}/mi
+                          </Text>
+                        </View>
+                        <View style={styles.loadRight}>
+                          <Text style={[styles.loadNet, { color: item.load.positive ? Colors.primary : Colors.danger }]}>
+                            {item.load.positive ? '+' : '-'}${Math.abs(item.load.net).toLocaleString()}
+                          </Text>
+                          <Text style={styles.loadGross}>${item.load.gross.toLocaleString()} {t('common.gross')}</Text>
+                        </View>
+                        <Ionicons name="chevron-forward" size={14} color={Colors.textTertiary} style={{ marginLeft: 8 }} />
+                      </TouchableOpacity>
+                    </SwipeableRow>
                   ) : (
                     <TouchableOpacity
                       style={styles.loadRow}

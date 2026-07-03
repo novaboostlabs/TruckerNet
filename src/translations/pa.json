@@ -713,6 +713,8 @@
     "deductions": "ਕਟੌਤੀਆਂ",
     "addExpense": "ਖਰਚਾ ਜੋੜੋ",
     "editTitle": "ਲੋਡ ਸੰਪਾਦਿਤ ਕਰੋ",
+    "deleteTitle": "ਇਹ ਲੋਡ ਮਿਟਾਉਣਾ ਹੈ?",
+    "deleteBody": "{{route}} ਪੱਕੇ ਤੌਰ 'ਤੇ ਹਟਾ ਦਿੱਤਾ ਜਾਵੇਗਾ। ਇਸਨੂੰ ਵਾਪਸ ਨਹੀਂ ਕੀਤਾ ਜਾ ਸਕਦਾ।",
     "grossRPM": "ਕੁੱਲ RPM",
     "netRPM": "ਨੈੱਟ RPM",
     "fairMarketRange": "ਉਚਿਤ ਬਾਜ਼ਾਰ ਰੇਂਜ",

@@ -713,6 +713,8 @@
     "deductions": "Deducciones",
     "addExpense": "Agregar gasto",
     "editTitle": "Editar carga",
+    "deleteTitle": "¿Eliminar esta carga?",
+    "deleteBody": "{{route}} se eliminará permanentemente. Esto no se puede deshacer.",
     "grossRPM": "RPM Bruto",
     "netRPM": "RPM Neto",
     "fairMarketRange": "Rango de mercado justo",

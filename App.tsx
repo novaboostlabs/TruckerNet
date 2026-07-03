@@ -1,6 +1,8 @@
 import 'react-native-url-polyfill/auto';
+import 'react-native-gesture-handler';
 import React, { useEffect, useState } from 'react';
 import { View, ActivityIndicator } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { NavigationContainer } from '@react-navigation/native';
 import {
   useFonts,
@@ -129,6 +131,7 @@ function App() {
 
   return (
     <Sentry.ErrorBoundary>
+    <GestureHandlerRootView style={{ flex: 1 }}>
     <SafeAreaProvider>
       <ThemeProvider>
         <PostHogProvider
@@ -151,6 +154,7 @@ function App() {
         </PostHogProvider>
       </ThemeProvider>
     </SafeAreaProvider>
+    </GestureHandlerRootView>
     </Sentry.ErrorBoundary>
   );
 }
