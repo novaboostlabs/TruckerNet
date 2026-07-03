@@ -282,6 +282,21 @@ export function getLatestFuelCPM(): number {
   return 0;
 }
 
+/**
+ * The onboarding fuel estimate (weekly_fuel_cost ÷ weekly_miles), or null if the
+ * driver never entered it. This is the same figure `getLatestFuelCPM()` falls
+ * back to when there are no real fill-ups yet — so the Fuel tab can show it as a
+ * clearly-labeled "estimate" that drives break-even until real data replaces it.
+ */
+export interface FuelEstimate { cpm: number; weeklyCost: number; weeklyMiles: number; }
+
+export function getFuelEstimate(): FuelEstimate | null {
+  const weeklyCost  = parseFloat(getSetting('weekly_fuel_cost') ?? '0') || 0;
+  const weeklyMiles = parseFloat(getSetting('weekly_miles')     ?? '0') || 0;
+  if (weeklyCost <= 0 || weeklyMiles <= 0) return null;
+  return { cpm: weeklyCost / weeklyMiles, weeklyCost, weeklyMiles };
+}
+
 export function hasFuelEntryToday(): boolean {
   const today = localDateISO();
   const row   = db.getFirstSync<{ count: number }>(

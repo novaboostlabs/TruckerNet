@@ -8,7 +8,7 @@ import { useTranslation } from 'react-i18next';
 import { Colors, FontFamily, FontSize, Spacing, Radius, SectionLabel, ThemeColors, sectionLabel } from '../theme/theme';
 import { useTheme } from '../theme/ThemeContext';
 import { getDateLocale } from '../lib/i18n';
-import { getFuelStats, getFuelEntryCount, FuelStats, FuelEntryDisplay } from '../db/database';
+import { getFuelStats, getFuelEntryCount, getFuelEstimate, FuelStats, FuelEntryDisplay, FuelEstimate } from '../db/database';
 import GridBackground from '../components/GridBackground';
 import AccentRule from '../components/AccentRule';
 
@@ -32,9 +32,15 @@ export default function FuelScreen() {
   const [stats, setStats] = useState<FuelStats>(() =>
     getFuelEntryCount() > 0 ? getFuelStats() : EMPTY_STATS
   );
+  // Setup estimate — shown (labeled) only until the first real fill-up exists.
+  const [estimate, setEstimate] = useState<FuelEstimate | null>(() =>
+    getFuelEntryCount() > 0 ? null : getFuelEstimate()
+  );
 
   const refresh = useCallback(() => {
-    setStats(getFuelEntryCount() > 0 ? getFuelStats() : EMPTY_STATS);
+    const hasEntries = getFuelEntryCount() > 0;
+    setStats(hasEntries ? getFuelStats() : EMPTY_STATS);
+    setEstimate(hasEntries ? null : getFuelEstimate());
   }, []);
 
   useEffect(() => { refresh(); }, [refresh]);
@@ -72,35 +78,53 @@ export default function FuelScreen() {
         {/* CPM Hero */}
         <View style={styles.heroCard}>
           <Text style={styles.heroEyebrow}>{t('fuel.currentCPM')}</Text>
-          <Text style={[styles.heroNumber, { color: stats.latestCPM > 0 ? Colors.primary : Colors.textSecondary }]}>
-            ${stats.latestCPM.toFixed(3)}
-          </Text>
+          <View style={styles.heroNumberRow}>
+            <Text style={[styles.heroNumber, { color: (estimate ? estimate.cpm : stats.latestCPM) > 0 ? Colors.primary : Colors.textSecondary }]}>
+              ${(estimate ? estimate.cpm : stats.latestCPM).toFixed(3)}
+            </Text>
+            {estimate && (
+              <View style={styles.estBadge}>
+                <Text style={styles.estBadgeText}>{t('fuel.estBadge')}</Text>
+              </View>
+            )}
+          </View>
           <Text style={styles.heroSub}>
-            {stats.rollingCount > 0
-              ? t('fuel.heroAvg', { count: stats.rollingCount, date: formatDate(stats.latestDate) })
-              : entries.length > 0
-                ? t('fuel.heroBaseline')
-                : t('fuel.heroEmpty')}
+            {estimate
+              ? t('fuel.heroEstimate')
+              : stats.rollingCount > 0
+                ? t('fuel.heroAvg', { count: stats.rollingCount, date: formatDate(stats.latestDate) })
+                : entries.length > 0
+                  ? t('fuel.heroBaseline')
+                  : t('fuel.heroEmpty')}
           </Text>
 
           <View style={styles.heroDivider} />
 
-          <View style={styles.heroStats}>
-            <View style={styles.heroStat}>
-              <Text style={styles.heroStatLabel}>{t('fuel.avgThisMonth')}</Text>
-              <Text style={styles.heroStatValue}>${stats.avgCPMMonthly.toFixed(3)}</Text>
+          {estimate ? (
+            <Text style={styles.estNote}>
+              {t('fuel.estimateNote', {
+                cost: `$${Math.round(estimate.weeklyCost).toLocaleString()}`,
+                miles: Math.round(estimate.weeklyMiles).toLocaleString(),
+              })}
+            </Text>
+          ) : (
+            <View style={styles.heroStats}>
+              <View style={styles.heroStat}>
+                <Text style={styles.heroStatLabel}>{t('fuel.avgThisMonth')}</Text>
+                <Text style={styles.heroStatValue}>${stats.avgCPMMonthly.toFixed(3)}</Text>
+              </View>
+              <View style={styles.heroStatDivider} />
+              <View style={styles.heroStat}>
+                <Text style={styles.heroStatLabel}>{t('fuel.totalSpent')}</Text>
+                <Text style={styles.heroStatValue}>${stats.totalSpentMonth.toFixed(2)}</Text>
+              </View>
+              <View style={styles.heroStatDivider} />
+              <View style={styles.heroStat}>
+                <Text style={styles.heroStatLabel}>{t('fuel.totalGallons')}</Text>
+                <Text style={styles.heroStatValue}>{stats.totalGallonsMonth.toFixed(1)}</Text>
+              </View>
             </View>
-            <View style={styles.heroStatDivider} />
-            <View style={styles.heroStat}>
-              <Text style={styles.heroStatLabel}>{t('fuel.totalSpent')}</Text>
-              <Text style={styles.heroStatValue}>${stats.totalSpentMonth.toFixed(2)}</Text>
-            </View>
-            <View style={styles.heroStatDivider} />
-            <View style={styles.heroStat}>
-              <Text style={styles.heroStatLabel}>{t('fuel.totalGallons')}</Text>
-              <Text style={styles.heroStatValue}>{stats.totalGallonsMonth.toFixed(1)}</Text>
-            </View>
-          </View>
+          )}
         </View>
 
         {/* CPM Trend */}
@@ -134,7 +158,9 @@ export default function FuelScreen() {
             <View style={styles.emptyCard}>
               <Ionicons name="flash-outline" size={32} color={Colors.textTertiary} style={{ marginBottom: 10 }} />
               <Text style={styles.emptyTitle}>{t('fuel.noEntries')}</Text>
-              <Text style={styles.emptyHint}>{t('fuel.noEntriesHint')}</Text>
+              <Text style={styles.emptyHint}>
+                {estimate ? t('fuel.estimateHint') : t('fuel.noEntriesHint')}
+              </Text>
             </View>
           ) : (
             <View style={styles.entriesCard}>
@@ -185,7 +211,11 @@ const makeStyles = (Colors: ThemeColors) => StyleSheet.create({
 
   heroCard:        { backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border, borderRadius: Radius.md, padding: Spacing.cardPad, marginBottom: 20 },
   heroEyebrow:     { ...sectionLabel(Colors), marginBottom: 10 },
-  heroNumber:      { fontFamily: FontFamily.monoBold, fontSize: FontSize.hero, lineHeight: 52, letterSpacing: -1, marginBottom: 4 },
+  heroNumberRow:   { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 4 },
+  heroNumber:      { fontFamily: FontFamily.monoBold, fontSize: FontSize.hero, lineHeight: 52, letterSpacing: -1 },
+  estBadge:        { backgroundColor: Colors.secondaryDim, borderWidth: 1, borderColor: Colors.secondary + '50', borderRadius: Radius.pill, paddingHorizontal: 9, paddingVertical: 3 },
+  estBadgeText:    { fontFamily: FontFamily.monoSemiBold, fontSize: 10, color: Colors.secondary, letterSpacing: 1.2 },
+  estNote:         { fontFamily: FontFamily.regular, fontSize: FontSize.caption, color: Colors.textSecondary, lineHeight: 18 },
   heroSub:         { fontFamily: FontFamily.regular, fontSize: FontSize.label, color: Colors.textSecondary, marginBottom: 18 },
   heroDivider:     { height: 1, backgroundColor: Colors.borderSubtle, marginBottom: 16 },
   heroStats:       { flexDirection: 'row' },

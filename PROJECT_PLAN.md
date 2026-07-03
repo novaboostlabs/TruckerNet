@@ -915,6 +915,24 @@ Details for each are in the lettered sections below.
 
 ## 6. Work Log (newest first)
 
+### 2026-07-02 — Fuel tab shows the setup estimate until real fill-ups exist
+Symmetry fix: break-even already USES the setup fuel estimate
+(`weekly_fuel_cost ÷ weekly_miles`) as its CPM fallback, but the Fuel tab showed
+empty — so the number looked like it came from nowhere. Now the Fuel tab surfaces
+that same estimate, clearly labeled, until the first real fill-up.
+- New `getFuelEstimate()` in database.ts → `{ cpm, weeklyCost, weeklyMiles }` from
+  the settings (null if never entered).
+- FuelScreen: when there are zero fuel entries and an estimate exists, the CPM
+  hero shows the estimate with an amber "ESTIMATE" badge, sub "Estimated from your
+  setup — updates with your first fill-up", and a note "≈ $X/week ÷ Y mi …". The
+  month-stats row is replaced by that note; the history empty-card hint explains
+  the estimate is running the numbers. All reverts to real data automatically once
+  `getFuelEntryCount() > 0`.
+- **Deliberately did NOT create a fake fuel_entries row** — that would fabricate
+  gallons/price and pollute IFTA per-state gallon totals. The estimate is a
+  display layer only; IFTA stays clean.
+- i18n across en/es/pa/zh.
+
 ### 2026-07-02 — Replay Setup revert, part 2: settings clobber via profile pull
 The part-1 local-wins merge only protected TABLE rows. break-even is driven by
 `weekly_miles` / `weekly_fuel_cost`, stored as SETTINGS — and `pullExpenses`
