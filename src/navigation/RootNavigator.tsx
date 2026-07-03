@@ -20,7 +20,7 @@ import { getSavedLanguage } from '../lib/i18n';
 import { getSetting, setSetting, clearAllUserData, claimDataOwnership } from '../db/database';
 import { capture } from '../lib/analytics';
 import { AppFlowContext } from '../contexts/AppFlowContext';
-import { syncAll } from '../lib/sync';
+import { syncAll, pushAll } from '../lib/sync';
 import { setupNotifications } from '../lib/notifications';
 
 const Stack = createNativeStackNavigator();
@@ -277,7 +277,10 @@ export default function RootNavigator() {
             // never route an authenticated user to the signup screen.
             if (onboardingReplay) {
               setOnboardingReplay(false);
-              if (session) syncAll(session.user.id); // push the updated setup
+              // PUSH-ONLY: the user just edited their setup locally. A pull here
+              // would restore weekly_miles / weekly_fuel_cost / profile from the
+              // stale cloud row and revert the edits. Push sends them up instead.
+              if (session) pushAll(session.user.id);
               setStep('app');
             } else {
               setStep('signup');

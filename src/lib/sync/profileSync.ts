@@ -57,9 +57,13 @@ export async function pullProfile(userId: string): Promise<PullResult> {
       .single();
     if (error || !data) return { error: error?.message ?? null, found: false };
 
+    // LOCAL WINS: only fill a profile field the device doesn't already have, so a
+    // stale cloud row can't revert a name/equipment/etc. the driver just edited.
     for (const { key, col } of FIELD_MAP) {
       const v = (data as any)[col];
-      if (typeof v === 'string' && v.trim()) setSetting(key, v.trim());
+      if (typeof v === 'string' && v.trim() && !(getSetting(key) ?? '').trim()) {
+        setSetting(key, v.trim());
+      }
     }
     return { error: null, found: !!(data.name && String(data.name).trim()) };
   } catch (e: any) {

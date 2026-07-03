@@ -915,6 +915,23 @@ Details for each are in the lettered sections below.
 
 ## 6. Work Log (newest first)
 
+### 2026-07-02 — Replay Setup revert, part 2: settings clobber via profile pull
+The part-1 local-wins merge only protected TABLE rows. break-even is driven by
+`weekly_miles` / `weekly_fuel_cost`, stored as SETTINGS — and `pullExpenses`
+overwrote them unconditionally from the cloud `profiles` row (and `pullProfile`
+did the same to name/equipment), bypassing the merge. So the replay-triggered
+`syncAll` pull reverted the edits a second or two after Save (dashboard flashed
+the new value, then everything read old again).
+- **Replay now PUSHES, never pulls:** new `pushAll(userId)` in the sync module;
+  RootNavigator's replay-continue calls it instead of `syncAll`. A deliberate
+  local edit should go UP, not invite a pull that overwrites it.
+- **Setting-restores are now local-wins too:** `pullExpenses` only restores
+  weekly_miles/weekly_fuel_cost when the LOCAL value is missing (genuine
+  fresh-device restore); `pullProfile` only fills profile fields that are empty
+  locally. So even if the push fails (e.g. unapplied migrations) the next
+  app-start pull can't revert the edits either.
+- Fresh-device restore is unaffected (empty local → cloud fills it).
+
 ### 2026-07-02 — Sync merge clobbered fresh local edits (Replay Setup showed stale data)
 Root cause of "data from past sessions after Replay Setup": `syncAll` does
 pull-THEN-push, and the pull's `mergeX` used `ON CONFLICT(id) DO UPDATE` — so the

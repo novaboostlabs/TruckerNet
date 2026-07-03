@@ -116,16 +116,21 @@ export async function pullExpenses(userId: string): Promise<PullResult> {
       );
     }
 
-    // Restore weekly miles + fuel estimate from the profile.
+    // Restore weekly miles + fuel estimate from the profile — but only when the
+    // local value is MISSING (a genuine fresh-device restore). LOCAL WINS: never
+    // overwrite an existing local value with the cloud copy, or a stale cloud row
+    // would revert the driver's just-edited setup (e.g. after Replay Setup).
     const { data: prof, error: profError } = await supabase
       .from('profiles')
       .select('weekly_miles, weekly_fuel_cost')
       .eq('id', userId)
       .single();
     if (!profError && prof) {
-      if (Number(prof.weekly_miles) > 0)
+      const localMiles = parseFloat(getSetting('weekly_miles') ?? '0') || 0;
+      if (localMiles <= 0 && Number(prof.weekly_miles) > 0)
         setSetting('weekly_miles', String(Number(prof.weekly_miles)));
-      if (Number(prof.weekly_fuel_cost) > 0)
+      const localFuel = parseFloat(getSetting('weekly_fuel_cost') ?? '0') || 0;
+      if (localFuel <= 0 && Number(prof.weekly_fuel_cost) > 0)
         setSetting('weekly_fuel_cost', String(Number(prof.weekly_fuel_cost)));
     }
 

@@ -7,11 +7,11 @@
 
 import { getSetting, setSetting } from '../../db/database';
 import { isSupabaseConfigured } from '../supabase';
-import { syncExpensesOnSignIn } from './expensesSync';
-import { syncFuelOnSignIn } from './fuelSync';
-import { syncLoadsOnSignIn } from './loadsSync';
-import { syncProfileOnSignIn } from './profileSync';
-import { syncGeneralExpensesOnSignIn } from './generalExpensesSync';
+import { syncExpensesOnSignIn, pushExpenses } from './expensesSync';
+import { syncFuelOnSignIn, pushFuel } from './fuelSync';
+import { syncLoadsOnSignIn, pushLoads } from './loadsSync';
+import { syncProfileOnSignIn, pushProfile } from './profileSync';
+import { syncGeneralExpensesOnSignIn, pushGeneralExpenses } from './generalExpensesSync';
 
 const LAST_SYNC_AT    = 'last_sync_at';
 const LAST_SYNC_ERROR = 'last_sync_error';
@@ -52,6 +52,28 @@ export async function syncAll(userId: string): Promise<void> {
 
   const firstError = results.map((r) => r?.error).find(Boolean) ?? null;
 
+  setSetting(LAST_SYNC_ERROR, firstError ?? '');
+  if (!firstError) setSetting(LAST_SYNC_AT, new Date().toISOString());
+}
+
+/**
+ * Push every local slice UP to the cloud without pulling first. Use this right
+ * after a deliberate local edit (e.g. Replay Setup) — a pull there would let a
+ * staler cloud copy overwrite the just-made edits (weekly_miles / weekly_fuel_cost
+ * and the profile are restored from the cloud row on pull, bypassing the merge).
+ */
+export async function pushAll(userId: string): Promise<void> {
+  if (!isSupabaseConfigured() || !userId) return;
+
+  const results = await Promise.all([
+    pushExpenses(userId),
+    pushFuel(userId),
+    pushLoads(userId),
+    pushGeneralExpenses(userId),
+    pushProfile(userId),
+  ]);
+
+  const firstError = results.map((r) => r?.error).find(Boolean) ?? null;
   setSetting(LAST_SYNC_ERROR, firstError ?? '');
   if (!firstError) setSetting(LAST_SYNC_AT, new Date().toISOString());
 }
