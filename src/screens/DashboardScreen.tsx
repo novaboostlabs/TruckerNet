@@ -26,7 +26,7 @@ import ExpenseReviewModal from '../components/ExpenseReviewModal';
 import TaxSetAsideCard from '../components/TaxSetAsideCard';
 import { useSubscription } from '../contexts/SubscriptionContext';
 import { usePaywall } from '../contexts/PaywallContext';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useAuth } from '../contexts/AuthContext';
 import CheckLoadScreen from './CheckLoadScreen';
 import AddLoadScreen, { AddLoadPrefill } from './AddLoadScreen';
@@ -149,8 +149,10 @@ export default function DashboardScreen() {
     setStaleAlerts(getStaleCategoryAlerts());
   }, []);
 
-  // Refresh whenever the screen mounts (catches navigating back from other tabs)
+  // Refresh on mount AND every time the tab regains focus (e.g. returning from
+  // Replay Setup or another tab), so the dashboard never shows stale numbers.
   useEffect(() => { refresh(); }, [refresh]);
+  useFocusEffect(useCallback(() => { refresh(); }, [refresh]));
 
   function openAddLoad(prefill?: AddLoadPrefill) {
     setAddLoadPrefill(prefill);

@@ -332,20 +332,24 @@ export function replaceFuelEntries(rows: FuelEntryRow[]): void {
 /** Merge cloud fuel entries into the local set: upsert by id, KEEP local-only
  *  rows (unpushed local fill-ups). Non-destructive — used by cloud pull. */
 export function mergeFuelEntries(rows: FuelEntryRow[]): void {
+  const tombstoned = new Set(getQueuedDeletes('fuel_entries'));
   db.withTransactionSync(() => {
-    for (const r of rows) insertOrReplaceFuel(r);
+    for (const r of rows) {
+      if (tombstoned.has(r.id)) continue; // don't resurrect a locally-deleted row
+      insertOrReplaceFuel(r);
+    }
   });
 }
 
+// Insert a fuel row only if it isn't already present locally. LOCAL WINS on a
+// conflict: pull is additive (restores missing rows on a fresh device) but never
+// overwrites a local edit with a staler cloud copy. Safe for replaceFuelEntries
+// too — it DELETEs first, so no conflict ever fires there.
 function insertOrReplaceFuel(r: FuelEntryRow): void {
   db.runSync(
     `INSERT INTO fuel_entries (${FUEL_COLUMNS})
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-     ON CONFLICT(id) DO UPDATE SET
-       date=excluded.date, dollars_spent=excluded.dollars_spent, gallons=excluded.gallons,
-       miles_driven=excluded.miles_driven, cost_per_mile=excluded.cost_per_mile,
-       price_per_gallon=excluded.price_per_gallon, mpg=excluded.mpg,
-       odometer_reading=excluded.odometer_reading, state_purchased=excluded.state_purchased`,
+     ON CONFLICT(id) DO NOTHING`,
     [
       r.id, r.date, r.dollars_spent, r.gallons, r.miles_driven,
       r.cost_per_mile, r.price_per_gallon, r.mpg, r.odometer_reading, r.state_purchased,
@@ -475,17 +479,19 @@ export function replaceUserExpenses(
 export function mergeUserExpenses(
   expenses: { id: string; label: string; category: string; amount: number; frequency: string; monthly_equivalent: number }[]
 ): void {
+  // LOCAL WINS: only insert cloud rows that aren't already local (so a just-edited
+  // expense is never overwritten by a staler cloud copy), and skip any row the
+  // user just deleted locally (pending in the tombstone queue) so it can't resurrect.
+  const tombstoned = new Set(getQueuedDeletes('user_expenses'));
   db.withTransactionSync(() => {
     const now = new Date().toISOString();
     for (let i = 0; i < expenses.length; i++) {
       const e = expenses[i];
+      if (tombstoned.has(e.id)) continue;
       db.runSync(
         `INSERT INTO user_expenses (id, label, category, amount, frequency, monthly_equivalent, is_active, sort_order, created_at, confirmed_at)
          VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, ?)
-         ON CONFLICT(id) DO UPDATE SET
-           label=excluded.label, category=excluded.category, amount=excluded.amount,
-           frequency=excluded.frequency, monthly_equivalent=excluded.monthly_equivalent,
-           is_active=1, sort_order=excluded.sort_order`,
+         ON CONFLICT(id) DO NOTHING`,
         [e.id, e.label, e.category, e.amount, e.frequency, e.monthly_equivalent, i, now, now]
       );
     }
@@ -1411,19 +1417,23 @@ export function replaceGeneralExpenses(rows: GeneralExpense[]): void {
 /** Merge cloud general-expenses into the local set: upsert by id, KEEP
  *  local-only rows. Non-destructive — used by cloud pull. */
 export function mergeGeneralExpenses(rows: GeneralExpense[]): void {
+  const tombstoned = new Set(getQueuedDeletes('general_expenses'));
   db.withTransactionSync(() => {
-    for (const r of rows) insertOrReplaceGeneralExpense(r);
+    for (const r of rows) {
+      if (tombstoned.has(r.id)) continue; // don't resurrect a locally-deleted row
+      insertOrReplaceGeneralExpense(r);
+    }
   });
 }
 
+// Insert only if absent (LOCAL WINS on conflict). replaceGeneralExpenses DELETEs
+// first, so no conflict ever fires there.
 function insertOrReplaceGeneralExpense(r: GeneralExpense): void {
   const now = new Date().toISOString();
   db.runSync(
     `INSERT INTO general_expenses (id, label, category, amount, date, created_at)
      VALUES (?, ?, ?, ?, ?, ?)
-     ON CONFLICT(id) DO UPDATE SET
-       label=excluded.label, category=excluded.category,
-       amount=excluded.amount, date=excluded.date`,
+     ON CONFLICT(id) DO NOTHING`,
     [r.id, r.label, r.category, r.amount, r.date, now]
   );
 }
@@ -1750,6 +1760,10 @@ export function mergeLoads(
   loads: LoadRow[],
   stateMileage: StateMileageRow[]
 ): void {
+  // LOCAL WINS: only add cloud loads that aren't already local (so a locally-edited
+  // load and its state_mileage are never overwritten by a staler cloud copy), and
+  // skip loads the user just deleted (tombstone queue) so they can't resurrect.
+  const tombstoned = new Set(getQueuedDeletes('loads'));
   db.withTransactionSync(() => {
     const smByLoad = new Map<string, StateMileageRow[]>();
     for (const sm of stateMileage) {
@@ -1758,9 +1772,10 @@ export function mergeLoads(
       smByLoad.set(sm.load_id, arr);
     }
     for (const l of loads) {
-      upsertLoadRow(l);
-      // Refresh this load's state rows to match the cloud (delete + reinsert).
-      db.runSync('DELETE FROM state_mileage WHERE load_id = ?', [l.id]);
+      if (tombstoned.has(l.id)) continue;
+      const exists = db.getFirstSync<{ x: number }>('SELECT 1 AS x FROM loads WHERE id = ?', [l.id]);
+      if (exists) continue; // keep the local copy + its state rows untouched
+      upsertLoadRow(l); // id is guaranteed absent → plain insert
       for (const sm of smByLoad.get(l.id) ?? []) {
         db.runSync(
           'INSERT INTO state_mileage (load_id, state, miles, is_manually_edited) VALUES (?,?,?,?)',

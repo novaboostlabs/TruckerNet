@@ -915,6 +915,32 @@ Details for each are in the lettered sections below.
 
 ## 6. Work Log (newest first)
 
+### 2026-07-02 — Sync merge clobbered fresh local edits (Replay Setup showed stale data)
+Root cause of "data from past sessions after Replay Setup": `syncAll` does
+pull-THEN-push, and the pull's `mergeX` used `ON CONFLICT(id) DO UPDATE` — so the
+STALE cloud row overwrote the just-edited LOCAL row before push could send it up
+(then push carried the reverted value back). Any local edit made just before a
+syncAll (replay-continue, sign-in, app-start) got clobbered.
+- **Fix — pull is now additive, LOCAL WINS on conflict:** all four merges
+  (`mergeLoads/mergeFuelEntries/mergeUserExpenses/mergeGeneralExpenses`) switched
+  to `ON CONFLICT(id) DO NOTHING` (mergeLoads skips loads that already exist
+  locally, leaving their state_mileage untouched). Pull still restores rows that
+  are MISSING locally (fresh-device / reinstall restore intact) but never
+  overwrites a local edit with a staler cloud copy.
+- **Fix — pull can't resurrect a just-deleted row:** each merge now skips ids
+  present in the pending-delete tombstone queue, so a row you removed during
+  replay isn't re-added by the immediately-following pull (before push drains
+  the queue).
+- **Robustness:** Dashboard now refreshes on focus (`useFocusEffect`), not just
+  on mount, so returning from Replay Setup always re-reads.
+- Note: fuel CPM still prefers real fuel_entries over the weekly_fuel_cost
+  estimate — editing the estimate won't move CPM once real fill-ups exist (by
+  design, not a bug).
+- V1.1 caveat unchanged: with local-wins + no timestamps, an EDIT made on one
+  device won't propagate to another device's existing row on pull (only new rows
+  restore). Proper cross-device convergence needs the deleted_at/updated_at
+  tombstone+timestamp model.
+
 ### 2026-07-02 — Recent Loads tap fix + swipe-to-edit/delete
 - **Bug: Recent Loads didn't open from the Dashboard.** The `loadRow` had
   `activeOpacity` but NO `onPress`, and the Dashboard had no LoadDetail modal at
