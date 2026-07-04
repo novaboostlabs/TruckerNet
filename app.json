@@ -13,7 +13,7 @@
       "backgroundColor": "#0A0A0B"
     },
     "ios": {
-      "supportsTablet": true,
+      "supportsTablet": false,
       "bundleIdentifier": "com.novaboostlabs.truckernet",
       "usesAppleSignIn": true,
       "infoPlist": {

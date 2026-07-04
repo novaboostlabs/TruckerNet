@@ -16,11 +16,13 @@
 > branch and push `main`** so the user's build always reflects the latest.
 > (Decided 2026-06-19 after changes weren't appearing because `main` was stale.)
 
-_Last updated: 2026-06-29 — MASSIVE session. Full Freight Terminal aesthetic redesign (entire app, light+dark theme system), fair-market formula complete (#1–4), haptics, PostHog full funnel instrumentation, broker scorecard, re-engagement notifications (smart weekly + streak + idle), tax set-aside, value-based paywall conversion, standalone one-off expenses, personal nearby-lane history (50mi radius), category-aware expense aging, dynamic break-even (all 3 components), dashboard layout overhaul. RevenueCat live SDK key wired. All 8 Supabase migrations applied by user. See §6 Work Log below for full details._
+_Last updated: 2026-07-04 — **App is feature-complete and code-complete for v1.0.0 launch.** Everything remaining is App Store Connect setup, one production build, on-device QA, and submission — see §5.8 "LAUNCH STATUS" immediately below for the exact remaining checklist. This session: pre-launch review + fixes (sync data-loss bugs, IFTA/date correctness, RevenueCat hardening), 3 wedge features shipped (fuel optimizer, share card; Broker Check built-then-shelved), Dashboard load-tap + swipe-to-edit/delete, Replay Setup fully fixed (2 rounds — signup dead-end, then a settings-clobber sync bug), Fuel tab setup-estimate, IFTA tab always-gated teaser, `supportsTablet: false`, and full App Store listing copy written (`APP_STORE_LISTING.md`). See §6 Work Log for full details, newest first._
 
-> **Backend sync state:** Sync is **local-first** — SQLite is source of truth;
-> push on save, pull on sign-in. All 3 slices wired: expenses + fuel + loads.
-> All 3 Supabase migrations applied 2026-06-20. Schema is in sync.
+> **Backend sync state:** Local-first, SQLite is source of truth. As of
+> 2026-07-01/02: pull now MERGES instead of replacing (local wins on conflict,
+> tombstone-queue deletes) — the old "cloud replace" model could destroy
+> unpushed local data across devices; that's fixed. All Supabase migrations
+> incl. the 2026-06-30 RLS hardening are applied and verified (see §5.7-H).
 
 ---
 
@@ -913,7 +915,121 @@ Details for each are in the lettered sections below.
 
 ---
 
+## 5.8 🚀 LAUNCH STATUS — updated 2026-07-04 (READ THIS FIRST IN A NEW CHAT)
+
+> **Bottom line: the app is code-complete for v1.0.0.** Everything below is
+> USER action (App Store Connect + one build + on-device testing), not
+> development. If picking this project up fresh, start here — §5.6/5.7 above
+> are the detailed how-to for items already mostly done; this section is the
+> current, accurate checklist of what's actually still open.
+
+### ✅ Confirmed DONE (do not redo)
+- RevenueCat fully configured (iOS): entitlement `pro`, both products
+  (`truckernet_pro_monthly` $34.99, `truckernet_pro_annual` $297.99, 7-day
+  trial), live SDK key in code, Offering marked current, sandbox tester added,
+  products "Ready to Submit" in App Store Connect.
+- Paid Apps agreement (Agreements/Tax/Banking) active in App Store Connect.
+- Website + legal live at **truckernet.app** (Terms + Privacy pages).
+- OAuth (Google + Apple) configured in Supabase.
+- EAS builds boot correctly (env vars pushed; splash-hang fixed).
+- **Security hardening verified 2026-07-04**: RLS enabled + owner-only policies
+  confirmed present (by reading the actual migration SQL) on ALL cloud tables
+  the app touches — `loads`, `fuel_entries`, `state_mileage` (2026-06-30
+  migration, user-applied), `user_expenses`, `profiles` (2026-06-19),
+  `load_expenses` (2026-06-24), `general_expenses` (2026-06-28),
+  `broker_reports` (2026-06-29). `market_config` is intentionally public-read
+  (shared benchmark data, not user data). No gaps found.
+- Edge functions (`ocr-fuel-receipt`, `ocr-bol`) redeployed with auth required.
+- Mapbox token restriction — **deliberately skipped** (not worth a token
+  rotation pre-launch; revisit later if quota abuse becomes a real problem).
+- In-app Terms/Privacy links point to the live `truckernet.app` domain (fixed
+  2026-07-04 — they were pointing at the old `truckernet.novaboostlabs.co`).
+- `FMCSA` webKey registered and pushed to all 3 EAS environments (dev/preview/
+  production) — currently unused (Broker Check shelved) but ready if revived.
+- **`app.json` `supportsTablet` set to `false`** (2026-07-04) — iPhone-only
+  submission path, no iPad screenshot set needed.
+- **App Store listing copy fully written** — see `APP_STORE_LISTING.md` in the
+  repo root: subtitle, promo text, keywords, full description (covers all 3
+  pillars — Net Pay, Fair Market, Auto IFTA — plus fuel optimizer/MPG/tax
+  set-aside/share card), screenshot shot-list, TestFlight QA checklist, and
+  the App Store Connect setup checklist. Just paste it in.
+- All this session's feature work is **merged into `main` and pushed** —
+  no branch gap. (`feat/broker-name-search` also exists, holding the shelved
+  Broker Check feature for a future revival — not merged, not needed for launch.)
+
+### ⚠️ Still open — in order
+1. **[USER, ~15 min] Fill legal placeholders + support email.** On
+   `truckernet.app/terms` and `/privacy`, replace `[INSERT EFFECTIVE DATE]` and
+   `[INSERT SUPPORT EMAIL]` with real values. Stand up `support@truckernet.app`
+   as a working inbox.
+2. **[USER, ~30 min] Production build → TestFlight:**
+   ```
+   eas build --platform ios --profile production
+   eas submit --platform ios --latest
+   ```
+   Answer "No" to Export Compliance (standard HTTPS only) when it processes.
+3. **[USER, ~30 min] On-device QA on TestFlight** (real iPhone — purchases/OAuth
+   don't work in simulator or Expo Go). Full checklist is in
+   `APP_STORE_LISTING.md` → "TestFlight QA checklist". The must-pass items:
+   real purchase + 7-day trial → Pro unlocks, Restore Purchases works, Google +
+   Apple sign-in both work, and **Replay Setup persists after a full app
+   restart** (this reverted twice this session — verify it explicitly).
+4. **[USER, ~1 hr] Screenshots + finish the listing.** Capture the 6 screens
+   from `APP_STORE_LISTING.md`'s shot-list on that TestFlight build (seeded
+   Pro account, ~3–4 weeks of loads so nothing looks empty). Paste in the
+   description/subtitle/keywords from the same file. Set Support URL
+   (`truckernet.app`) + Privacy URL (`truckernet.app/privacy`) in App Store
+   Connect. Fill the privacy "nutrition label" (email, location, usage
+   analytics, crash data — no data sold).
+5. **[USER, ~5 min] Submit for review**, with a seeded demo login in the App
+   Review notes so the reviewer doesn't see empty states. Budget 1–3 weeks;
+   expect at least one rejection round is normal (common causes: IAP metadata
+   mismatch, missing in-app account deletion — confirm Settings has one).
+
+### Known, accepted limitations (not blockers — documented so they're not
+"discovered" again as bugs)
+- Cross-device sync uses "local wins, no timestamps" conflict resolution — an
+  edit to an existing row on device A won't overwrite the same row on device B
+  via pull (only missing rows restore on a new device). Fine for the
+  overwhelming majority of single-phone users. Proper convergence needs a
+  `deleted_at`/`updated_at` tombstone model — V1.1.
+- Verdict boundary at exactly `netRPM == breakEvenRPM` differs by one comparison
+  operator between AddLoad (amber) and CheckLoad (red) — cosmetic edge case.
+- `is_manually_edited` on `state_mileage` is never actually set to true on save.
+- BOL photo falls back to a local cache URI on failed upload (can vanish).
+- Broker Scorecard (crowdsourced, pre-existing feature) has the same cold-start
+  problem as the shelved Broker Check — flashes "checking..." then shows
+  nothing for brokers with no community data yet. Not addressed this session.
+- Android is entirely out of scope for v1.0.0 — `ANDROID_API_KEY` is empty,
+  no Play Console setup. Add 2-4 weeks after iOS ships if desired; reuses all
+  copy/screenshots/legal pages.
+
+---
+
 ## 6. Work Log (newest first)
+
+### 2026-07-04 — App Store listing copy finalized + iPhone-only + launch status handoff
+- **`app.json`: `supportsTablet` → `false`.** Avoids a separate required iPad
+  screenshot set; iPhone-only submission path.
+- **New `APP_STORE_LISTING.md`** (repo root) — the durable, paste-ready home for
+  all store-listing assets so nothing is lost across chat sessions: subtitle,
+  promo text, 100-char keyword string, full description, screenshot shot-list
+  (6 screens, display order, captions), TestFlight QA checklist, and the App
+  Store Connect setup checklist (Support/Privacy URLs, nutrition label,
+  reviewer demo account note).
+- **Description rewritten to cover all 3 pillars** — first draft only covered
+  Net Pay + Auto IFTA and omitted **Fair Market Price** entirely (a core
+  pillar) and the smaller features (MPG, tax set-aside, share card, receipt/BOL
+  scanning). v2 leads with all three pillars explicitly and lists the rest.
+  Verified against the actual code that Fair Market Price is Pro-gated (free
+  users see `FairMarketLock`, not even a teaser range) — the copy says "(Pro)"
+  next to that pillar so the listing doesn't overpromise the free tier.
+  Voice input was in an earlier draft but isn't actually implemented — removed.
+- **Added §5.8 "LAUNCH STATUS" to this file** — a single current-as-of-today
+  section listing exactly what's confirmed done vs. still open, meant to be the
+  first thing read in a fresh chat/session. Also corrected the top-of-file
+  "Last updated" banner and backend-sync-state note, which were stale
+  (dated 2026-06-29, predating this entire session's sync-safety work).
 
 ### 2026-07-04 — IFTA tab always shows the locked premium teaser (like Analytics)
 Free users previously saw a plain empty state on IFTA when they had no data —
