@@ -77,6 +77,12 @@
         "projectId": "8a2525c8-a2ae-4b6f-a0f9-1c9e21f76627"
       }
     },
-    "owner": "novaboostlabs"
+    "owner": "novaboostlabs",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/8a2525c8-a2ae-4b6f-a0f9-1c9e21f76627"
+    }
   }
 }

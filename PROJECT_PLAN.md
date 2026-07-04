@@ -16,7 +16,7 @@
 > branch and push `main`** so the user's build always reflects the latest.
 > (Decided 2026-06-19 after changes weren't appearing because `main` was stale.)
 
-_Last updated: 2026-07-05 — App is feature-complete for v1.0.0, but **Delete Account has an open bug: the first test showed data correctly wiped but the auth user still allows email+password sign-in afterward** — the account itself isn't actually being removed. Hardened the Edge Function with a post-delete verification + logging to pinpoint it on retest; also added subscription-not-cancelled disclosure to the delete confirmation copy (expected RevenueCat/StoreKit behavior, was undisclosed). **USER: redeploy `delete-account` and retest before doing anything else** — see §5.8 item 0. Purchase → Pro unlock is otherwise CONFIRMED working on TestFlight. See §6 Work Log for full details, newest first._
+_Last updated: 2026-07-05 — App is feature-complete for v1.0.0. **Delete Account status is UNKNOWN, not broken:** the reported "still broken" retest was actually still running the OLD pre-fix JS bundle (a TestFlight build only updates via a new build or an OTA update — neither had happened yet), so nothing about the fix has been genuinely tested yet. Set up **EAS Update (OTA)** this session (`expo-updates` installed + configured) so this and future JS-only fixes can ship without burning a full build each time — but the very first OTA still needs ONE new `eas build` to bake in the native OTA runtime. **USER: trigger that one production build + submit, THEN retest Delete Account** (check Supabase Edge Function logs + Users table per §5.8 item 0) — that will be the first real test of the fix. Purchase → Pro unlock is separately CONFIRMED working on TestFlight. See §6 Work Log for full details, newest first._
 
 > **Backend sync state:** Local-first, SQLite is source of truth. As of
 > 2026-07-01/02: pull now MERGES instead of replacing (local wins on conflict,
@@ -1003,16 +1003,20 @@ Real in-app account deletion, closing the 5.1.1(v) gap flagged above.
 
 ### 🔴 Still open — in order (as of 2026-07-05)
 
-0. **[BLOCKER — re-test needed] Delete Account: auth user survives deletion.**
-   First deploy wiped data correctly but the user could still sign back in with
-   email+password afterward (see Work Log above) — the auth row isn't actually
-   being removed. Function hardened with a post-delete verification + logging
-   2026-07-05, not yet re-tested. **USER: redeploy**
-   (`supabase functions deploy delete-account`), retry Delete Account on
-   TestFlight, and check Supabase Dashboard → Edge Functions →
-   delete-account → Logs (should show `deleting user …` / `confirmed user …
-   removed` or a `delete_incomplete` error) + Authentication → Users (email row
-   should be gone). Report back what the logs show if it still fails.
+0. **[BLOCKER — needs a real build to even test] Delete Account: status unknown.**
+   Every retest so far actually ran the OLD pre-fix JS bundle (no build/OTA had
+   shipped it yet) — so "still broken" wasn't a failed fix, it was an untested
+   one. **USER: trigger `eas build --platform ios --profile production` →
+   `eas submit --platform ios --latest`** (this one build also bakes in the new
+   EAS Update/OTA runtime — see Work Log). Once that's on TestFlight, retest
+   Delete Account for the first time for real, and check Supabase Dashboard →
+   Edge Functions → delete-account → Logs (should show `deleting user …` /
+   `confirmed user … removed`, or a `delete_incomplete` error) + Authentication
+   → Users (email row should be gone) → Auth user must ALSO have been deployed
+   via `supabase functions deploy delete-account` if that wasn't done already.
+   Report back what the logs show either way — if it still fails after a real
+   build, that's the first genuine signal something in the function itself is
+   wrong.
 1. **[USER — in progress] Screenshots.** Capturing via AppLaunchpad /
    appscreens.com from the `APP_STORE_LISTING.md` shot-list (6 screens, seeded
    Pro account). Then upload the 6.7" iPhone set to App Store Connect.
@@ -1060,6 +1064,46 @@ JS/copy/UI changes ship via `eas update` — zero builds. Native changes
 ---
 
 ## 6. Work Log (newest first)
+
+### 2026-07-05 — EAS Update (OTA) set up + realization: the retest never ran the new code
+User retested Delete Account after the previous fix and reported the exact same
+symptoms (still able to sign in, subscription still active, data gone) — i.e.
+literally no change in behavior. Root cause: **the fix was committed but never
+shipped** — a TestFlight build only runs the JS bundle it was built with, and
+without an OTA mechanism, editing source files on this machine has zero effect
+on the device until a new `eas build` happens. So every retest was actually
+re-running the OLD `handleDeleteAccount` (bare `signOut()`, no server call at
+all) — which fully explains all three symptoms without needing any new theory:
+the auth user was never touched (still logs in), the subscription was never
+touched (unrelated to Supabase), and local data was wiped by the old
+`clearAllUserData()` call same as before. **The Delete Account bug from the
+prior entry is not confirmed to still exist** — it's never actually been tested.
+- Committed + pushed the delete-account fix from the prior entry (was sitting
+  uncommitted).
+- **Set up EAS Update (OTA)**, previously only "recommended" — needed now
+  because the user is low on monthly EAS build credits and this bug will
+  likely take a couple of retest cycles to fully verify:
+  - `npx expo install expo-updates` (added to `package.json`/`package-lock.json`).
+  - `eas update:configure` → set `updates.url` + `runtimeVersion: {policy:
+    "appVersion"}` in `app.json`, and a `channel` (development/preview/production)
+    on each `eas.json` build profile.
+  - **Fixed a bug in the CLI's own output:** `update:configure` duplicated the
+    existing `android.permissions` array in `app.json` (CAMERA/RECORD_AUDIO
+    listed twice) — removed the duplicates.
+  - No app code changes needed — default `expo-updates` behavior checks for an
+    update on cold start and applies it on next launch.
+  - `tsc --noEmit` clean.
+- **Still needs ONE new build to take effect** — `expo-updates` is itself a
+  native module, so the very next `eas build --platform ios --profile
+  production` bakes in both the OTA runtime AND all the currently-committed
+  delete-account-fix code in one shot. After that single build, this exact fix
+  (and any further round of debugging it, if the bug turns out to be real) can
+  ship via `eas update --channel production` with zero additional build
+  credits.
+- **USER decision needed:** when to trigger that one production build + submit
+  (I did not run `eas build`/`eas submit` myself — it consumes a build credit
+  and submits to TestFlight, both worth confirming timing on rather than
+  triggering unprompted).
 
 ### 2026-07-05 — Delete Account: user-reported bug (auth user survives) + subscription disclosure
 User deployed the Edge Function and tested: local/cloud DATA was correctly wiped,
