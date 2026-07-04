@@ -13,7 +13,7 @@ import { AppFlowContext } from '../contexts/AppFlowContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useSubscription } from '../contexts/SubscriptionContext';
 import { usePaywall } from '../contexts/PaywallContext';
-import { getWeeklyMiles, getSetting, setSetting, getIncomeGoal, setIncomeGoal, getRateContributionCount } from '../db/database';
+import { getWeeklyMiles, getSetting, setSetting, getIncomeGoal, setIncomeGoal, getRateContributionCount, getUserExpenses } from '../db/database';
 import { getNetworkReportCount } from '../lib/rateReports';
 import { getSyncStatus, syncAll } from '../lib/sync';
 import { setupNotifications, cancelAllNotifications } from '../lib/notifications';
@@ -106,9 +106,11 @@ function Row({
 interface Props {
   onClose:              () => void;
   onNavigateToExpenses: () => void;
+  /** Deep link: 'goal' scrolls to and opens the income-goal editor (Dashboard nudge). */
+  initialSection?: 'goal';
 }
 
-export default function SettingsScreen({ onClose, onNavigateToExpenses }: Props) {
+export default function SettingsScreen({ onClose, onNavigateToExpenses, initialSection }: Props) {
   const { t, i18n } = useTranslation();
   const { user, signOut, deleteAccount } = useAuth();
   const { isPro, isMock, setMockPro, restore } = useSubscription();
@@ -217,6 +219,19 @@ export default function SettingsScreen({ onClose, onNavigateToExpenses }: Props)
 
   const cancelGoal = useCallback(() => setEditingGoal(false), []);
 
+  // Deep link from the Dashboard goal nudge: scroll to the goal row and open
+  // its editor, so the driver never has to hunt for it.
+  const scrollRef     = useRef<ScrollView>(null);
+  const goalSectionY  = useRef(0);
+  useEffect(() => {
+    if (initialSection !== 'goal') return;
+    const timer = setTimeout(() => {
+      scrollRef.current?.scrollTo({ y: Math.max(goalSectionY.current - 12, 0), animated: true });
+      startEditGoal();
+    }, 450); // let the modal slide-in settle first
+    return () => clearTimeout(timer);
+  }, [initialSection, startEditGoal]);
+
   const [shareData, setShareData] = useState(() => getSetting('share_rate_data') !== 'false');
   const [contribCount] = useState(() => getRateContributionCount());
   const [networkCount, setNetworkCount] = useState<number | null>(null);
@@ -237,12 +252,28 @@ export default function SettingsScreen({ onClose, onNavigateToExpenses }: Props)
   const saveMiles = useCallback(() => {
     const n = parseFloat(milesInput);
     if (n > 0 && n <= 15000) {
+      // Same sanity gate as onboarding — a tiny weekly-miles edit here would
+      // silently blow up the break-even everywhere else.
+      const fuelMonthly  = (parseFloat(getSetting('weekly_fuel_cost') ?? '0') || 0) * 4.333;
+      const fixedMonthly = getUserExpenses().reduce((s, e) => s + (e.monthly_equivalent || 0), 0);
+      const breakEven    = (fuelMonthly + fixedMonthly) / (n * 4.333);
+      if (breakEven > 8) {
+        Alert.alert(
+          t('onboarding.miles.sanityTitle'),
+          t('onboarding.miles.sanityHigh', {
+            be:    breakEven.toFixed(2),
+            costs: Math.round(fuelMonthly + fixedMonthly).toLocaleString(),
+            miles: Math.round(n * 4.333).toLocaleString(),
+          }),
+        );
+        return;
+      }
       setSetting('weekly_miles', String(n));
       setWeeklyMilesLocal(n);
       haptics.tapMedium();
     }
     setEditingMiles(false);
-  }, [milesInput]);
+  }, [milesInput, t]);
 
   const cancelMiles = useCallback(() => setEditingMiles(false), []);
 
@@ -337,6 +368,7 @@ export default function SettingsScreen({ onClose, onNavigateToExpenses }: Props)
         </View>
 
         <ScrollView
+          ref={scrollRef}
           contentContainerStyle={styles.content}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag"
@@ -579,6 +611,7 @@ export default function SettingsScreen({ onClose, onNavigateToExpenses }: Props)
           </View>
 
           {/* ── Income Goal ── */}
+          <View onLayout={(e) => { goalSectionY.current = e.nativeEvent.layout.y; }}>
           <SectionHeader label={t('settings.goalSection')} />
           <View style={styles.card}>
             <TouchableOpacity
@@ -649,6 +682,7 @@ export default function SettingsScreen({ onClose, onNavigateToExpenses }: Props)
                 </View>
               )}
             </TouchableOpacity>
+          </View>
           </View>
 
           {/* ── Appearance ── */}

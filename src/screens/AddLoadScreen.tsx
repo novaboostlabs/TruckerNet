@@ -54,6 +54,8 @@ export interface AddLoadPrefill {
   loadType?:    LoadType;
   backhaul?:    boolean;
   milesAuto?:   boolean;
+  brokerName?:  string;
+  brokerMC?:    string;
 }
 
 const LOAD_TYPES: LoadType[] = [
@@ -154,6 +156,9 @@ export default function AddLoadScreen({ onClose, onSaved, onFirstLoad, prefill }
   // ── State mileage ──
   const [stateMiles,     setStateMiles]     = useState<StateMileRow[]>([{ state: '', miles: '' }]);
   const stateInitialized = useRef(false);
+  // Flips when the driver touches the rows — saved so IFTA knows the split was
+  // human-verified rather than an automatic route estimate.
+  const stateEdited      = useRef(false);
 
   // ── Load date (defaults to today; user can go back to backlog past loads) ──
   const [loadDate, setLoadDate] = useState(() => localDateISO());
@@ -211,10 +216,12 @@ export default function AddLoadScreen({ onClose, onSaved, onFirstLoad, prefill }
   const [weight,      setWeight]      = useState('');
   const [bolNumber,   setBolNumber]   = useState('');
   const [bolPhotoUri, setBolPhotoUri] = useState<string | null>(null);
-  const [brokerName,  setBrokerName]  = useState('');
-  const [brokerMC,    setBrokerMC]    = useState('');
+  const [brokerName,  setBrokerName]  = useState(prefill?.brokerName ?? '');
+  const [brokerMC,    setBrokerMC]    = useState(prefill?.brokerMC ?? '');
   const [notes,       setNotes]       = useState('');
-  const [showOptional, setShowOptional] = useState(false);
+  // Broker info carried over from Check Load lands in the optional section —
+  // open it so the driver can see their data made the trip.
+  const [showOptional, setShowOptional] = useState(!!(prefill?.brokerName || prefill?.brokerMC));
 
   // ── Broker scorecard ──
   const [brokerScorecard,   setBrokerScorecard]   = useState<BrokerScorecard | null>(null);
@@ -257,6 +264,8 @@ export default function AddLoadScreen({ onClose, onSaved, onFirstLoad, prefill }
         setMiles(String(Math.round(mi)));
         setMilesAuto(true);
         stateInitialized.current = true;
+        // Fresh auto-split replaces whatever was there — no longer hand-edited.
+        stateEdited.current = false;
 
         // Auto-split by state using the actual route geometry
         if (geometry.length >= 2) {
@@ -360,6 +369,7 @@ export default function AddLoadScreen({ onClose, onSaved, onFirstLoad, prefill }
   );
 
   function updateStateRow(idx: number, field: 'state' | 'miles', value: string) {
+    stateEdited.current = true;
     setStateMiles(prev => prev.map((r, i) =>
       i === idx
         ? { ...r, [field]: field === 'state' ? value.toUpperCase().slice(0, 2) : cap(value, 15000) }
@@ -368,10 +378,12 @@ export default function AddLoadScreen({ onClose, onSaved, onFirstLoad, prefill }
   }
 
   function addStateRow() {
+    stateEdited.current = true;
     setStateMiles(prev => [...prev, { state: '', miles: '' }]);
   }
 
   function removeStateRow(idx: number) {
+    stateEdited.current = true;
     setStateMiles(prev => prev.filter((_, i) => i !== idx));
   }
 
@@ -564,7 +576,11 @@ export default function AddLoadScreen({ onClose, onSaved, onFirstLoad, prefill }
           broker_mc:    brokerMC,
           notes,
         },
-        validStateMiles.map(r => ({ state: r.state, miles: parseFloat(r.miles) })),
+        validStateMiles.map(r => ({
+          state: r.state,
+          miles: parseFloat(r.miles),
+          is_manually_edited: stateEdited.current ? 1 : 0,
+        })),
         validExpenses,
       );
 

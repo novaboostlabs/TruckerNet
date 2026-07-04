@@ -613,7 +613,8 @@
       "ofNet": "of {{net}} taxable net",
       "ytdLabel": "YEAR TO DATE",
       "disclaimer": "Estimate only — not tax advice. Verify with a tax professional."
-    }
+    },
+    "monthlyMilesHint": "Your average miles per month — used to calculate cost per mile."
   },
   "history": {
     "title": "History",

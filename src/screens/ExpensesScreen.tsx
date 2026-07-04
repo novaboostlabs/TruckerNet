@@ -11,7 +11,7 @@ import { Colors, FontFamily, FontSize, Spacing, Radius, SectionLabel, ThemeColor
 import { useTheme } from '../theme/ThemeContext';
 import {
   getUserExpenses, replaceUserExpenses, getWeeklyMiles, setMonthlyMiles,
-  getTaxSetAside, setSetting, TaxSetAside,
+  getTaxSetAside, setSetting, getSetting, TaxSetAside,
 } from '../db/database';
 import { toMonthlyAmount, ExpenseFrequency } from '../utils/marketRates';
 import { useAuth } from '../contexts/AuthContext';
@@ -180,6 +180,28 @@ export default function ExpensesScreen() {
   const fixedCPM    = monthlyMiles > 0 ? total / monthlyMiles : 0;
 
   function handleSave() {
+    // Same sanity gate as onboarding: block expense/miles combos that produce a
+    // nonsense break-even (the dashboard would otherwise show e.g. "$60/mi").
+    if (monthlyMiles > 0) {
+      const fuelMonthly = (parseFloat(getSetting('weekly_fuel_cost') ?? '0') || 0) * 4.333;
+      const breakEven   = (fuelMonthly + total) / monthlyMiles;
+      if (breakEven > 8) {
+        Alert.alert(
+          t('onboarding.miles.sanityTitle'),
+          t('onboarding.miles.sanityHigh', {
+            be:    breakEven.toFixed(2),
+            costs: Math.round(fuelMonthly + total).toLocaleString(),
+            miles: Math.round(monthlyMiles).toLocaleString(),
+          }),
+        );
+        return;
+      }
+      if (breakEven > 0 && breakEven < 0.3) {
+        Alert.alert(t('onboarding.miles.sanityTitle'), t('onboarding.miles.sanityLow', { be: breakEven.toFixed(2) }));
+        return;
+      }
+    }
+
     const collected: ExpenseEntry[] = [
       ...fixed.filter((e) => parseFloat(e.amount) > 0),
       ...others,
@@ -422,7 +444,7 @@ export default function ExpensesScreen() {
 
           {/* ── Monthly miles ── */}
           <Text style={styles.sectionTitle}>{t('expenses.monthlyMiles')}</Text>
-          <Text style={styles.sectionHint}>Your average miles per month — used to calculate cost per mile.</Text>
+          <Text style={styles.sectionHint}>{t('expenses.monthlyMilesHint')}</Text>
           <View style={styles.milesCard}>
             <Ionicons name="speedometer-outline" size={20} color={Colors.primary} />
             <TextInput

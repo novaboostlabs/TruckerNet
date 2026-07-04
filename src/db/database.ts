@@ -404,10 +404,11 @@ export function getMonthlyMiles(): number {
     return localDateISO(d);
   })();
 
+  // Upcoming loads haven't been driven — their miles can't count as actuals.
   const rolling = db.getFirstSync<{ total_miles: number; load_count: number }>(
     `SELECT COALESCE(SUM(total_miles), 0) as total_miles, COUNT(*) as load_count
      FROM loads
-     WHERE status != 'cancelled' AND date >= ?`,
+     WHERE status NOT IN ('cancelled','upcoming') AND date >= ?`,
     [ninetyDaysAgo],
   );
   if (rolling && rolling.load_count >= 5 && rolling.total_miles > 0) {
@@ -534,7 +535,7 @@ export function calcBreakEven(): {
     return localDateISO(d);
   })();
   const rolling = db.getFirstSync<{ load_count: number }>(
-    `SELECT COUNT(*) as load_count FROM loads WHERE status != 'cancelled' AND date >= ?`,
+    `SELECT COUNT(*) as load_count FROM loads WHERE status NOT IN ('cancelled','upcoming') AND date >= ?`,
     [ninetyDaysAgo],
   );
 
@@ -618,7 +619,7 @@ function nextDeadlineISO(): string {
 function periodNet(startISO: string): number {
   const row = db.getFirstSync<{ net: number }>(
     `SELECT COALESCE(SUM(net_pay), 0) as net
-     FROM loads WHERE status != 'cancelled' AND date >= ?`,
+     FROM loads WHERE status NOT IN ('cancelled','upcoming') AND date >= ?`,
     [startISO],
   );
   // Subtract standalone expenses for the same period
@@ -745,12 +746,13 @@ function sumGeneralExpenses(start: string, end?: string): number {
 }
 
 export function getWeekPnL(): PeriodPnL {
+  // Upcoming loads are booked, not earned — they must not inflate the week's net.
   const row = db.getFirstSync<PeriodPnL>(
     `SELECT COALESCE(SUM(net_pay),0)     as net,
             COALESCE(SUM(gross_pay),0)   as gross,
             COALESCE(SUM(total_miles),0) as miles,
             COUNT(*)                     as loads
-     FROM loads WHERE date >= ? AND status != 'cancelled'`,
+     FROM loads WHERE date >= ? AND status NOT IN ('cancelled','upcoming')`,
     [weekStart()]
   );
   const base = row ?? { net: 0, gross: 0, miles: 0, loads: 0 };
@@ -763,7 +765,7 @@ export function getMonthPnL(): PeriodPnL {
             COALESCE(SUM(gross_pay),0)   as gross,
             COALESCE(SUM(total_miles),0) as miles,
             COUNT(*)                     as loads
-     FROM loads WHERE date >= ? AND status != 'cancelled'`,
+     FROM loads WHERE date >= ? AND status NOT IN ('cancelled','upcoming')`,
     [monthStart()]
   );
   const base = row ?? { net: 0, gross: 0, miles: 0, loads: 0 };
@@ -791,7 +793,7 @@ export function getWeeklyNetTrend(weeks = 12): WeekTrendPoint[] {
             COALESCE(SUM(net_pay),0)   as net,
             COALESCE(SUM(gross_pay),0) as gross
      FROM loads
-     WHERE status != 'cancelled' AND date >= ?
+     WHERE status NOT IN ('cancelled','upcoming') AND date >= ?
      GROUP BY week_start
      ORDER BY week_start ASC`,
     [startISO]
@@ -904,7 +906,7 @@ export function consecutiveWeeksOverBreakEven(): number {
     const row = db.getFirstSync<{ miles: number; net: number }>(
       `SELECT COALESCE(SUM(total_miles), 0) as miles,
               COALESCE(SUM(net_pay), 0) as net
-       FROM loads WHERE status != 'cancelled' AND date >= ? AND date <= ?`,
+       FROM loads WHERE status NOT IN ('cancelled','upcoming') AND date >= ? AND date <= ?`,
       [start, end],
     );
 
@@ -1079,11 +1081,12 @@ function quarterRange(year: number, q: number): [string, string] {
 export function getIFTAData(year: number, q: number): IFTARow[] {
   const [start, end] = quarterRange(year, q);
 
+  // IFTA reports miles actually driven — booked-but-not-started loads excluded.
   const milesRows = db.getAllSync<{ state: string; miles: number }>(
     `SELECT sm.state, SUM(sm.miles) as miles
      FROM state_mileage sm
      JOIN loads l ON sm.load_id = l.id
-     WHERE l.date >= ? AND l.date <= ? AND l.status != 'cancelled'
+     WHERE l.date >= ? AND l.date <= ? AND l.status NOT IN ('cancelled','upcoming')
      GROUP BY sm.state`,
     [start, end]
   );
@@ -1111,9 +1114,10 @@ export function getIFTAData(year: number, q: number): IFTARow[] {
 
 export function hasIFTAData(year: number, q: number): boolean {
   const [start, end] = quarterRange(year, q);
+  // Mirrors getIFTAData: only miles actually driven count toward the quarter.
   const row = db.getFirstSync<{ n: number }>(
     `SELECT COUNT(*) as n FROM loads
-     WHERE date >= ? AND date <= ? AND status != 'cancelled'`,
+     WHERE date >= ? AND date <= ? AND status NOT IN ('cancelled','upcoming')`,
     [start, end]
   );
   return (row?.n ?? 0) > 0;
@@ -1134,6 +1138,7 @@ export interface HistoryLoad {
   gross_pay: number;
   net_pay: number;
   net_rate_per_mile: number;
+  status: string;
 }
 
 export interface HistoryTotals {
@@ -1154,7 +1159,7 @@ export function getHistoryLoads(filter: HistoryFilter): HistoryLoad[] {
   const [clause, params] = dateFilterClause(filter);
   return db.getAllSync<HistoryLoad>(
     `SELECT id, date, pickup_city, pickup_state, delivery_city, delivery_state,
-            total_miles, gross_pay, net_pay, net_rate_per_mile
+            total_miles, gross_pay, net_pay, net_rate_per_mile, status
      FROM loads WHERE status != 'cancelled' ${clause}
      ORDER BY date DESC, created_at DESC`,
     params
@@ -1183,7 +1188,7 @@ export function getHistoryTotals(filter: HistoryFilter): HistoryTotals {
 export function getHistoryLoadsDateRange(start: string, end: string): HistoryLoad[] {
   return db.getAllSync<HistoryLoad>(
     `SELECT id, date, pickup_city, pickup_state, delivery_city, delivery_state,
-            total_miles, gross_pay, net_pay, net_rate_per_mile
+            total_miles, gross_pay, net_pay, net_rate_per_mile, status
      FROM loads WHERE status != 'cancelled' AND date >= ? AND date <= ?
      ORDER BY date DESC, created_at DESC`,
     [start, end]
@@ -1194,7 +1199,7 @@ export function searchHistoryLoads(query: string): HistoryLoad[] {
   const q = `%${query}%`;
   return db.getAllSync<HistoryLoad>(
     `SELECT id, date, pickup_city, pickup_state, delivery_city, delivery_state,
-            total_miles, gross_pay, net_pay, net_rate_per_mile
+            total_miles, gross_pay, net_pay, net_rate_per_mile, status
      FROM loads
      WHERE status != 'cancelled'
        AND (pickup_city LIKE ? OR delivery_city LIKE ?
@@ -1264,6 +1269,8 @@ export interface LoadInsert {
 export interface StateMileageInsert {
   state: string;
   miles: number;
+  /** 1 when the driver overrode the auto route split by hand. */
+  is_manually_edited?: number;
 }
 
 export interface LoadExpenseInsert {
@@ -1663,8 +1670,8 @@ export function saveLoad(
 
   for (const sm of stateMileage) {
     db.runSync(
-      'INSERT INTO state_mileage (load_id, state, miles) VALUES (?,?,?)',
-      [id, sm.state, sm.miles]
+      'INSERT INTO state_mileage (load_id, state, miles, is_manually_edited) VALUES (?,?,?,?)',
+      [id, sm.state, sm.miles, sm.is_manually_edited ?? 0]
     );
   }
 

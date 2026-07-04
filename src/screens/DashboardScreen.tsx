@@ -42,7 +42,11 @@ import { startLoad, completeLoad } from '../lib/loadLifecycle';
 interface LoadRow {
   id: string; from: string; to: string;
   miles: number; gross: number; net: number; rpm: number; positive: boolean;
+  status: string;
 }
+
+// Pill shown on rows for loads that aren't finished yet.
+const STATUS_PILL_I18N: Record<string, string> = { upcoming: 'upcoming', in_progress: 'inProgress' };
 
 interface DashData {
   breakEvenRPM: number; fuelCPM: number; fixedCPM: number;
@@ -68,6 +72,7 @@ function loadFromSummary(s: LoadSummary): LoadRow {
     net:      s.net_pay,
     rpm:      s.net_rate_per_mile,
     positive: s.net_pay >= 0,
+    status:   s.status,
   };
 }
 
@@ -117,6 +122,7 @@ export default function DashboardScreen() {
   const [showFuelEntry,  setShowFuelEntry]  = useState(false);
   const [showAddExpense, setShowAddExpense] = useState(false);
   const [showSettings,   setShowSettings]   = useState(false);
+  const [settingsSection, setSettingsSection] = useState<'goal' | undefined>();
   const [showReview,     setShowReview]     = useState(false);
   const [detailLoadId,   setDetailLoadId]   = useState<string | null>(null);
   const [detailEdit,     setDetailEdit]     = useState(false);
@@ -207,9 +213,11 @@ export default function DashboardScreen() {
 
       <Modal visible={showSettings} animationType="slide" presentationStyle="pageSheet">
         <SettingsScreen
-          onClose={() => { setShowSettings(false); refresh(); }}
+          initialSection={settingsSection}
+          onClose={() => { setShowSettings(false); setSettingsSection(undefined); refresh(); }}
           onNavigateToExpenses={() => {
             setShowSettings(false);
+            setSettingsSection(undefined);
             navigation.navigate('Expenses');
           }}
         />
@@ -393,7 +401,11 @@ export default function DashboardScreen() {
             )}
 
             {/* Nudge to set an income goal (this fallback only shows when no goal is set) */}
-            <TouchableOpacity style={styles.goalNudge} onPress={() => setShowSettings(true)} activeOpacity={0.7}>
+            <TouchableOpacity
+              style={styles.goalNudge}
+              onPress={() => { setSettingsSection('goal'); setShowSettings(true); }}
+              activeOpacity={0.7}
+            >
               <Ionicons name="flag-outline" size={13} color={Colors.primary} />
               <Text style={styles.goalNudgeText}>{t('dashboard.setGoalNudge')}</Text>
               <Ionicons name="chevron-forward" size={13} color={Colors.primary} />
@@ -471,9 +483,16 @@ export default function DashboardScreen() {
                       onPress={() => openLoad(load.id)}
                     >
                       <View style={styles.loadLeft}>
-                        <Text style={styles.loadRoute} numberOfLines={1}>
-                          {load.from.split(',')[0]} → {load.to.split(',')[0]}
-                        </Text>
+                        <View style={styles.loadRouteRow}>
+                          <Text style={styles.loadRoute} numberOfLines={1}>
+                            {load.from.split(',')[0]} → {load.to.split(',')[0]}
+                          </Text>
+                          {!!STATUS_PILL_I18N[load.status] && (
+                            <View style={styles.statusPill}>
+                              <Text style={styles.statusPillText}>{t(`addLoad.statuses.${STATUS_PILL_I18N[load.status]}`)}</Text>
+                            </View>
+                          )}
+                        </View>
                         <Text style={styles.loadMeta}>{fmt(load.miles)} mi · ${load.rpm.toFixed(2)}/mi</Text>
                       </View>
                       <View style={styles.loadRight}>
@@ -699,7 +718,13 @@ const makeStyles = (Colors: ThemeColors) => StyleSheet.create({
     paddingVertical: 14, paddingHorizontal: Spacing.cardPad,
   },
   loadLeft:    { flex: 1, marginRight: 12 },
-  loadRoute:   { fontFamily: FontFamily.monoSemiBold, fontSize: FontSize.body, color: Colors.textPrimary, marginBottom: 3, letterSpacing: -0.3 },
+  loadRouteRow: { flexDirection: 'row', alignItems: 'center', gap: 7 },
+  statusPill: {
+    backgroundColor: Colors.secondaryDim, borderWidth: 1, borderColor: Colors.secondary + '45',
+    borderRadius: Radius.pill, paddingHorizontal: 7, paddingVertical: 2, marginBottom: 3,
+  },
+  statusPillText: { fontFamily: FontFamily.monoSemiBold, fontSize: 9, color: Colors.secondary, letterSpacing: 0.5 },
+  loadRoute:   { fontFamily: FontFamily.monoSemiBold, fontSize: FontSize.body, color: Colors.textPrimary, marginBottom: 3, letterSpacing: -0.3, flexShrink: 1 },
   loadMeta:    { fontFamily: FontFamily.monoRegular, fontSize: FontSize.caption, color: Colors.textSecondary },
   loadRight:   { alignItems: 'flex-end' },
   loadNet:     { fontFamily: FontFamily.monoBold, fontSize: FontSize.body, marginBottom: 2 },

@@ -642,7 +642,8 @@
       "ofNet": "应税净额 {{net}} 中",
       "ytdLabel": "年初至今",
       "disclaimer": "仅为估算 — 非税务建议。请与税务专业人士核实。"
-    }
+    },
+    "monthlyMilesHint": "你每月的平均英里数——用于计算每英里成本。"
   },
   "settings": {
     "title": "设置",

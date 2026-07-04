@@ -642,7 +642,8 @@
       "ofNet": "de {{net}} neto gravable",
       "ytdLabel": "AÑO ACTUAL",
       "disclaimer": "Solo un estimado — no es asesoría fiscal. Verifica con un profesional."
-    }
+    },
+    "monthlyMilesHint": "Tu promedio de millas por mes — se usa para calcular el costo por milla."
   },
   "settings": {
     "title": "Configuración",

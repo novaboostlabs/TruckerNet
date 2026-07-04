@@ -1055,6 +1055,70 @@ modules, app.json, permissions) still need a full `eas build`.
 
 ## 6. Work Log (newest first)
 
+### 2026-07-04 — Final polish pass, part 1 (user punch list + flow streamlining)
+User set a polish goal: fix the reported UX gaps and streamline the load flow to
+Uber/Elevate standard. All items below shipped on `polish/final-pass` → `main`.
+**User decisions:** load lifecycle = 3-stage Upcoming → In Progress → Completed
+(Cancelled removed from pickers; delete covers it); session loss → straight to
+Sign In with data kept (no walkthrough replay); onboarding must require fuel +
+miles + insurance + truck cost (explicit $0 = owned outright).
+
+- **Load lifecycle (priority #1).** Status is no longer a required 4-option modal
+  with no default: inline 3-option segmented control, smart default (Check Load
+  "Accept & Log" → Upcoming; direct log → Completed). One-tap progression
+  everywhere: Dashboard current-load card is tappable → detail and gains
+  **Mark Complete** (active) / **Start Load** (upcoming — card now also surfaces
+  the soonest upcoming load when nothing is active); Load Detail gets the same
+  button. Shared side effects in new `src/lib/loadLifecycle.ts` (reminder
+  schedule/cancel, community-rate contribution, goal milestone, streak, haptics,
+  cloud push). Status pills on Dashboard/History rows for non-completed loads.
+- **Data correctness: upcoming loads no longer count as earnings/miles.**
+  Excluded from week/month P&L, weekly trend, tax set-aside net, break-even
+  90-day actual miles, streaks, and IFTA per-state miles (booked ≠ driven).
+  History list/totals still show them (it's the record view, and the rows now
+  carry an UPCOMING pill).
+- **Keyboard dismissal fixed app-wide.** AddLoad + CheckLoad used
+  `keyboardShouldPersistTaps="always"` which swallowed every outside tap →
+  changed to `"handled"`; `keyboardDismissMode="on-drag"` added to all 15 form
+  ScrollViews. (Autocomplete suggestion rows use `onPressIn`, unaffected.)
+- **History: swipe weeks/months.** Horizontal pan (gesture-handler) over the
+  period navigator + calendar pages periods; arrows kept; Pro gate + forward
+  limit respected; vertical scroll wins via failOffsetY.
+- **Income-goal nudge fixed end-to-end.** Dashboard Settings modal now calls
+  `refresh()` on close (goal appears instantly), and the nudge deep-links:
+  Settings scrolls to the goal row and opens its editor automatically
+  (`initialSection='goal'`).
+- **Onboarding validation.** Fuel Skip removed + Next disabled until entered;
+  insurance + truck rows marked REQUIRED (truck accepts explicit 0 = owned
+  outright, remembered via `truck_paid_off` setting); sanity gate on the miles
+  screen blocks combos yielding break-even outside $0.30–$8.00/mi with a message
+  naming the off number. Same gate on the Expenses tab save and the Settings
+  weekly-miles inline edit.
+- **Fuel tab premium first-run.** Empty boxes replaced by a value card (real
+  MPG / true fuel CPM / IFTA-by-state) + "Log Your First Fill-Up" CTA; populated
+  view gains an ENGINE STATS strip (avg MPG, best MPG, avg $/gal over last 10).
+- **Session persistence root cause fixed.** `supabase.auth.startAutoRefresh()/
+  stopAutoRefresh()` wired to AppState (official RN setup) — backgrounding past
+  token expiry no longer bounces the driver to Sign In. When sign-in does
+  appear, local data is kept and the walkthrough never replays (verified
+  existing RootNavigator behavior matches the chosen model).
+- **Check Load ↔ Add Load flow tightened.** Broker name/MC now carry through
+  "Accept & Log" (optional section auto-opens); Check Load defaults load type
+  from profile equipment like Add Load; hardcoded English route-error +
+  "(optional)" strings replaced with i18n; verdict boundary comparison aligned
+  (`>=` on both screens — closes the documented cosmetic edge case).
+- **"Other" expense label now obviously editable** (Add Load + Load Detail):
+  starts blank with "Name it — e.g. New tire" placeholder, pencil icon,
+  autofocus on the name for Other (amount for named categories); unnamed rows
+  fall back to the localized category name instead of the raw key.
+- **`is_manually_edited` finally set** on state_mileage when the driver touches
+  the rows (reset when a fresh auto-split repopulates) — closes another
+  documented limitation.
+- **i18n:** ~30 new keys added across en/es/pa/zh; ExpensesScreen hardcoded
+  miles hint moved to i18n; key parity verified 0/0 in all languages;
+  `tsc --noEmit` clean.
+- Removed now-dead keys `addLoad.missingStatus` / `addLoad.statusPlaceholder`.
+
 ### 2026-07-05 — Delete Account: CONFIRMED WORKING on real device
 User triggered the production build (`eas build` → `eas submit`), which shipped
 both the Delete Account fix and the new EAS Update/OTA runtime to TestFlight

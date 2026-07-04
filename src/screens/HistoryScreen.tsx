@@ -79,6 +79,7 @@ function fmtMoney(n: number): string {
 interface LoadRow {
   id: string; date: string; rawDate: string; from: string; to: string;
   miles: number; gross: number; net: number; rpm: number; positive: boolean;
+  status: string;
 }
 function toRow(l: HistoryLoad): LoadRow {
   return {
@@ -87,8 +88,13 @@ function toRow(l: HistoryLoad): LoadRow {
     to:   `${l.delivery_city}, ${l.delivery_state}`,
     miles: l.total_miles, gross: l.gross_pay,
     net: l.net_pay, rpm: l.net_rate_per_mile, positive: l.net_pay >= 0,
+    status: l.status,
   };
 }
+
+// Small status pill for loads that aren't finished yet — keeps the list honest
+// now that Upcoming/In Progress are first-class lifecycle stages.
+const STATUS_PILL_I18N: Record<string, string> = { upcoming: 'upcoming', in_progress: 'inProgress' };
 
 const EMPTY_TOTALS: HistoryTotals = { gross: 0, net: 0, miles: 0, rpm: 0, count: 0 };
 
@@ -509,9 +515,16 @@ export default function HistoryScreen() {
                             onPress={() => openLoad(load.id)}
                           >
                             <View style={styles.loadLeft}>
-                              <Text style={styles.loadRoute} numberOfLines={1}>
-                                {load.from.split(',')[0]} → {load.to.split(',')[0]}
-                              </Text>
+                              <View style={styles.loadRouteRow}>
+                                <Text style={styles.loadRoute} numberOfLines={1}>
+                                  {load.from.split(',')[0]} → {load.to.split(',')[0]}
+                                </Text>
+                                {!!STATUS_PILL_I18N[load.status] && (
+                                  <View style={styles.statusPill}>
+                                    <Text style={styles.statusPillText}>{t(`addLoad.statuses.${STATUS_PILL_I18N[load.status]}`)}</Text>
+                                  </View>
+                                )}
+                              </View>
                               <Text style={styles.loadMeta}>
                                 {load.date} · {Math.round(load.miles).toLocaleString()} mi · ${load.rpm.toFixed(2)}/mi
                               </Text>
@@ -569,9 +582,16 @@ export default function HistoryScreen() {
                         onPress={() => openLoad(item.load.id)}
                       >
                         <View style={styles.loadLeft}>
-                          <Text style={styles.loadRoute} numberOfLines={1}>
-                            {item.load.from.split(',')[0]} → {item.load.to.split(',')[0]}
-                          </Text>
+                          <View style={styles.loadRouteRow}>
+                            <Text style={styles.loadRoute} numberOfLines={1}>
+                              {item.load.from.split(',')[0]} → {item.load.to.split(',')[0]}
+                            </Text>
+                            {!!STATUS_PILL_I18N[item.load.status] && (
+                              <View style={styles.statusPill}>
+                                <Text style={styles.statusPillText}>{t(`addLoad.statuses.${STATUS_PILL_I18N[item.load.status]}`)}</Text>
+                              </View>
+                            )}
+                          </View>
                           <Text style={styles.loadMeta}>
                             {item.load.date} · {Math.round(item.load.miles).toLocaleString()} mi · ${item.load.rpm.toFixed(2)}/mi
                           </Text>
@@ -688,7 +708,13 @@ const makeStyles = (Colors: ThemeColors) => StyleSheet.create({
   loadsCard:   { backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border, borderRadius: Radius.md, overflow: 'hidden' },
   loadRow:     { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, paddingHorizontal: Spacing.cardPad },
   loadLeft:    { flex: 1, marginRight: 12 },
-  loadRoute:   { fontFamily: FontFamily.monoSemiBold, fontSize: FontSize.body, color: Colors.textPrimary, marginBottom: 3 },
+  loadRoute:   { fontFamily: FontFamily.monoSemiBold, fontSize: FontSize.body, color: Colors.textPrimary, marginBottom: 3, flexShrink: 1 },
+  loadRouteRow: { flexDirection: 'row', alignItems: 'center', gap: 7 },
+  statusPill: {
+    backgroundColor: Colors.secondaryDim, borderWidth: 1, borderColor: Colors.secondary + '45',
+    borderRadius: Radius.pill, paddingHorizontal: 7, paddingVertical: 2, marginBottom: 3,
+  },
+  statusPillText: { fontFamily: FontFamily.monoSemiBold, fontSize: 9, color: Colors.secondary, letterSpacing: 0.5 },
   loadMeta:    { fontFamily: FontFamily.regular, fontSize: FontSize.caption, color: Colors.textSecondary },
   loadRight:   { alignItems: 'flex-end' },
   loadNet:     { fontFamily: FontFamily.monoBold, fontSize: FontSize.body, marginBottom: 2 },

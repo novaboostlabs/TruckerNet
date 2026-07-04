@@ -8,7 +8,7 @@ import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, FontFamily, FontSize, Spacing, Radius, SectionLabel, ThemeColors, sectionLabel } from '../theme/theme';
 import { useTheme } from '../theme/ThemeContext';
-import { calcBreakEven, getPersonalLaneHistory, LaneHistory } from '../db/database';
+import { calcBreakEven, getPersonalLaneHistory, LaneHistory, getSetting } from '../db/database';
 import {
   getFairMarketRate, calcDeadheadCost, LoadType,
 } from '../utils/marketRates';
@@ -44,6 +44,24 @@ const LOAD_TYPES: LoadType[] = [
 ];
 
 type Verdict = 'green' | 'amber' | 'red';
+
+// Same profile-equipment mapping Add Load uses, so both entry points default to
+// the rig this driver actually runs.
+const PROFILE_EQUIP_TO_LOADTYPE: Record<string, LoadType> = {
+  dryVan:     'dry_van',
+  flatbed:    'flatbed',
+  reefer:     'reefer',
+  boxTruck:   'dry_van',
+  stepDeck:   'step_deck',
+  tanker:     'tanker',
+  intermodal: 'intermodal',
+  carHauler:  'auto_transport',
+};
+
+function defaultLoadTypeFromProfile(): LoadType {
+  const eq = getSetting('profile_equipment_type') ?? '';
+  return PROFILE_EQUIP_TO_LOADTYPE[eq] ?? 'dry_van';
+}
 
 function money(n: number, decimals = 0): string {
   return n.toLocaleString('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
@@ -92,7 +110,7 @@ export default function CheckLoadScreen({ onClose, onLogLoad }: Props) {
   const [deliverySel, setDeliverySel] = useState<AddressSuggestion | null>(null);
   const [routing, setRouting]     = useState(false);
   const [routeError, setRouteError] = useState(false);
-  const [loadType, setLoadType] = useState<LoadType>('dry_van');
+  const [loadType, setLoadType] = useState<LoadType>(() => defaultLoadTypeFromProfile());
   const [typeOpen, setTypeOpen] = useState(false);
   const [backhaul, setBackhaul] = useState(false);
 
@@ -164,8 +182,9 @@ export default function CheckLoadScreen({ onClose, onLogLoad }: Props) {
 
   let verdict: Verdict = 'red';
   if (hasBreakEven) {
+    // >= matches Add Load exactly, so both screens agree at the boundary.
     if (netRPM >= breakEvenRPM * 1.15)   verdict = 'green';
-    else if (netRPM > breakEvenRPM)      verdict = 'amber';
+    else if (netRPM >= breakEvenRPM)     verdict = 'amber';
     else                                 verdict = 'red';
   } else {
     verdict = netPay > 0 ? 'green' : 'red';
@@ -299,7 +318,7 @@ export default function CheckLoadScreen({ onClose, onLogLoad }: Props) {
           {routeError && (
             <View style={styles.routeErrorRow}>
               <Ionicons name="warning-outline" size={14} color={Colors.secondary} />
-              <Text style={styles.routeErrorText}>Couldn't auto-calculate — enter miles manually above.</Text>
+              <Text style={styles.routeErrorText}>{t('addLoad.routeError')}</Text>
             </View>
           )}
 
@@ -311,7 +330,7 @@ export default function CheckLoadScreen({ onClose, onLogLoad }: Props) {
           </TouchableOpacity>
 
           {/* Broker (optional) */}
-          <Text style={[styles.fieldLabel, { marginTop: 18 }]}>{t('addLoad.broker')} <Text style={styles.optional}>(optional)</Text></Text>
+          <Text style={[styles.fieldLabel, { marginTop: 18 }]}>{t('addLoad.broker')} <Text style={styles.optional}>({t('common.optional').toLowerCase()})</Text></Text>
           <TextInput
             style={styles.brokerInput}
             value={brokerName}
@@ -482,6 +501,8 @@ export default function CheckLoadScreen({ onClose, onLogLoad }: Props) {
                 deliverySel,
                 loadType,
                 backhaul,
+                brokerName,
+                brokerMC,
               });
               onClose();
             }}
