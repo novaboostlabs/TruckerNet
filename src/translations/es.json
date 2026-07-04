@@ -456,6 +456,11 @@
       "inactive": "Autoridad inactiva",
       "source": "FUENTE: FMCSA · CONSULTA EN VIVO"
     },
+    "brokerPick": {
+      "searching": "Buscando en FMCSA…",
+      "title": "¿Es este tu broker?",
+      "footer": "Elige la coincidencia exacta — nunca adivinamos, así la verificación es precisa."
+    },
     "brokerName": "Nombre del broker",
     "brokerMC": "Número MC",
     "netPayPreview": "Pago neto estimado",

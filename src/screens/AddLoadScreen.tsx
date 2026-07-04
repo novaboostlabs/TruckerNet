@@ -37,8 +37,12 @@ import FuelStopCard from '../components/FuelStopCard';
 import { maybeContributeLoadRate, getCommunityRate, CommunityRate, CommunityTier } from '../lib/rateReports';
 import { getBrokerScorecard, BrokerScorecard } from '../lib/brokerScorecard';
 import BrokerScorecardCard from '../components/BrokerScorecardCard';
-import { lookupBrokerAuthority, isBrokerCheckConfigured, BrokerCheckResult } from '../lib/brokerCheck';
+import {
+  lookupBrokerAuthority, isBrokerCheckConfigured, searchBrokersByName,
+  candidateToResult, getMcForDot, BrokerCheckResult, BrokerCandidate,
+} from '../lib/brokerCheck';
 import BrokerCheckCard from '../components/BrokerCheckCard';
+import BrokerCandidatePicker from '../components/BrokerCandidatePicker';
 import { scheduleLoadReminder, cancelLoadReminder, checkAndNotifyGoalMilestone, checkAndNotifyStreak, scheduleIdleNudge } from '../lib/notifications';
 import { capture } from '../lib/analytics';
 
@@ -215,9 +219,16 @@ export default function AddLoadScreen({ onClose, onSaved, onFirstLoad, prefill }
 
   // ── Broker Check (FMCSA authority verification) ──
   const [brokerCheck, setBrokerCheck] = useState<BrokerCheckResult | null>(null);
+  // Name-search disambiguation (only when no MC has been entered).
+  const [brokerCandidates, setBrokerCandidates] = useState<BrokerCandidate[]>([]);
+  const [brokerSearching,  setBrokerSearching]  = useState(false);
+  // When a pick auto-fills the MC, skip the one MC lookup it would trigger — the
+  // verdict is already set from the picked record, so re-fetching just flickers.
+  const skipMcLookup = useRef(false);
 
   useEffect(() => {
     const mc = brokerMC.trim();
+    if (skipMcLookup.current) { skipMcLookup.current = false; return; }
     setBrokerCheck(null);
     if (!isBrokerCheckConfigured() || mc.replace(/\D/g, '').length < 4) return;
     const ctrl  = new AbortController();
@@ -227,6 +238,33 @@ export default function AddLoadScreen({ onClose, onSaved, onFirstLoad, prefill }
     }, 700);
     return () => { clearTimeout(timer); ctrl.abort(); };
   }, [brokerMC]);
+
+  // Name search → candidate picker. Runs only when a name is typed and no MC is
+  // present yet (an MC drives exact verification directly). We never auto-verify
+  // a name — the driver confirms which entity is theirs.
+  useEffect(() => {
+    const name  = brokerName.trim();
+    const hasMC = brokerMC.replace(/\D/g, '').length >= 4;
+    setBrokerCandidates([]);
+    if (!isBrokerCheckConfigured() || hasMC || name.length < 3) { setBrokerSearching(false); return; }
+    const ctrl  = new AbortController();
+    setBrokerSearching(true);
+    const timer = setTimeout(async () => {
+      try { setBrokerCandidates(await searchBrokersByName(name, ctrl.signal)); }
+      catch { setBrokerCandidates([]); }
+      finally { setBrokerSearching(false); }
+    }, 700);
+    return () => { clearTimeout(timer); ctrl.abort(); };
+  }, [brokerName, brokerMC]);
+
+  async function pickBroker(c: BrokerCandidate) {
+    setBrokerCandidates([]);
+    setBrokerCheck(candidateToResult(c)); // immediate verdict from the FMCSA record
+    // Best-effort: fill the MC field so the saved load keeps a real MC number
+    // (without re-triggering the lookup — the verdict already stands).
+    const mc = await getMcForDot(c.dotNumber);
+    if (mc) { skipMcLookup.current = true; setBrokerMC(mc); }
+  }
 
   useEffect(() => {
     const name = brokerName.trim();
@@ -1100,7 +1138,16 @@ export default function AddLoadScreen({ onClose, onSaved, onFirstLoad, prefill }
                 placeholderTextColor={Colors.textTertiary}
               />
 
-              {/* Broker Check — FMCSA authority verification from the MC number */}
+              {/* Name search → "is this your broker?" picker (only before a verdict) */}
+              {!brokerCheck && (brokerSearching || brokerCandidates.length > 0) && (
+                <BrokerCandidatePicker
+                  candidates={brokerCandidates}
+                  loading={brokerSearching}
+                  onPick={pickBroker}
+                />
+              )}
+
+              {/* Broker Check — FMCSA authority verification (MC entered or picked) */}
               {brokerCheck && <BrokerCheckCard result={brokerCheck} />}
 
               {/* Broker scorecard — appears when broker info is entered */}

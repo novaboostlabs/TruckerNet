@@ -40,6 +40,41 @@ export interface BrokerCheckResult {
   oosDate:    string | null;
 }
 
+/** One FMCSA match from a name search — shown in the "is this your broker?" picker. */
+export interface BrokerCandidate {
+  dotNumber:        string;
+  legalName:        string;
+  dbaName:          string | null;
+  city:             string | null;
+  state:            string | null;
+  // Authority fields, carried so we can show the verdict without a second call.
+  statusCode:       string | null;
+  allowedToOperate: string | null;
+  oosDate:          string | null;
+}
+
+// Build a verdict from an FMCSA carrier record (shared by MC lookup + name search).
+function verdictFromRecord(record: any): BrokerCheckResult {
+  const statusCode       = record.statusCode ?? null;
+  const allowedToOperate = record.allowedToOperate ?? null;
+  const oosDate          = record.oosDate ?? null;
+  const healthy = allowedToOperate !== 'N' && statusCode !== 'I' && !oosDate;
+  return {
+    verdict:   healthy ? 'verified' : 'caution',
+    legalName: record.legalName ?? null,
+    dbaName:   record.dbaName ?? null,
+    dotNumber: record.dotNumber != null ? String(record.dotNumber) : null,
+    statusCode,
+    allowedToOperate,
+    oosDate,
+  };
+}
+
+/** Turn a picked candidate into the same verdict shape the MC lookup produces. */
+export function candidateToResult(c: BrokerCandidate): BrokerCheckResult {
+  return verdictFromRecord(c);
+}
+
 /**
  * Look up an MC (docket) number against FMCSA. Returns null when the feature
  * is unconfigured, the MC is malformed, or the request errored (never cast
@@ -74,25 +109,75 @@ export async function lookupBrokerAuthority(
       };
     }
 
-    const statusCode       = record.statusCode ?? null;
-    const allowedToOperate = record.allowedToOperate ?? null;
-    const oosDate          = record.oosDate ?? null;
-
-    const healthy =
-      allowedToOperate !== 'N' &&
-      statusCode !== 'I' &&
-      !oosDate;
-
-    return {
-      verdict:   healthy ? 'verified' : 'caution',
-      legalName: record.legalName ?? null,
-      dbaName:   record.dbaName ?? null,
-      dotNumber: record.dotNumber != null ? String(record.dotNumber) : null,
-      statusCode,
-      allowedToOperate,
-      oosDate,
-    };
+    return verdictFromRecord(record);
   } catch {
     return null; // offline / timeout — show nothing
+  }
+}
+
+/**
+ * Search FMCSA by broker/carrier NAME. Returns up to 8 candidates for the
+ * driver to disambiguate — we never auto-pick a match, because a wrong "verified"
+ * is worse than no answer. Fail-safe: returns [] on any error / no config.
+ */
+export async function searchBrokersByName(
+  name: string,
+  signal?: AbortSignal
+): Promise<BrokerCandidate[]> {
+  if (!isBrokerCheckConfigured()) return [];
+  const q = name.trim();
+  if (q.length < 3) return [];
+
+  try {
+    const res = await fetch(
+      `${BASE}/carriers/name/${encodeURIComponent(q)}?webKey=${encodeURIComponent(WEBKEY)}`,
+      { signal }
+    );
+    if (!res.ok) return [];
+    const data = await res.json();
+
+    const list = Array.isArray(data?.content) ? data.content : [];
+    return list
+      .map((item: any) => item?.carrier ?? item)
+      .filter((c: any) => c && c.dotNumber != null)
+      .slice(0, 8)
+      .map((c: any): BrokerCandidate => ({
+        dotNumber:        String(c.dotNumber),
+        legalName:        c.legalName ?? c.dbaName ?? '',
+        dbaName:          c.dbaName ?? null,
+        city:             c.phyCity ?? null,
+        state:            c.phyState ?? null,
+        statusCode:       c.statusCode ?? null,
+        allowedToOperate: c.allowedToOperate ?? null,
+        oosDate:          c.oosDate ?? null,
+      }))
+      .filter((c: BrokerCandidate) => c.legalName.length > 0);
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Best-effort: fetch the MC/docket number for a DOT number, so picking a broker
+ * by name can auto-fill the MC field (and the saved load keeps a real MC).
+ * Returns null on any error — the verdict already stands without it.
+ */
+export async function getMcForDot(
+  dotNumber: string,
+  signal?: AbortSignal
+): Promise<string | null> {
+  if (!isBrokerCheckConfigured() || !dotNumber) return null;
+  try {
+    const res = await fetch(
+      `${BASE}/carriers/${encodeURIComponent(dotNumber)}/docket-numbers?webKey=${encodeURIComponent(WEBKEY)}`,
+      { signal }
+    );
+    if (!res.ok) return null;
+    const data = await res.json();
+    const list = Array.isArray(data?.content) ? data.content : [];
+    const num  = list[0]?.docketNumber ?? list[0]?.docket_number ?? null;
+    return num != null ? String(num) : null;
+  } catch {
+    return null;
   }
 }

@@ -453,6 +453,11 @@
       "inactive": "资质未激活",
       "source": "来源：FMCSA · 实时查询"
     },
+    "brokerPick": {
+      "searching": "正在查询 FMCSA…",
+      "title": "这是您的经纪人吗？",
+      "footer": "请选择完全匹配项 — 我们从不猜测，以确保核实准确。"
+    },
     "brokerName": "经纪人名称",
     "brokerMC": "MC号码",
     "weight": "重量（磅）",

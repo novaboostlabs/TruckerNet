@@ -458,6 +458,11 @@
       "inactive": "Authority inactive",
       "source": "SOURCE: FMCSA · LIVE LOOKUP"
     },
+    "brokerPick": {
+      "searching": "Searching FMCSA…",
+      "title": "Is this your broker?",
+      "footer": "Pick the exact match — we never guess, so verification stays accurate."
+    },
     "notes": "NOTES",
     "netPayPreview": "Estimated Net Pay",
     "saveLoad": "Save Load",
