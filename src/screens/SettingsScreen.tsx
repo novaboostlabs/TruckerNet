@@ -110,7 +110,7 @@ interface Props {
 
 export default function SettingsScreen({ onClose, onNavigateToExpenses }: Props) {
   const { t, i18n } = useTranslation();
-  const { user, signOut } = useAuth();
+  const { user, signOut, deleteAccount } = useAuth();
   const { isPro, isMock, setMockPro, restore } = useSubscription();
   const { present: presentPaywall } = usePaywall();
   const { replayOnboarding, replayWalkthrough } = useContext(AppFlowContext);
@@ -120,6 +120,7 @@ export default function SettingsScreen({ onClose, onNavigateToExpenses }: Props)
   // ── Cloud-backup status (so the driver can SEE their data is safe) ──
   const [syncStatus, setSyncStatus] = useState(() => getSyncStatus());
   const [syncing, setSyncing]       = useState(false);
+  const [deletingAccount, setDeletingAccount] = useState(false);
 
   const handleSyncNow = useCallback(async () => {
     if (!user || syncing) return;
@@ -269,7 +270,8 @@ export default function SettingsScreen({ onClose, onNavigateToExpenses }: Props)
     );
   }
 
-  // Delete account
+  // Delete account — permanently deletes the Supabase auth user + all cloud
+  // data via the `delete-account` Edge Function (Apple guideline 5.1.1(v)).
   function handleDeleteAccount() {
     Alert.alert(
       t('settings.deleteAccount'),
@@ -279,7 +281,16 @@ export default function SettingsScreen({ onClose, onNavigateToExpenses }: Props)
         {
           text: t('settings.deleteAccountAction'),
           style: 'destructive',
-          onPress: () => { onClose(); signOut(); },
+          onPress: async () => {
+            setDeletingAccount(true);
+            const { error } = await deleteAccount();
+            setDeletingAccount(false);
+            if (error) {
+              Alert.alert(t('settings.deleteAccountFailedTitle'), t('settings.deleteAccountFailedBody'));
+              return;
+            }
+            onClose();
+          },
         },
       ]
     );
@@ -816,8 +827,17 @@ export default function SettingsScreen({ onClose, onNavigateToExpenses }: Props)
 
           {/* ── Delete Account ── */}
           {!isGuest && (
-            <TouchableOpacity style={styles.deleteBtn} onPress={handleDeleteAccount} activeOpacity={0.7}>
-              <Text style={styles.deleteText}>{t('settings.deleteAccount')}</Text>
+            <TouchableOpacity
+              style={styles.deleteBtn}
+              onPress={handleDeleteAccount}
+              activeOpacity={0.7}
+              disabled={deletingAccount}
+            >
+              {deletingAccount ? (
+                <ActivityIndicator size="small" color={Colors.textTertiary} />
+              ) : (
+                <Text style={styles.deleteText}>{t('settings.deleteAccount')}</Text>
+              )}
             </TouchableOpacity>
           )}
 

@@ -16,7 +16,7 @@
 > branch and push `main`** so the user's build always reflects the latest.
 > (Decided 2026-06-19 after changes weren't appearing because `main` was stale.)
 
-_Last updated: 2026-07-04 — **App is feature-complete and code-complete for v1.0.0 launch.** Everything remaining is App Store Connect setup, one production build, on-device QA, and submission — see §5.8 "LAUNCH STATUS" immediately below for the exact remaining checklist. This session: pre-launch review + fixes (sync data-loss bugs, IFTA/date correctness, RevenueCat hardening), 3 wedge features shipped (fuel optimizer, share card; Broker Check built-then-shelved), Dashboard load-tap + swipe-to-edit/delete, Replay Setup fully fixed (2 rounds — signup dead-end, then a settings-clobber sync bug), Fuel tab setup-estimate, IFTA tab always-gated teaser, `supportsTablet: false`, and full App Store listing copy written (`APP_STORE_LISTING.md`). See §6 Work Log for full details, newest first._
+_Last updated: 2026-07-05 — App is feature-complete for v1.0.0, but **Delete Account has an open bug: the first test showed data correctly wiped but the auth user still allows email+password sign-in afterward** — the account itself isn't actually being removed. Hardened the Edge Function with a post-delete verification + logging to pinpoint it on retest; also added subscription-not-cancelled disclosure to the delete confirmation copy (expected RevenueCat/StoreKit behavior, was undisclosed). **USER: redeploy `delete-account` and retest before doing anything else** — see §5.8 item 0. Purchase → Pro unlock is otherwise CONFIRMED working on TestFlight. See §6 Work Log for full details, newest first._
 
 > **Backend sync state:** Local-first, SQLite is source of truth. As of
 > 2026-07-01/02: pull now MERGES instead of replacing (local wins on conflict,
@@ -971,19 +971,48 @@ Details for each are in the lettered sections below.
   the sandbox env automatically with the real Apple ID — no sandbox account
   needed; that earlier confusion is resolved).
 
+### ✅ Delete Account — built 2026-07-05 (code done, USER must deploy)
+Real in-app account deletion, closing the 5.1.1(v) gap flagged above.
+- New `supabase/functions/delete-account/index.ts`: verifies the caller's JWT,
+  then (service-role, bypassing RLS) deletes `state_mileage` → `load_expenses`
+  → `loads` → `fuel_entries` → `user_expenses` → `general_expenses` → `profiles`
+  for that user (child-before-parent order so it's correct regardless of
+  whatever cascade behavior the base schema actually has), removes their
+  `bol-photos/{uid}/` storage objects, then calls `admin.auth.admin.deleteUser`.
+  Row deletes are best-effort/logged (one missing table can't block deletion);
+  the final `deleteUser` call is the one step that must succeed — if it fails
+  the function returns an error and nothing is treated as deleted.
+  `rate_reports`/`broker_reports` are untouched by design — fully anonymous,
+  no `user_id` column to attribute back to the account.
+- `AuthContext.tsx`: new `deleteAccount()` — calls the Edge Function via
+  `supabase.functions.invoke('delete-account')`; only clears local data +
+  signs out on confirmed server success (a failed call leaves the local
+  session untouched so the user can retry).
+- `SettingsScreen.tsx`: `handleDeleteAccount` now awaits the real deletion, shows
+  a spinner on the button while in flight, and surfaces a
+  "Couldn't Delete Account" alert on failure instead of silently signing out.
+  Confirm-dialog copy rewritten (was "email us to delete your account" — no
+  longer accurate now that deletion is real and immediate) across all 4
+  languages (en/es/pa/zh), full key parity verified.
+- `tsc --noEmit` clean.
+- **USER must deploy:** `supabase functions deploy delete-account` (no new
+  secrets needed — it uses the `SUPABASE_URL`/`SUPABASE_ANON_KEY`/
+  `SUPABASE_SERVICE_ROLE_KEY` every Edge Function gets automatically). Client
+  change is pure JS — ships via EAS Update once that's set up, or the next
+  build either way.
+
 ### 🔴 Still open — in order (as of 2026-07-05)
 
-0. **[BLOCKER — CODE — likely App Store rejection] "Delete Account" doesn't
-   actually delete the account.** `SettingsScreen.handleDeleteAccount` just calls
-   `onClose(); signOut();` — it does NOT delete the Supabase auth user or their
-   cloud data. Apple guideline 5.1.1(v) requires real in-app account+data
-   deletion, and reviewers test it (delete → sign back in → data must be gone).
-   FIX: a Supabase Edge Function `delete-account` (verifies JWT → deletes the
-   user's rows across all tables → deletes the auth user via admin API), called
-   from the app in place of the bare signOut. Client change is pure JS (can ship
-   via EAS Update or the next build); function deploys via
-   `supabase functions deploy delete-account`. **NOT YET BUILT — offered to the
-   user 2026-07-05.**
+0. **[BLOCKER — re-test needed] Delete Account: auth user survives deletion.**
+   First deploy wiped data correctly but the user could still sign back in with
+   email+password afterward (see Work Log above) — the auth row isn't actually
+   being removed. Function hardened with a post-delete verification + logging
+   2026-07-05, not yet re-tested. **USER: redeploy**
+   (`supabase functions deploy delete-account`), retry Delete Account on
+   TestFlight, and check Supabase Dashboard → Edge Functions →
+   delete-account → Logs (should show `deleting user …` / `confirmed user …
+   removed` or a `delete_incomplete` error) + Authentication → Users (email row
+   should be gone). Report back what the logs show if it still fails.
 1. **[USER — in progress] Screenshots.** Capturing via AppLaunchpad /
    appscreens.com from the `APP_STORE_LISTING.md` shot-list (6 screens, seeded
    Pro account). Then upload the 6.7" iPhone set to App Store Connect.
@@ -993,12 +1022,13 @@ Details for each are in the lettered sections below.
    sold); confirm age rating (4+).
 3. **[USER] Finish on-device TestFlight QA** — purchase is verified; still run
    the rest of `APP_STORE_LISTING.md` → "TestFlight QA checklist": Restore
-   Purchases, Google + Apple sign-in, and **Replay Setup persists after a full
-   app restart** (reverted twice this session — verify explicitly).
-4. **[USER] (only if code changed) Rebuild + resubmit to TestFlight:**
+   Purchases, Google + Apple sign-in, Delete Account (new), and **Replay Setup
+   persists after a full app restart** (reverted twice this session — verify
+   explicitly).
+4. **[USER] Rebuild + resubmit to TestFlight:**
    `eas build --platform ios --profile production` → `eas submit --platform ios
-   --latest`. Needed if the Delete Account fix ships as a build rather than an
-   EAS Update. Export Compliance = "No".
+   --latest`. Needed to ship the Delete Account client change unless EAS Update
+   is set up first. Export Compliance = "No".
 5. **[USER] Submit for review** with a seeded demo login in the App Review notes
    so the reviewer never sees empty states. Budget 1–3 weeks; one rejection
    round is normal.
@@ -1030,6 +1060,78 @@ JS/copy/UI changes ship via `eas update` — zero builds. Native changes
 ---
 
 ## 6. Work Log (newest first)
+
+### 2026-07-05 — Delete Account: user-reported bug (auth user survives) + subscription disclosure
+User deployed the Edge Function and tested: local/cloud DATA was correctly wiped,
+but (a) they could still sign back in with the same email+password afterward,
+and (b) the RevenueCat subscription was still active on re-login.
+
+**(b) is expected, not a bug — clarified, not fixed:** `SubscriptionContext.tsx`
+never calls `Purchases.logIn`/`logOut` tied to the Supabase session, so the RC
+entitlement is bound to the DEVICE/Apple-ID's StoreKit receipt, not the Supabase
+account — and Apple provides no API for an app to cancel a subscription on the
+user's behalf regardless. A "Manage Subscription" deep-link to
+`apps.apple.com/account/subscriptions` already existed in Settings
+(`handleManageSub`); the gap was disclosure. Added a note to the delete
+confirmation dialog (all 4 languages) explaining deletion does NOT cancel an
+active subscription and pointing at Manage Subscription / App Store settings.
+
+**(a) is a real bug — confirmed by the user's answer (email+password sign-in
+succeeded, not OAuth reprovisioning).** Since `signInWithPassword` should hard-fail
+once `auth.admin.deleteUser` truly removes the row, the auth user is evidently
+still resolvable. Root cause not yet confirmed (need the Edge Function logs +
+a Users-table check — see below). Hardened `delete-account/index.ts` as a
+diagnostic + safety net: logs the uid/email right before calling `deleteUser`,
+and after a no-error `deleteUser` response now calls
+`admin.auth.admin.getUserById(uid)` to CONFIRM the user is actually gone before
+returning `{ok:true}` — if the user still resolves, returns `{error:
+'delete_incomplete'}` instead of a false success. This closes the "client told
+the driver their account was deleted when it wasn't" failure mode regardless of
+root cause, and the added logging will show exactly where it fails on the next
+attempt.
+- Confirmed the deployed function target isn't a project-mismatch: repo's
+  `supabase/.temp/linked-project.json` ref (`yhgluoeivobniifgbazy`) matches
+  `EXPO_PUBLIC_SUPABASE_URL` in `.env`.
+- `tsc --noEmit` clean; all 4 translation files re-verified for JSON validity
+  and key parity (0 missing/extra) after the new subscription-disclosure copy.
+- **USER must redeploy** `supabase functions deploy delete-account`, retest
+  Delete Account, and this time check **Supabase Dashboard → Edge Functions →
+  delete-account → Logs** for the new log lines, plus **Authentication → Users**
+  to see whether the email row is actually gone. That will pinpoint whether
+  `deleteUser` itself is erroring (would now show in logs + the app's failure
+  alert) or something stranger is happening.
+
+### 2026-07-05 — Delete Account: real in-app deletion (Apple 5.1.1(v) fix)
+Flagged in the prior session's launch-status update: Settings → Delete Account
+only signed the user out — it never deleted the Supabase auth user or their
+cloud data, which is a likely App Store rejection under guideline 5.1.1(v)
+(reviewers specifically test delete → sign back in → data must be gone). Built
+the real fix:
+- New `supabase/functions/delete-account/index.ts` — verifies the caller's JWT,
+  then with the service-role key (bypasses RLS) deletes, child-before-parent:
+  `state_mileage` → `load_expenses` → `loads` → `fuel_entries` →
+  `user_expenses` → `general_expenses` → `profiles`, removes their
+  `bol-photos/{uid}/` storage objects, then calls `admin.auth.admin.deleteUser`.
+  Row deletes are best-effort/logged so one missing table can't block deletion;
+  `deleteUser` is the one step that must succeed for the response to say
+  `{ ok: true }`. `rate_reports`/`broker_reports` intentionally untouched — both
+  are fully anonymous with no `user_id` column, nothing to attribute back.
+  Needs no new secret — every Edge Function already gets `SUPABASE_URL` /
+  `SUPABASE_ANON_KEY` / `SUPABASE_SERVICE_ROLE_KEY` automatically.
+- `AuthContext.tsx`: new `deleteAccount()` calling
+  `supabase.functions.invoke('delete-account')`. Only clears local data /
+  signs out on confirmed server success — a failed call leaves the session
+  alone so the user can retry, instead of the app falsely claiming deletion.
+- `SettingsScreen.tsx`: `handleDeleteAccount` awaits the real call, shows a
+  spinner on the button while in flight, and surfaces a "Couldn't Delete
+  Account" alert on failure.
+- Confirm-dialog copy rewritten across en/es/pa/zh (was "email us to delete
+  your account" — no longer true now that deletion is real and immediate);
+  key parity re-verified (0 missing/extra in all 4 languages). `tsc --noEmit`
+  clean.
+- **USER must deploy:** `supabase functions deploy delete-account`, then test
+  once on TestFlight (delete → confirm sign-in fails / data gone). Client
+  change is pure JS — ships via EAS Update once set up, or the next build.
 
 ### 2026-07-04 — App Store listing copy finalized + iPhone-only + launch status handoff
 - **`app.json`: `supportsTablet` → `false`.** Avoids a separate required iPad

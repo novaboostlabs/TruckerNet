@@ -11,6 +11,7 @@ interface AuthContextValue {
   signIn: (email: string, password: string) => Promise<{ error: string | null }>;
   signUp: (email: string, password: string) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
+  deleteAccount: () => Promise<{ error: string | null }>;
 }
 
 const AuthContext = createContext<AuthContextValue>({} as AuthContextValue);
@@ -65,8 +66,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await supabase.auth.signOut();
   }
 
+  // Permanently deletes the account + all cloud data via the `delete-account`
+  // Edge Function (Apple guideline 5.1.1(v) requires real in-app deletion, not
+  // "email us"). Only clears local data / signs out on CONFIRMED server-side
+  // success — a failed call must never make the app claim the account is gone.
+  async function deleteAccount() {
+    try {
+      const { error } = await supabase.functions.invoke('delete-account');
+      if (error) return { error: error.message ?? 'delete_failed' };
+    } catch (e) {
+      return { error: e instanceof Error ? e.message : 'delete_failed' };
+    }
+    await signOut();
+    return { error: null };
+  }
+
   return (
-    <AuthContext.Provider value={{ session, user, loading, signIn, signUp, signOut }}>
+    <AuthContext.Provider value={{ session, user, loading, signIn, signUp, signOut, deleteAccount }}>
       {children}
     </AuthContext.Provider>
   );
