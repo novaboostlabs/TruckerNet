@@ -585,6 +585,7 @@
     "exportFailedMsg": "无法打开分享菜单。",
     "lockedTitle": "解锁完整 IFTA 报告",
     "lockedSub": "查看全部 {{count}} 个州 + CSV 导出，随时交给会计",
+    "lockedSubSample": "自动记录各州里程 + CSV 导出，随时交给会计",
     "lockedCta": "升级到 Pro"
   },
   "expenses": {

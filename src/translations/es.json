@@ -556,6 +556,7 @@
     "exportFailedMsg": "No se pudo abrir el menú de compartir.",
     "lockedTitle": "Desbloquea el reporte IFTA completo",
     "lockedSub": "Ve los {{count}} estados + exportación CSV, listo para tu contador",
+    "lockedSubSample": "Millas por estado automáticas + exportación CSV, listo para tu contador",
     "lockedCta": "Hazte Pro"
   },
   "history": {

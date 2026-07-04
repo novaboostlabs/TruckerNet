@@ -21,6 +21,17 @@ import AccentRule from '../components/AccentRule';
 // the per-state breakdown (what they actually file) is blurred behind the gate.
 const FREE_VISIBLE_ROWS = 2;
 
+// Placeholder breakdown shown (blurred, behind the gate) to a FREE user who has
+// no IFTA data yet — so the tab always advertises itself as a premium feature,
+// the same way the dashboard Analytics section always shows its locked teaser.
+const SAMPLE_ROWS: IFTARow[] = [
+  { state: 'TX', miles: 1840, gallons: 283.1 },
+  { state: 'TN', miles: 620,  gallons: 95.4 },
+  { state: 'MO', miles: 560,  gallons: 86.2 },
+  { state: 'OK', miles: 410,  gallons: 63.1 },
+  { state: 'IL', miles: 380,  gallons: 58.5 },
+];
+
 type Quarter = 1 | 2 | 3 | 4;
 const QUARTER_LABELS = ['Q1', 'Q2', 'Q3', 'Q4'] as const;
 
@@ -187,15 +198,22 @@ export default function IFTAScreen() {
     capture('ifta_viewed', { year, quarter, is_pro: isPro });
   }, [year, quarter, loadData, isPro]));
 
-  const totalMiles   = rows.reduce((s, r) => s + r.miles,   0);
-  const totalGallons = rows.reduce((s, r) => s + r.gallons, 0);
   const hasData      = rows.length > 0;
 
-  // Free tier: the IFTA breakdown is a teaser. First rows show; the rest +
-  // totals + export are Pro.
-  const gated        = !isPro && hasData;
-  const visibleRows  = gated ? rows.slice(0, FREE_VISIBLE_ROWS) : rows;
-  const hiddenRows   = gated ? rows.slice(FREE_VISIBLE_ROWS)    : [];
+  // Free users ALWAYS see IFTA as a locked premium feature (like the dashboard
+  // Analytics gate): tease their real states when they have data, or a sample
+  // breakdown when they don't — so the tab never looks empty/free.
+  const usingSample  = !isPro && !hasData;
+  const displayRows  = usingSample ? SAMPLE_ROWS : rows;
+
+  const totalMiles   = displayRows.reduce((s, r) => s + r.miles,   0);
+  const totalGallons = displayRows.reduce((s, r) => s + r.gallons, 0);
+
+  // Free tier: the breakdown is a teaser. First rows show; the rest + totals +
+  // export sit behind the upgrade gate.
+  const gated        = !isPro && displayRows.length > 0;
+  const visibleRows  = gated ? displayRows.slice(0, FREE_VISIBLE_ROWS) : displayRows;
+  const hiddenRows   = gated ? displayRows.slice(FREE_VISIBLE_ROWS)    : [];
 
   async function exportCSV() {
     const csv = generateCSV(rows, year, quarter);
@@ -315,7 +333,17 @@ export default function IFTAScreen() {
           </View>
         </View>
 
-        {hasData ? (
+        {(isPro && !hasData) ? (
+          <View style={styles.emptyCard}>
+            <View style={styles.emptyIcon}>
+              <Ionicons name="document-text-outline" size={26} color={Colors.textSecondary} />
+            </View>
+            <Text style={styles.emptyTitle}>{t('ifta.noData', { quarter: `Q${quarter}`, year })}</Text>
+            <Text style={styles.emptySub}>
+              {t('ifta.noDataHint')}
+            </Text>
+          </View>
+        ) : (
           <>
             {/* Summary stats */}
             <View style={styles.summaryRow}>
@@ -392,7 +420,11 @@ export default function IFTAScreen() {
                       <Ionicons name="lock-closed" size={18} color={Colors.secondary} />
                     </View>
                     <Text style={styles.gateTitle}>{t('ifta.lockedTitle')}</Text>
-                    <Text style={styles.gateSub}>{t('ifta.lockedSub', { count: rows.length })}</Text>
+                    <Text style={styles.gateSub}>
+                      {usingSample
+                        ? t('ifta.lockedSubSample')
+                        : t('ifta.lockedSub', { count: displayRows.length })}
+                    </Text>
                     <View style={styles.gateCta}>
                       <Text style={styles.gateCtaText}>{t('ifta.lockedCta')}</Text>
                     </View>
@@ -411,16 +443,6 @@ export default function IFTAScreen() {
               )}
             </View>
           </>
-        ) : (
-          <View style={styles.emptyCard}>
-            <View style={styles.emptyIcon}>
-              <Ionicons name="document-text-outline" size={26} color={Colors.textSecondary} />
-            </View>
-            <Text style={styles.emptyTitle}>{t('ifta.noData', { quarter: `Q${quarter}`, year })}</Text>
-            <Text style={styles.emptySub}>
-              {t('ifta.noDataHint')}
-            </Text>
-          </View>
         )}
 
         <Text style={styles.disclaimer}>

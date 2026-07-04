@@ -585,6 +585,7 @@
     "exportFailedMsg": "ਸਾਂਝਾ ਕਰਨ ਵਾਲੀ ਸ਼ੀਟ ਨਹੀਂ ਖੁੱਲ੍ਹ ਸਕੀ।",
     "lockedTitle": "ਪੂਰੀ IFTA ਰਿਪੋਰਟ ਅਨਲਾਕ ਕਰੋ",
     "lockedSub": "ਸਾਰੇ {{count}} ਰਾਜ + CSV ਐਕਸਪੋਰਟ ਦੇਖੋ, ਅਕਾਊਂਟੈਂਟ ਲਈ ਤਿਆਰ",
+    "lockedSubSample": "ਹਰ ਰਾਜ ਦੇ ਆਟੋਮੈਟਿਕ ਮੀਲ + CSV ਐਕਸਪੋਰਟ, ਅਕਾਊਂਟੈਂਟ ਲਈ ਤਿਆਰ",
     "lockedCta": "Pro 'ਤੇ ਅੱਪਗ੍ਰੇਡ ਕਰੋ"
   },
   "expenses": {

@@ -915,6 +915,16 @@ Details for each are in the lettered sections below.
 
 ## 6. Work Log (newest first)
 
+### 2026-07-04 — IFTA tab always shows the locked premium teaser (like Analytics)
+Free users previously saw a plain empty state on IFTA when they had no data —
+so the tab didn't advertise itself as a Pro feature the way the dashboard
+Analytics gate always does. Now free users ALWAYS see IFTA as a locked/blurred
+premium feature: their real states teased when they have data, or a SAMPLE_ROWS
+breakdown (TX/TN/MO/OK/IL) blurred behind the lock overlay when they don't. The
+plain empty state now only shows for PRO users with no data ("log loads to see
+IFTA"). Sample teaser uses a generic "lockedSubSample" sub so it never claims the
+user has real states. Export stays gated for all free users. i18n en/es/pa/zh.
+
 ### 2026-07-04 — Broker Check shelved for v1 (name search built + verified first)
 Built FMCSA name search (type a broker name → "is this your broker?" picker →
 exact verification on the picked entity) and verified the whole feature against

@@ -556,6 +556,7 @@
     "exportFailedMsg": "Could not open the share sheet.",
     "lockedTitle": "Unlock full IFTA report",
     "lockedSub": "See all {{count}} states + CSV export, ready for your accountant",
+    "lockedSubSample": "Automatic per-state miles + CSV export, ready for your accountant",
     "lockedCta": "Upgrade to Pro"
   },
   "expenses": {
