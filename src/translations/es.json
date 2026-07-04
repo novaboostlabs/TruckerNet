@@ -210,7 +210,12 @@
       "emptyHint": "Toca \"+ Agregar Gasto\" para comenzar",
       "totalMonthly": "GASTOS MENSUALES TOTALES",
       "perMo": "/mes",
-      "reviewTitle": "Revisa tus gastos"
+      "reviewTitle": "Revisa tus gastos",
+      "requiredTitle": "Información requerida",
+      "insuranceRequired": "Ingresa el costo de tu seguro — tu tarifa de equilibrio no puede ser real sin él.",
+      "truckRequired": "Ingresa el pago de tu camión — o 0 si es totalmente tuyo.",
+      "requiredBadge": "REQUERIDO",
+      "truckOwnedHint": "¿Es totalmente tuyo? Ingresa 0."
     },
     "miles": {
       "title": "¿Cuántas millas por semana?",
@@ -221,7 +226,10 @@
       "perWeek": "mi / semana",
       "estMonthly": "MILLAS MENSUALES ESTIMADAS",
       "perMo": " mi / mes",
-      "reviewTitle": "Revisa tus millas semanales"
+      "reviewTitle": "Revisa tus millas semanales",
+      "sanityTitle": "Estos números no cuadran",
+      "sanityHigh": "Con ${{costs}}/mes en costos sobre {{miles}} millas/mes, necesitarías ${{be}}/mi solo para el equilibrio — muy por encima de las tarifas reales. Revisa tus millas semanales, combustible y gastos.",
+      "sanityLow": "Tu punto de equilibrio sale en ${{be}}/mi — muy por debajo de lo que realmente cuesta operar un camión. Revisa tus entradas de combustible y gastos."
     },
     "result": {
       "title": "Tu tasa de equilibrio",
@@ -296,7 +304,9 @@
     "milesSource_loads_90d": "de tus cargas",
     "milesSource_loads_month": "de este mes",
     "milesSource_estimate": "est.",
-    "setGoalNudge": "Fija una meta de ingresos"
+    "setGoalNudge": "Fija una meta de ingresos",
+    "upcoming": "PRÓXIMA",
+    "startLoad": "Iniciar Carga"
   },
   "checkLoad": {
     "title": "Revisar Carga",
@@ -405,7 +415,19 @@
     "avgThisMonth": "PROM. ESTE MES",
     "totalSpent": "TOTAL GASTADO",
     "totalGallons": "GALONES TOTALES",
-    "noChartData": "Aún no hay recargas registradas"
+    "noChartData": "Aún no hay recargas registradas",
+    "valueTitle": "LO QUE VERÁS AQUÍ",
+    "valueMpg": "MPG real en cada llenado",
+    "valueMpgSub": "De odómetro a odómetro — sin adivinar",
+    "valueCpm": "Tu costo real de combustible por milla",
+    "valueCpmSub": "El número que decide si una carga paga",
+    "valueIfta": "Galones IFTA registrados por estado",
+    "valueIftaSub": "Cada llenado alimenta tu reporte trimestral automáticamente",
+    "logFirst": "Registra Tu Primer Llenado",
+    "statsLabel": "ESTADÍSTICAS · ÚLTIMOS 10 LLENADOS",
+    "avgMpg": "MPG PROM",
+    "bestMpg": "MEJOR MPG",
+    "avgPrice": "PROM $/GAL"
   },
   "addLoad": {
     "title": "Agregar Carga",
@@ -506,8 +528,6 @@
     },
     "missingInfoTitle": "Falta información",
     "missingInfo": "Ingresa el pago de la carga y las millas para continuar.",
-    "missingStatus": "Por favor selecciona el estado de la carga para continuar.",
-    "statusPlaceholder": "Seleccionar estado",
     "saveErrorTitle": "Error",
     "saveError": "No se pudo guardar la carga. Inténtalo de nuevo.",
     "photo": {
@@ -531,7 +551,10 @@
       "failedMsg": "No pudimos leer ese BOL. Prueba con una foto más clara o ingresa los detalles manualmente.",
       "notAvailableTitle": "Escaneo no configurado",
       "notAvailableMsg": "El escaneo de BOL aún no está disponible. Ingresa los detalles manualmente."
-    }
+    },
+    "statusHintActive": "Esta carga aparecerá en tu panel con un botón para marcarla completada de un toque.",
+    "statusHintUpcoming": "Reservada pero aún sin rodar — inicíala desde el panel cuando la recojas.",
+    "expLabelPlaceholder": "Ponle nombre — ej. Llanta nueva"
   },
   "ifta": {
     "title": "IFTA",
@@ -744,7 +767,9 @@
       "amber": "Carga Justa",
       "red": "Por Debajo del Equilibrio"
     },
-    "bolPhoto": "Foto del BOL"
+    "bolPhoto": "Foto del BOL",
+    "startLoad": "Iniciar Carga",
+    "markComplete": "Marcar Completada"
   },
   "paywall": {
     "badge": "DRIVER PRO",

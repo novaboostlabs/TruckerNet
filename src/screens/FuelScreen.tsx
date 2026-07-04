@@ -47,8 +47,20 @@ export default function FuelScreen() {
   useFocusEffect(useCallback(() => { refresh(); }, [refresh]));
 
   const entries      = stats.allEntries;
+  const hasEntries   = entries.length > 0;
   const trendEntries = [...stats.last5].reverse();
   const maxCPM = Math.max(...trendEntries.map(e => e.cost_per_mile), 0.001);
+
+  // Engine stats over the last 10 fill-ups (matches the rolling CPM window).
+  const engine = useMemo(() => {
+    const recent   = entries.slice(0, 10);
+    const withMpg  = recent.filter(e => e.mpg > 0);
+    const avgMpg   = withMpg.length ? withMpg.reduce((s, e) => s + e.mpg, 0) / withMpg.length : 0;
+    const bestMpg  = withMpg.length ? Math.max(...withMpg.map(e => e.mpg)) : 0;
+    const withPpg  = recent.filter(e => e.price_per_gallon > 0);
+    const avgPrice = withPpg.length ? withPpg.reduce((s, e) => s + e.price_per_gallon, 0) / withPpg.length : 0;
+    return { avgMpg, bestMpg, avgPrice };
+  }, [entries]);
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -127,66 +139,111 @@ export default function FuelScreen() {
           )}
         </View>
 
-        {/* CPM Trend */}
-        <View style={styles.section}>
-          <Text style={styles.sectionLabel}>{t('fuel.cpmTrend', { count: trendEntries.length })}</Text>
-          <View style={styles.chartCard}>
-            {trendEntries.length > 0 ? (
-              <View style={styles.chartBars}>
-                {trendEntries.map((e, i) => {
-                  const height = Math.max(Math.round((e.cost_per_mile / (maxCPM * 1.2)) * 80), 4);
-                  const isLatest = i === trendEntries.length - 1;
-                  return (
-                    <View key={e.id} style={styles.chartBarWrap}>
-                      <Text style={styles.chartBarLabel}>${e.cost_per_mile.toFixed(3)}</Text>
-                      <View style={[styles.chartBar, { height, backgroundColor: isLatest ? Colors.primary : Colors.surfaceHigh }]} />
-                      <Text style={styles.chartBarDate}>{formatDate(e.date)}</Text>
+        {/* ── First-run: sell the payoff instead of showing three empty boxes ── */}
+        {!hasEntries ? (
+          <>
+            <View style={styles.section}>
+              <Text style={styles.sectionLabel}>{t('fuel.valueTitle')}</Text>
+              <View style={styles.valueCard}>
+                {([
+                  { icon: 'speedometer-outline', title: t('fuel.valueMpg'),  sub: t('fuel.valueMpgSub')  },
+                  { icon: 'trending-down-outline', title: t('fuel.valueCpm'), sub: t('fuel.valueCpmSub') },
+                  { icon: 'map-outline',         title: t('fuel.valueIfta'), sub: t('fuel.valueIftaSub') },
+                ] as const).map((row, i, arr) => (
+                  <React.Fragment key={row.icon}>
+                    <View style={styles.valueRow}>
+                      <View style={styles.valueIcon}>
+                        <Ionicons name={row.icon} size={19} color={Colors.primary} />
+                      </View>
+                      <View style={styles.valueTextWrap}>
+                        <Text style={styles.valueRowTitle}>{row.title}</Text>
+                        <Text style={styles.valueRowSub}>{row.sub}</Text>
+                      </View>
                     </View>
-                  );
-                })}
+                    {i < arr.length - 1 && <View style={styles.valueDivider} />}
+                  </React.Fragment>
+                ))}
               </View>
-            ) : (
-              <Text style={styles.emptyChart}>{t('fuel.noChartData')}</Text>
-            )}
-          </View>
-        </View>
+            </View>
 
-        {/* Fill-up history */}
-        <View style={styles.section}>
-          <Text style={styles.sectionLabel}>{t('fuel.fillupHistory')}</Text>
-          {entries.length === 0 ? (
-            <View style={styles.emptyCard}>
-              <Ionicons name="flash-outline" size={32} color={Colors.textTertiary} style={{ marginBottom: 10 }} />
-              <Text style={styles.emptyTitle}>{t('fuel.noEntries')}</Text>
-              <Text style={styles.emptyHint}>
-                {estimate ? t('fuel.estimateHint') : t('fuel.noEntriesHint')}
-              </Text>
-            </View>
-          ) : (
-            <View style={styles.entriesCard}>
-              {entries.map((e, i) => (
-                <React.Fragment key={e.id}>
-                  <View style={styles.entryRow}>
-                    <View style={styles.entryLeft}>
-                      <Text style={styles.entryDate}>{formatDate(e.date)} · {e.state}</Text>
-                      <Text style={styles.entryDetail}>
-                        {e.gallons.toFixed(1)} gal · ${e.price_per_gallon.toFixed(2)}/gal
-                        {e.mpg > 0 ? ` · ${e.mpg.toFixed(1)} mpg` : ''}
-                      </Text>
+            <TouchableOpacity style={styles.logFirstBtn} activeOpacity={0.85} onPress={() => setShowEntry(true)}>
+              <Ionicons name="flash" size={17} color={Colors.onPrimary} />
+              <Text style={styles.logFirstText}>{t('fuel.logFirst')}</Text>
+            </TouchableOpacity>
+            {!!estimate && (
+              <Text style={styles.estimateFootnote}>{t('fuel.estimateHint')}</Text>
+            )}
+          </>
+        ) : (
+          <>
+            {/* Engine stats — MPG + pump price over the last 10 fill-ups */}
+            <View style={styles.section}>
+              <Text style={styles.sectionLabel}>{t('fuel.statsLabel')}</Text>
+              <View style={styles.engineCard}>
+                {([
+                  { label: t('fuel.avgMpg'),   value: engine.avgMpg  > 0 ? engine.avgMpg.toFixed(1)        : '—' },
+                  { label: t('fuel.bestMpg'),  value: engine.bestMpg > 0 ? engine.bestMpg.toFixed(1)       : '—' },
+                  { label: t('fuel.avgPrice'), value: engine.avgPrice > 0 ? `$${engine.avgPrice.toFixed(2)}` : '—' },
+                ]).map(({ label, value }, i, arr) => (
+                  <React.Fragment key={label}>
+                    <View style={styles.engineStat}>
+                      <Text style={styles.engineStatLabel}>{label}</Text>
+                      <Text style={styles.engineStatValue}>{value}</Text>
                     </View>
-                    <View style={styles.entryRight}>
-                      <Text style={styles.entryCPM}>
-                        ${e.cost_per_mile.toFixed(3)}<Text style={styles.entryCPMUnit}>/mi</Text>
-                      </Text>
-                      <Text style={styles.entrySpent}>${e.dollars_spent.toFixed(2)}</Text>
-                    </View>
-                  </View>
-                  {i < entries.length - 1 && <View style={styles.entryDivider} />}
-                </React.Fragment>
-              ))}
+                    {i < arr.length - 1 && <View style={styles.engineDivider} />}
+                  </React.Fragment>
+                ))}
+              </View>
             </View>
-          )}
-        </View>
+
+            {/* CPM Trend */}
+            <View style={styles.section}>
+              <Text style={styles.sectionLabel}>{t('fuel.cpmTrend', { count: trendEntries.length })}</Text>
+              <View style={styles.chartCard}>
+                <View style={styles.chartBars}>
+                  {trendEntries.map((e, i) => {
+                    const height = Math.max(Math.round((e.cost_per_mile / (maxCPM * 1.2)) * 80), 4);
+                    const isLatest = i === trendEntries.length - 1;
+                    return (
+                      <View key={e.id} style={styles.chartBarWrap}>
+                        <Text style={styles.chartBarLabel}>${e.cost_per_mile.toFixed(3)}</Text>
+                        <View style={[styles.chartBar, { height, backgroundColor: isLatest ? Colors.primary : Colors.surfaceHigh }]} />
+                        <Text style={styles.chartBarDate}>{formatDate(e.date)}</Text>
+                      </View>
+                    );
+                  })}
+                </View>
+              </View>
+            </View>
+
+            {/* Fill-up history */}
+            <View style={styles.section}>
+              <Text style={styles.sectionLabel}>{t('fuel.fillupHistory')}</Text>
+              <View style={styles.entriesCard}>
+                {entries.map((e, i) => (
+                  <React.Fragment key={e.id}>
+                    <View style={styles.entryRow}>
+                      <View style={styles.entryLeft}>
+                        <Text style={styles.entryDate}>{formatDate(e.date)} · {e.state}</Text>
+                        <Text style={styles.entryDetail}>
+                          {e.gallons.toFixed(1)} gal · ${e.price_per_gallon.toFixed(2)}/gal
+                          {e.mpg > 0 ? ` · ${e.mpg.toFixed(1)} mpg` : ''}
+                        </Text>
+                      </View>
+                      <View style={styles.entryRight}>
+                        <Text style={styles.entryCPM}>
+                          ${e.cost_per_mile.toFixed(3)}<Text style={styles.entryCPMUnit}>/mi</Text>
+                        </Text>
+                        <Text style={styles.entrySpent}>${e.dollars_spent.toFixed(2)}</Text>
+                      </View>
+                    </View>
+                    {i < entries.length - 1 && <View style={styles.entryDivider} />}
+                  </React.Fragment>
+                ))}
+              </View>
+            </View>
+          </>
+        )}
 
       </ScrollView>
     </SafeAreaView>
@@ -238,6 +295,40 @@ const makeStyles = (Colors: ThemeColors) => StyleSheet.create({
   emptyCard:  { backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border, borderRadius: Radius.md, padding: 32, alignItems: 'center' },
   emptyTitle: { fontFamily: FontFamily.monoSemiBold, fontSize: FontSize.body, color: Colors.textPrimary, marginBottom: 6 },
   emptyHint:  { fontFamily: FontFamily.regular, fontSize: FontSize.label, color: Colors.textSecondary, textAlign: 'center', lineHeight: 20 },
+
+  // First-run value card
+  valueCard: {
+    backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border,
+    borderRadius: Radius.md, paddingHorizontal: Spacing.cardPad,
+  },
+  valueRow:      { flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 16 },
+  valueIcon: {
+    width: 40, height: 40, borderRadius: Radius.sm,
+    backgroundColor: Colors.primaryDim, borderWidth: 1, borderColor: Colors.primaryMid,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  valueTextWrap: { flex: 1 },
+  valueRowTitle: { fontFamily: FontFamily.monoSemiBold, fontSize: FontSize.body, color: Colors.textPrimary, marginBottom: 3, letterSpacing: -0.3 },
+  valueRowSub:   { fontFamily: FontFamily.regular, fontSize: FontSize.caption, color: Colors.textSecondary, lineHeight: 17 },
+  valueDivider:  { height: 1, backgroundColor: Colors.borderSubtle },
+  logFirstBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9,
+    backgroundColor: Colors.primary, borderRadius: Radius.md, paddingVertical: 16,
+    shadowColor: Colors.primary, shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.4, shadowRadius: 12, elevation: 12,
+  },
+  logFirstText: { fontFamily: FontFamily.semiBold, fontSize: FontSize.body, color: Colors.onPrimary },
+  estimateFootnote: { fontFamily: FontFamily.regular, fontSize: FontSize.caption, color: Colors.textTertiary, textAlign: 'center', marginTop: 14, lineHeight: 17, paddingHorizontal: 12 },
+
+  // Engine stats strip
+  engineCard: {
+    flexDirection: 'row',
+    backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border,
+    borderRadius: Radius.md, paddingVertical: 14, paddingHorizontal: Spacing.cardPad,
+  },
+  engineStat:      { flex: 1, alignItems: 'center' },
+  engineStatLabel: { ...sectionLabel(Colors), fontSize: 9, marginBottom: 5 },
+  engineStatValue: { fontFamily: FontFamily.monoBold, fontSize: FontSize.subtitle, color: Colors.textPrimary, letterSpacing: -0.5 },
+  engineDivider:   { width: 1, backgroundColor: Colors.border, marginHorizontal: 10 },
 
   entriesCard:  { backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border, borderRadius: Radius.md, overflow: 'hidden' },
   entryRow:     { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, paddingHorizontal: Spacing.cardPad },

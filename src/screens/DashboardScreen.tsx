@@ -11,7 +11,7 @@ import {
   calcBreakEven, BreakEvenSource, getLoadCount, getWeekPnL, getMonthPnL,
   expensesAreStale, daysSinceExpenseReview, getStaleCategoryAlerts, StaleCategoryAlert,
   getTaxSetAside, TaxSetAside,
-  getRecentLoads, getActiveLoad, LoadSummary, getIncomeGoal,
+  getRecentLoads, getActiveLoad, getUpcomingLoad, LoadSummary, getIncomeGoal,
   getWeeklyNetTrend, getCostBreakdown, WeekTrendPoint, CostBreakdown,
   getSetting, deleteLoad,
 } from '../db/database';
@@ -36,6 +36,7 @@ import SettingsScreen from './SettingsScreen';
 import LoadDetailScreen from './LoadDetailScreen';
 import SwipeableRow from '../components/SwipeableRow';
 import { pushLoads } from '../lib/sync/loadsSync';
+import { startLoad, completeLoad } from '../lib/loadLifecycle';
 
 
 interface LoadRow {
@@ -50,6 +51,7 @@ interface DashData {
   monthNet: number; monthGross: number; monthMiles: number; monthLoads: number;
   loads: LoadRow[];
   activeLoad: LoadSummary | null;
+  upcomingLoad: LoadSummary | null;
   hasRealLoads: boolean;
   incomeGoal: { amount: number; period: 'weekly' | 'monthly' } | null;
   driverName: string;
@@ -77,6 +79,9 @@ function readDashData(): DashData {
   const month  = count > 0 ? getMonthPnL()       : empty;
   const recent = count > 0 ? getRecentLoads(5).map(loadFromSummary) : [];
   const active = count > 0 ? getActiveLoad()     : null;
+  // The upcoming card only shows when nothing is actively running — one clear
+  // "current load" slot, never two competing cards.
+  const upcoming = count > 0 && !active ? getUpcomingLoad() : null;
 
   return {
     breakEvenRPM, fuelCPM, fixedCPM, milesSource,
@@ -84,6 +89,7 @@ function readDashData(): DashData {
     monthNet:  month.net, monthGross: month.gross, monthMiles: month.miles, monthLoads: month.loads,
     loads:     recent,
     activeLoad: active,
+    upcomingLoad: upcoming,
     hasRealLoads: count > 0,
     incomeGoal: getIncomeGoal(),
     tax: getTaxSetAside(),
@@ -201,7 +207,7 @@ export default function DashboardScreen() {
 
       <Modal visible={showSettings} animationType="slide" presentationStyle="pageSheet">
         <SettingsScreen
-          onClose={() => setShowSettings(false)}
+          onClose={() => { setShowSettings(false); refresh(); }}
           onNavigateToExpenses={() => {
             setShowSettings(false);
             navigation.navigate('Expenses');
@@ -291,23 +297,49 @@ export default function DashboardScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* ── Active load card (only when a load is In Progress) ── */}
-        {d.activeLoad && (
-          <View style={styles.activeCard}>
-            <View style={styles.activeTopRow}>
-              <View style={styles.activePill}>
-                <View style={styles.activeDot} />
-                <Text style={styles.activePillText}>{t('dashboard.inProgress')}</Text>
+        {/* ── Current load card: Active gets "Mark Complete", Upcoming gets "Start Load".
+               Tapping the card opens the load detail. ── */}
+        {(d.activeLoad || d.upcomingLoad) && (() => {
+          const cur = (d.activeLoad ?? d.upcomingLoad)!;
+          const isActive = !!d.activeLoad;
+          return (
+            <TouchableOpacity
+              style={styles.activeCard}
+              activeOpacity={0.85}
+              onPress={() => openLoad(cur.id)}
+            >
+              <View style={styles.activeTopRow}>
+                <View style={[styles.activePill, !isActive && styles.upcomingPill]}>
+                  <View style={[styles.activeDot, !isActive && { backgroundColor: Colors.secondary }]} />
+                  <Text style={[styles.activePillText, !isActive && { color: Colors.secondary }]}>
+                    {isActive ? t('dashboard.inProgress') : t('dashboard.upcoming')}
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={15} color={Colors.textTertiary} />
               </View>
-            </View>
-            <Text style={styles.activeRoute} numberOfLines={1}>
-              {d.activeLoad.pickup_city} → {d.activeLoad.delivery_city}
-            </Text>
-            <Text style={styles.activeMeta}>
-              {fmt(d.activeLoad.total_miles)} mi · ${fmt(d.activeLoad.gross_pay)} {t('common.gross')}
-            </Text>
-          </View>
-        )}
+              <Text style={styles.activeRoute} numberOfLines={1}>
+                {cur.pickup_city} → {cur.delivery_city}
+              </Text>
+              <Text style={styles.activeMeta}>
+                {fmt(cur.total_miles)} mi · ${fmt(cur.gross_pay)} {t('common.gross')}
+              </Text>
+              <TouchableOpacity
+                style={styles.activeActionBtn}
+                activeOpacity={0.85}
+                onPress={() => {
+                  if (isActive) completeLoad(cur.id, user?.id);
+                  else startLoad(cur.id, user?.id);
+                  refresh();
+                }}
+              >
+                <Ionicons name={isActive ? 'checkmark-circle' : 'play'} size={16} color={Colors.onPrimary} />
+                <Text style={styles.activeActionText}>
+                  {isActive ? t('dashboard.markComplete') : t('dashboard.startLoad')}
+                </Text>
+              </TouchableOpacity>
+            </TouchableOpacity>
+          );
+        })()}
 
         {/* ── ZONE 1: Hero — the single most important number ── */}
         {d.incomeGoal ? (
@@ -552,7 +584,7 @@ const makeStyles = (Colors: ThemeColors) => StyleSheet.create({
     backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.primaryMid,
     borderRadius: Radius.md, padding: Spacing.cardPad, marginBottom: 14,
   },
-  activeTopRow:    { marginBottom: 10 },
+  activeTopRow:    { marginBottom: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   activePill: {
     flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start',
     backgroundColor: Colors.primaryDim, borderRadius: Radius.pill,
@@ -563,6 +595,15 @@ const makeStyles = (Colors: ThemeColors) => StyleSheet.create({
   activePillText: { fontFamily: FontFamily.monoSemiBold, fontSize: FontSize.caption, color: Colors.primary, letterSpacing: 0.5 },
   activeRoute:    { fontFamily: FontFamily.monoBold, fontSize: FontSize.subtitle, color: Colors.textPrimary, marginBottom: 4, letterSpacing: -0.4 },
   activeMeta:     { fontFamily: FontFamily.monoRegular, fontSize: FontSize.label, color: Colors.textSecondary },
+  upcomingPill: {
+    backgroundColor: Colors.secondaryDim, borderColor: Colors.secondary + '50',
+  },
+  activeActionBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7,
+    backgroundColor: Colors.primary, borderRadius: Radius.sm,
+    paddingVertical: 11, marginTop: 14,
+  },
+  activeActionText: { fontFamily: FontFamily.semiBold, fontSize: FontSize.label, color: Colors.onPrimary },
 
   // Weekly-net fallback hero
   weekHero: {

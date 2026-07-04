@@ -36,8 +36,11 @@ export default function OnboardingFuelScreen({ onNext, replay = false }: Props) 
     setAmount(v);
   }
 
+  // Fuel is the single biggest input to break-even — it can't be skipped or the
+  // whole app runs on a made-up number.
   function handleNext() {
-    if (weekly > 0) setSetting('weekly_fuel_cost', String(weekly));
+    if (weekly <= 0) return;
+    setSetting('weekly_fuel_cost', String(weekly));
     onNext();
   }
 
@@ -53,7 +56,7 @@ export default function OnboardingFuelScreen({ onNext, replay = false }: Props) 
         <ScrollView
           style={styles.scroll}
           contentContainerStyle={styles.scrollContent}
-          keyboardShouldPersistTaps="handled"
+          keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag"
           showsVerticalScrollIndicator={false}
         >
           {/* Progress */}
@@ -65,9 +68,6 @@ export default function OnboardingFuelScreen({ onNext, replay = false }: Props) 
 
           <View style={styles.stepRow}>
             <Text style={styles.stepLabel}>{t('onboarding.step', { current: 1, total: 4 })}</Text>
-            <TouchableOpacity onPress={onNext} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-              <Text style={styles.skipLink}>{t('common.skip')}</Text>
-            </TouchableOpacity>
           </View>
 
           <View style={styles.iconCircle}>
@@ -117,12 +117,13 @@ export default function OnboardingFuelScreen({ onNext, replay = false }: Props) 
         {/* Button sits OUTSIDE the ScrollView but INSIDE KAV — keyboard pushes it up */}
         <View style={styles.buttonWrap}>
           <TouchableOpacity
-            style={styles.button}
+            style={[styles.button, !weekly && styles.buttonDim]}
             onPress={handleNext}
+            disabled={!weekly}
             activeOpacity={0.85}
           >
-            <Text style={styles.buttonText}>{t('common.next')}</Text>
-            <Ionicons name="arrow-forward" size={18} color={Colors.onPrimary} />
+            <Text style={[styles.buttonText, !weekly && styles.buttonTextDim]}>{t('common.next')}</Text>
+            <Ionicons name="arrow-forward" size={18} color={weekly ? Colors.onPrimary : Colors.textSecondary} />
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
@@ -186,5 +187,7 @@ const makeStyles = (Colors: ThemeColors) => StyleSheet.create({
     backgroundColor: Colors.primary, borderRadius: Radius.md, paddingVertical: 17,
     shadowColor: Colors.primary, shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.4, shadowRadius: 12, elevation: 12,
   },
+  buttonDim:     { backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border, shadowOpacity: 0, elevation: 0 },
   buttonText:    { fontFamily: FontFamily.semiBold, fontSize: FontSize.body, color: Colors.onPrimary },
+  buttonTextDim: { color: Colors.textSecondary },
 });

@@ -174,7 +174,7 @@ export default function FuelEntryScreen({ onSaved, onCancel }: Props) {
     <SafeAreaView style={styles.safe} edges={['top']}>
       <GridBackground />
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-        <ScrollView style={styles.scroll} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+        <ScrollView style={styles.scroll} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" showsVerticalScrollIndicator={false}>
 
           {/* Header */}
           <View style={styles.header}>
@@ -303,7 +303,7 @@ export default function FuelEntryScreen({ onSaved, onCancel }: Props) {
               <View style={styles.modalSheet}>
                 <View style={styles.modalHandle} />
                 <Text style={styles.modalTitle}>{t('fuel.form.statePickerTitle')}</Text>
-                <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+                <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
                   {US_STATE_NAMES.map(([abbr, name]) => (
                     <TouchableOpacity
                       key={abbr}

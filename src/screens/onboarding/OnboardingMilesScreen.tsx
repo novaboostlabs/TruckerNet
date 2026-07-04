@@ -1,14 +1,14 @@
 import React, { useState, useMemo } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
-  KeyboardAvoidingView, Platform, ScrollView,
+  KeyboardAvoidingView, Platform, ScrollView, Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, FontFamily, FontSize, Spacing, Radius, SectionLabel, ThemeColors, sectionLabel } from '../../theme/theme';
 import { useTheme } from '../../theme/ThemeContext';
-import { getSetting, setSetting } from '../../db/database';
+import { getSetting, setSetting, getUserExpenses } from '../../db/database';
 import { capture } from '../../lib/analytics';
 import GridBackground from '../../components/GridBackground';
 import AccentRule from '../../components/AccentRule';
@@ -41,6 +41,32 @@ export default function OnboardingMilesScreen({ onNext, onBack, replay = false }
 
   function handleNext() {
     if (weekly <= 0) return;
+
+    // Sanity gate — miles is the last input, so this is where a bad combination
+    // becomes visible. Real-world break-evens live around $1.50–$2.50/mi; block
+    // combos that would reveal a nonsense number (e.g. "$60/mi to profit").
+    const fuelMonthly  = (parseFloat(getSetting('weekly_fuel_cost') ?? '0') || 0) * 4.333;
+    const fixedMonthly = getUserExpenses().reduce((s, e) => s + (e.monthly_equivalent || 0), 0);
+    const breakEven    = (fuelMonthly + fixedMonthly) / monthly;
+    if (breakEven > 8) {
+      Alert.alert(
+        t('onboarding.miles.sanityTitle'),
+        t('onboarding.miles.sanityHigh', {
+          be:    breakEven.toFixed(2),
+          costs: Math.round(fuelMonthly + fixedMonthly).toLocaleString(),
+          miles: Math.round(monthly).toLocaleString(),
+        }),
+      );
+      return;
+    }
+    if (breakEven > 0 && breakEven < 0.3) {
+      Alert.alert(
+        t('onboarding.miles.sanityTitle'),
+        t('onboarding.miles.sanityLow', { be: breakEven.toFixed(2) }),
+      );
+      return;
+    }
+
     setSetting('weekly_miles', String(weekly));
     onNext();
   }
@@ -57,7 +83,7 @@ export default function OnboardingMilesScreen({ onNext, onBack, replay = false }
         <ScrollView
           style={styles.scroll}
           contentContainerStyle={styles.scrollContent}
-          keyboardShouldPersistTaps="handled"
+          keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag"
           showsVerticalScrollIndicator={false}
         >
           {/* Back button */}

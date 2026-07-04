@@ -1,14 +1,14 @@
 import React, { useState, useMemo } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
-  ScrollView, KeyboardAvoidingView, Platform, Modal, Pressable,
+  ScrollView, KeyboardAvoidingView, Platform, Modal, Pressable, Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, FontFamily, FontSize, Spacing, Radius, SectionLabel, ThemeColors, sectionLabel } from '../../theme/theme';
 import { useTheme } from '../../theme/ThemeContext';
-import db, { getUserExpenses, markExpensesReviewed } from '../../db/database';
+import db, { getUserExpenses, markExpensesReviewed, getSetting, setSetting } from '../../db/database';
 import GridBackground from '../../components/GridBackground';
 import AccentRule from '../../components/AccentRule';
 import { toMonthlyAmount, ExpenseFrequency } from '../../utils/marketRates';
@@ -54,6 +54,10 @@ const FIXED_EXPENSES: { category: string; icon: IoniconName }[] = [
   { category: 'parking',     icon: 'location-outline'         },
 ];
 
+// Every operating owner-operator has these two — break-even is fiction without
+// them, so they can't be left blank. (Truck accepts an explicit 0 = owned outright.)
+const REQUIRED_CATEGORIES = new Set(['truck', 'insurance']);
+
 function emptyDraft(): Draft {
   return { label: '', amount: '', frequency: 'monthly' };
 }
@@ -72,6 +76,9 @@ export default function OnboardingExpensesScreen({ onNext, onBack, replay = fals
   // rather than wiping it (blank-start was the cross-session conflict root cause).
   const [fixed, setFixed] = useState<ExpenseEntry[]>(() => {
     const saved = getUserExpenses();
+    // A paid-off truck saves no expense row (amount 0 is filtered on save), so a
+    // flag remembers the explicit "$0 — owned outright" answer across replays.
+    const truckPaidOff = getSetting('truck_paid_off') === 'true';
     return FIXED_EXPENSES.map((f) => {
       const match = saved.find((e) => e.category === f.category);
       return {
@@ -80,7 +87,7 @@ export default function OnboardingExpensesScreen({ onNext, onBack, replay = fals
         subtitle:  t(`onboarding.expenses.fixedSubtitles.${f.category}`),
         icon:      f.icon,
         category:  f.category,
-        amount:    match ? String(match.amount) : '',
+        amount:    match ? String(match.amount) : (f.category === 'truck' && truckPaidOff ? '0' : ''),
         frequency: (match?.frequency as ExpenseFrequency) ?? 'monthly',
       };
     });
@@ -164,6 +171,21 @@ export default function OnboardingExpensesScreen({ onNext, onBack, replay = fals
   }
 
   function handleNext() {
+    // The two non-negotiables: insurance must be a real cost; the truck row must
+    // be answered (an explicit 0 means "owned outright" and is remembered).
+    const insurance = fixed.find((e) => e.category === 'insurance');
+    const truck     = fixed.find((e) => e.category === 'truck');
+    if (!((parseFloat(insurance?.amount ?? '') || 0) > 0)) {
+      Alert.alert(t('onboarding.expenses.requiredTitle'), t('onboarding.expenses.insuranceRequired'));
+      return;
+    }
+    const truckRaw = (truck?.amount ?? '').trim();
+    if (truckRaw === '' || isNaN(parseFloat(truckRaw))) {
+      Alert.alert(t('onboarding.expenses.requiredTitle'), t('onboarding.expenses.truckRequired'));
+      return;
+    }
+    setSetting('truck_paid_off', parseFloat(truckRaw) === 0 ? 'true' : 'false');
+
     // Everything the driver filled in, including a draft "Other" row they
     // typed but didn't explicitly add.
     const collected: ExpenseEntry[] = [
@@ -242,7 +264,7 @@ export default function OnboardingExpensesScreen({ onNext, onBack, replay = fals
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
       <GridBackground />
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" showsVerticalScrollIndicator={false}>
 
           {/* Back button */}
           <TouchableOpacity style={styles.backBtn} onPress={onBack} activeOpacity={0.7}>
@@ -285,8 +307,18 @@ export default function OnboardingExpensesScreen({ onNext, onBack, replay = fals
                       <Ionicons name={expense.icon ?? 'cash-outline'} size={18} color={Colors.primary} />
                     </View>
                     <View style={styles.labelTextWrap}>
-                      <Text style={styles.fixedLabel}>{expense.label}</Text>
+                      <View style={styles.fixedLabelRow}>
+                        <Text style={styles.fixedLabel}>{expense.label}</Text>
+                        {REQUIRED_CATEGORIES.has(expense.category) && (
+                          <View style={styles.requiredBadge}>
+                            <Text style={styles.requiredBadgeText}>{t('onboarding.expenses.requiredBadge')}</Text>
+                          </View>
+                        )}
+                      </View>
                       {!!expense.subtitle && <Text style={styles.fixedSubtitle}>{expense.subtitle}</Text>}
+                      {expense.category === 'truck' && (
+                        <Text style={styles.ownedHint}>{t('onboarding.expenses.truckOwnedHint')}</Text>
+                      )}
                     </View>
                   </View>
                   <View style={styles.expenseDivider} />
@@ -466,6 +498,13 @@ const makeStyles = (Colors: ThemeColors) => StyleSheet.create({
   },
   labelTextWrap: { flex: 1 },
   fixedLabel:    { fontFamily: FontFamily.semiBold, fontSize: FontSize.body, color: Colors.textPrimary },
+  fixedLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  requiredBadge: {
+    backgroundColor: Colors.primaryDim, borderWidth: 1, borderColor: Colors.primaryMid,
+    borderRadius: Radius.pill, paddingHorizontal: 7, paddingVertical: 2,
+  },
+  requiredBadgeText: { fontFamily: FontFamily.monoSemiBold, fontSize: 9, color: Colors.primary, letterSpacing: 0.8 },
+  ownedHint:     { fontFamily: FontFamily.regular, fontSize: FontSize.caption, color: Colors.textTertiary, marginTop: 2, fontStyle: 'italic' },
   fixedSubtitle: { fontFamily: FontFamily.regular, fontSize: FontSize.caption, color: Colors.textSecondary, marginTop: 2 },
   labelInput:    { flex: 1, fontFamily: FontFamily.semiBold, fontSize: FontSize.body, color: Colors.textPrimary, paddingVertical: 0 },
 

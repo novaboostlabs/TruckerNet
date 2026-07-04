@@ -61,14 +61,15 @@ const LOAD_TYPES: LoadType[] = [
   'tanker', 'hazmat', 'rgn', 'power_only', 'auto_transport',
 ];
 
-const STATUSES = ['completed', 'upcoming', 'in_progress', 'cancelled'] as const;
+// Lifecycle order: Upcoming → In Progress → Completed. ("Cancelled" was removed
+// from the picker — deleting the load covers that case; legacy rows still render.)
+const STATUSES = ['upcoming', 'in_progress', 'completed'] as const;
 type LoadStatus = typeof STATUSES[number];
 
 const STATUS_I18N: Record<LoadStatus, string> = {
   completed:   'completed',
   upcoming:    'upcoming',
   in_progress: 'inProgress',
-  cancelled:   'cancelled',
 };
 
 interface StateMileRow { state: string; miles: string; }
@@ -172,7 +173,9 @@ export default function AddLoadScreen({ onClose, onSaved, onFirstLoad, prefill }
   // ── Load details ──
   const [grossPay, setGrossPay] = useState(prefill?.grossPay ?? '');
   const [loadType, setLoadType] = useState<LoadType>(prefill?.loadType ?? defaultLoadTypeFromProfile());
-  const [status,   setStatus]   = useState<LoadStatus | null>(null);
+  // Smart default: coming from Check Load ("Accept & Log") means the driver just
+  // took this load → Upcoming. Logging directly usually means a finished run.
+  const [status,   setStatus]   = useState<LoadStatus>(prefill ? 'upcoming' : 'completed');
   const [backhaul, setBackhaul] = useState(prefill?.backhaul ?? false);
   // Deadhead = empty/unpaid reposition leg. Miles still count for IFTA, so it's
   // savable with $0 gross (the gross requirement is waived when this is on).
@@ -184,7 +187,9 @@ export default function AddLoadScreen({ onClose, onSaved, onFirstLoad, prefill }
   function addExpense(category: string, defaultLabel: string, defaultAmount = '') {
     setLoadExpenses(prev => [...prev, {
       id: Math.random().toString(36).slice(2),
-      label: defaultLabel,
+      // "Other" starts blank so the name placeholder invites typing — the label
+      // being editable wasn't discoverable when it arrived pre-filled.
+      label: category === 'other' ? '' : defaultLabel,
       amount: defaultAmount,
       category,
     }]);
@@ -229,8 +234,7 @@ export default function AddLoadScreen({ onClose, onSaved, onFirstLoad, prefill }
   }, [brokerName, brokerMC]);
 
   // ── Modal open state ──
-  const [typeOpen,   setTypeOpen]   = useState(false);
-  const [statusOpen, setStatusOpen] = useState(false);
+  const [typeOpen, setTypeOpen] = useState(false);
 
   const [saving, setSaving] = useState(false);
 
@@ -481,10 +485,6 @@ export default function AddLoadScreen({ onClose, onSaved, onFirstLoad, prefill }
       Alert.alert(t('addLoad.missingInfoTitle'), t('addLoad.missingInfo'));
       return;
     }
-    if (!status) {
-      Alert.alert(t('addLoad.missingInfoTitle'), t('addLoad.missingStatus'));
-      return;
-    }
     // Free tier caps at 15 loads/month — the 16th opens the paywall instead.
     if (!isPro && !canLogLoadFree()) {
       capture('load_limit_hit');
@@ -521,7 +521,12 @@ export default function AddLoadScreen({ onClose, onSaved, onFirstLoad, prefill }
 
       const validExpenses: LoadExpenseInsert[] = loadExpenses
         .filter(e => (parseFloat(e.amount) || 0) > 0)
-        .map(e => ({ label: e.label.trim() || e.category, category: e.category, amount: parseFloat(e.amount) }));
+        .map(e => ({
+          // Unnamed rows fall back to the localized category name, never the raw key.
+          label: e.label.trim() || t(`addLoad.expCat.${e.category}`),
+          category: e.category,
+          amount: parseFloat(e.amount),
+        }));
 
       const savedLoadId = saveLoad(
         {
@@ -637,7 +642,7 @@ export default function AddLoadScreen({ onClose, onSaved, onFirstLoad, prefill }
           </TouchableOpacity>
         </View>
 
-        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="always" showsVerticalScrollIndicator={false}>
+        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" showsVerticalScrollIndicator={false}>
 
           {/* ── Free-tier usage (renders nothing for Pro) ── */}
           <FreeUsageMeter compact />
@@ -920,15 +925,17 @@ export default function AddLoadScreen({ onClose, onSaved, onFirstLoad, prefill }
             ))}
           </View>
 
-          {/* Expense rows */}
+          {/* Expense rows — pencil icon marks the name as editable */}
           {loadExpenses.map((exp) => (
             <View key={exp.id} style={styles.expenseRow}>
+              <Ionicons name="pencil-outline" size={13} color={Colors.textTertiary} />
               <TextInput
                 style={styles.expenseLabelInput}
                 value={exp.label}
                 onChangeText={(v) => updateExpense(exp.id, 'label', v)}
-                placeholder={t('addLoad.expCat.other')}
+                placeholder={t('addLoad.expLabelPlaceholder')}
                 placeholderTextColor={Colors.textTertiary}
+                autoFocus={exp.category === 'other' && exp.label === ''}
               />
               <View style={styles.expenseAmountWrap}>
                 <Text style={styles.expenseDollar}>$</Text>
@@ -975,14 +982,30 @@ export default function AddLoadScreen({ onClose, onSaved, onFirstLoad, prefill }
             <Ionicons name="chevron-down" size={18} color={Colors.primary} />
           </TouchableOpacity>
 
-          {/* ── Status ── */}
+          {/* ── Status — inline segmented control, defaults set, one tap to change ── */}
           <Text style={[styles.fieldLabel, { marginTop: 18 }]}>{t('addLoad.status')}</Text>
-          <TouchableOpacity style={[styles.dropdown, !status && styles.dropdownPlaceholder]} onPress={() => setStatusOpen(true)} activeOpacity={0.8}>
-            <Text style={[styles.dropdownText, !status && styles.dropdownPlaceholderText]}>
-              {status ? t(`addLoad.statuses.${STATUS_I18N[status]}`) : t('addLoad.statusPlaceholder')}
+          <View style={styles.statusSeg}>
+            {STATUSES.map((s) => {
+              const sel = s === status;
+              return (
+                <TouchableOpacity
+                  key={s}
+                  style={[styles.statusSegBtn, sel && styles.statusSegBtnActive]}
+                  onPress={() => setStatus(s)}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[styles.statusSegText, sel && styles.statusSegTextActive]} numberOfLines={1}>
+                    {t(`addLoad.statuses.${STATUS_I18N[s]}`)}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+          {status !== 'completed' && (
+            <Text style={styles.statusHint}>
+              {status === 'in_progress' ? t('addLoad.statusHintActive') : t('addLoad.statusHintUpcoming')}
             </Text>
-            <Ionicons name="chevron-down" size={18} color={Colors.primary} />
-          </TouchableOpacity>
+          )}
 
           {/* ── Backhaul toggle ── */}
           <View style={styles.toggleCard}>
@@ -1183,31 +1206,6 @@ export default function AddLoadScreen({ onClose, onSaved, onFirstLoad, prefill }
         </Pressable>
       </Modal>
 
-      {/* ── Status dropdown ── */}
-      <Modal visible={statusOpen} transparent animationType="fade" onRequestClose={() => setStatusOpen(false)}>
-        <Pressable style={styles.modalBackdrop} onPress={() => setStatusOpen(false)}>
-          <Pressable style={styles.modalSheet} onPress={(e) => e.stopPropagation()}>
-            <View style={styles.modalHandle} />
-            <Text style={styles.modalTitle}>{t('addLoad.status')}</Text>
-            {STATUSES.map((s) => {
-              const sel = s === status;
-              return (
-                <TouchableOpacity
-                  key={s}
-                  style={[styles.typeOption, sel && styles.typeOptionActive]}
-                  onPress={() => { setStatus(s); setStatusOpen(false); }}
-                  activeOpacity={0.8}
-                >
-                  <Text style={[styles.typeOptionText, sel && styles.typeOptionTextActive]}>
-                    {t(`addLoad.statuses.${STATUS_I18N[s]}`)}
-                  </Text>
-                  {sel && <Ionicons name="checkmark" size={20} color={Colors.primary} />}
-                </TouchableOpacity>
-              );
-            })}
-          </Pressable>
-        </Pressable>
-      </Modal>
     </SafeAreaView>
   );
 }
@@ -1426,8 +1424,22 @@ const makeStyles = (Colors: ThemeColors) => StyleSheet.create({
     borderRadius: Radius.md, paddingHorizontal: 18, paddingVertical: 16,
   },
   dropdownText: { fontFamily: FontFamily.monoSemiBold, fontSize: FontSize.body, color: Colors.textPrimary },
-  dropdownPlaceholder: { borderColor: Colors.border },
-  dropdownPlaceholderText: { fontFamily: FontFamily.regular, color: Colors.textTertiary },
+
+  // Status segmented control
+  statusSeg: {
+    flexDirection: 'row', gap: 8,
+  },
+  statusSegBtn: {
+    flex: 1, alignItems: 'center', justifyContent: 'center',
+    backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border,
+    borderRadius: Radius.md, paddingVertical: 13, paddingHorizontal: 6,
+  },
+  statusSegBtnActive: {
+    backgroundColor: Colors.primaryDim, borderColor: Colors.primary,
+  },
+  statusSegText:       { fontFamily: FontFamily.monoSemiBold, fontSize: FontSize.caption, color: Colors.textSecondary },
+  statusSegTextActive: { color: Colors.primary },
+  statusHint: { fontFamily: FontFamily.regular, fontSize: FontSize.caption, color: Colors.textSecondary, marginTop: 8, lineHeight: 17 },
 
   toggleCard: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',

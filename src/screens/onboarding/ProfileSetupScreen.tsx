@@ -99,7 +99,7 @@ export default function ProfileSetupScreen({ onContinue, onBack, replay = false 
         <ScrollView
           style={styles.scroll}
           contentContainerStyle={styles.scrollContent}
-          keyboardShouldPersistTaps="handled"
+          keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag"
           showsVerticalScrollIndicator={false}
         >
           {/* Back */}

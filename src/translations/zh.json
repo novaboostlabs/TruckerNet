@@ -210,7 +210,12 @@
       "emptyHint": "点击\"+ 添加费用\"开始",
       "totalMonthly": "每月总费用",
       "perMo": "/月",
-      "reviewTitle": "检查您的费用"
+      "reviewTitle": "检查您的费用",
+      "requiredTitle": "必填信息",
+      "insuranceRequired": "请输入你的保险费用——没有它，盈亏平衡价无法真实计算。",
+      "truckRequired": "请输入你的卡车月供——如果卡车已完全属于你，请输入 0。",
+      "requiredBadge": "必填",
+      "truckOwnedHint": "卡车已付清？输入 0。"
     },
     "miles": {
       "title": "您每周行驶多少英里？",
@@ -221,7 +226,10 @@
       "perWeek": "英里 / 周",
       "estMonthly": "预计每月里程",
       "perMo": " 英里 / 月",
-      "reviewTitle": "检查您的每周里程"
+      "reviewTitle": "检查您的每周里程",
+      "sanityTitle": "这些数字对不上",
+      "sanityHigh": "每月成本 ${{costs}}，每月 {{miles}} 英里，仅保本就需要 ${{be}}/英里——远高于实际市场价。请核对每周里程、燃油和开支。",
+      "sanityLow": "你的盈亏平衡价算出来是 ${{be}}/英里——远低于实际运营成本。请核对燃油和开支的填写。"
     },
     "result": {
       "title": "您的盈亏平衡费率",
@@ -296,7 +304,9 @@
     "milesSource_loads_90d": "基于你的货运",
     "milesSource_loads_month": "基于本月",
     "milesSource_estimate": "估算",
-    "setGoalNudge": "设定收入目标"
+    "setGoalNudge": "设定收入目标",
+    "upcoming": "即将执行",
+    "startLoad": "开始运输"
   },
   "checkLoad": {
     "title": "查看订单",
@@ -405,7 +415,19 @@
     "avgThisMonth": "本月平均",
     "totalSpent": "总花费",
     "totalGallons": "总加仑数",
-    "noChartData": "暂无加油记录"
+    "noChartData": "暂无加油记录",
+    "valueTitle": "这里会显示什么",
+    "valueMpg": "每次加油的真实 MPG",
+    "valueMpgSub": "按里程表计算——不靠猜测",
+    "valueCpm": "你每英里的真实燃油成本",
+    "valueCpmSub": "决定一趟货是否划算的关键数字",
+    "valueIfta": "按州记录 IFTA 加仑数",
+    "valueIftaSub": "每次加油自动计入季度报告",
+    "logFirst": "记录第一次加油",
+    "statsLabel": "引擎数据 · 最近 10 次加油",
+    "avgMpg": "平均 MPG",
+    "bestMpg": "最佳 MPG",
+    "avgPrice": "平均 $/加仑"
   },
   "addLoad": {
     "title": "添加订单",
@@ -506,8 +528,6 @@
     },
     "missingInfoTitle": "信息缺失",
     "missingInfo": "请输入订单报酬和英里数以继续。",
-    "missingStatus": "请选择运单状态以继续。",
-    "statusPlaceholder": "选择运单状态",
     "saveErrorTitle": "错误",
     "saveError": "保存订单失败。请重试。",
     "photo": {
@@ -531,7 +551,10 @@
       "failedMsg": "我们无法读取该 BOL。请换一张更清晰的照片或手动输入详情。",
       "notAvailableTitle": "扫描未设置",
       "notAvailableMsg": "BOL 扫描尚不可用。请手动输入详情。"
-    }
+    },
+    "statusHintActive": "此货载会显示在仪表盘上，可一键标记完成。",
+    "statusHintUpcoming": "已预订但尚未上路——提货时可在仪表盘上开始。",
+    "expLabelPlaceholder": "输入名称——例如新轮胎"
   },
   "history": {
     "title": "历史记录",
@@ -744,7 +767,9 @@
       "amber": "一般订单",
       "red": "低于盈亏平衡"
     },
-    "bolPhoto": "BOL 照片"
+    "bolPhoto": "BOL 照片",
+    "startLoad": "开始运输",
+    "markComplete": "标记完成"
   },
   "paywall": {
     "badge": "DRIVER PRO",

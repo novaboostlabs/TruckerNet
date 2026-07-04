@@ -210,7 +210,12 @@
       "emptyHint": "Tap \"+ Add Expense\" to get started",
       "totalMonthly": "TOTAL MONTHLY EXPENSES",
       "perMo": "/mo",
-      "reviewTitle": "Review your expenses"
+      "reviewTitle": "Review your expenses",
+      "requiredTitle": "Required info",
+      "insuranceRequired": "Enter your insurance cost — your break-even rate can't be real without it.",
+      "truckRequired": "Enter your truck payment — or 0 if you own your truck outright.",
+      "requiredBadge": "REQUIRED",
+      "truckOwnedHint": "Own it outright? Enter 0."
     },
     "miles": {
       "title": "How many miles per week?",
@@ -221,7 +226,10 @@
       "perWeek": "mi / week",
       "estMonthly": "ESTIMATED MONTHLY MILES",
       "perMo": " mi / mo",
-      "reviewTitle": "Review your weekly miles"
+      "reviewTitle": "Review your weekly miles",
+      "sanityTitle": "These numbers don't add up",
+      "sanityHigh": "With ${{costs}}/mo in costs over {{miles}} miles/mo, you'd need ${{be}}/mi just to break even — far above real-world rates. Double-check your weekly miles, fuel, and expenses.",
+      "sanityLow": "Your break-even comes out to ${{be}}/mi — far below what running a truck really costs. Double-check your fuel and expense entries."
     },
     "result": {
       "title": "Your break-even rate",
@@ -296,7 +304,9 @@
     "milesSource_loads_90d": "from your loads",
     "milesSource_loads_month": "from this month",
     "milesSource_estimate": "est.",
-    "setGoalNudge": "Set an income goal"
+    "setGoalNudge": "Set an income goal",
+    "upcoming": "UPCOMING",
+    "startLoad": "Start Load"
   },
   "checkLoad": {
     "title": "Check Load",
@@ -405,7 +415,19 @@
     "avgThisMonth": "AVG THIS MONTH",
     "totalSpent": "TOTAL SPENT",
     "totalGallons": "TOTAL GALLONS",
-    "noChartData": "No fill-ups logged yet"
+    "noChartData": "No fill-ups logged yet",
+    "valueTitle": "WHAT YOU'LL SEE HERE",
+    "valueMpg": "Real MPG on every fill-up",
+    "valueMpgSub": "Odometer to odometer — no guessing",
+    "valueCpm": "Your true fuel cost per mile",
+    "valueCpmSub": "The number that decides whether a load pays",
+    "valueIfta": "IFTA gallons logged by state",
+    "valueIftaSub": "Every fill-up feeds your quarterly report automatically",
+    "logFirst": "Log Your First Fill-Up",
+    "statsLabel": "ENGINE STATS · LAST 10 FILL-UPS",
+    "avgMpg": "AVG MPG",
+    "bestMpg": "BEST MPG",
+    "avgPrice": "AVG $/GAL"
   },
   "addLoad": {
     "title": "Add Load",
@@ -506,8 +528,6 @@
     },
     "missingInfoTitle": "Missing info",
     "missingInfo": "Enter the load pay and miles to continue.",
-    "missingStatus": "Please select a load status to continue.",
-    "statusPlaceholder": "Select load status",
     "saveErrorTitle": "Error",
     "saveError": "Failed to save load. Please try again.",
     "photo": {
@@ -531,7 +551,10 @@
       "failedMsg": "We couldn't read that BOL. Try a clearer photo or enter the details manually.",
       "notAvailableTitle": "Scanning not set up",
       "notAvailableMsg": "BOL scanning isn't available yet. Enter the details manually."
-    }
+    },
+    "statusHintActive": "This load will show on your Dashboard with a one-tap Mark Complete button.",
+    "statusHintUpcoming": "Booked but not rolling yet — start it from the Dashboard when you pick it up.",
+    "expLabelPlaceholder": "Name it — e.g. New tire"
   },
   "ifta": {
     "title": "IFTA",
@@ -744,7 +767,9 @@
       "amber": "Fair Load",
       "red": "Below Break-Even"
     },
-    "bolPhoto": "BOL Photo"
+    "bolPhoto": "BOL Photo",
+    "startLoad": "Start Load",
+    "markComplete": "Mark Complete"
   },
   "paywall": {
     "badge": "DRIVER PRO",

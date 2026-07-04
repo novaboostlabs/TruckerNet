@@ -117,7 +117,7 @@ export default function AddExpenseScreen({ onClose, onSaved }: Props) {
           </TouchableOpacity>
         </View>
 
-        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" showsVerticalScrollIndicator={false}>
 
           {/* Amount */}
           <Text style={styles.fieldLabel}>{t('addExpense.amountLabel')}</Text>

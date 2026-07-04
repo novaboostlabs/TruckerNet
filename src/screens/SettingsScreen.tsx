@@ -339,7 +339,7 @@ export default function SettingsScreen({ onClose, onNavigateToExpenses }: Props)
         <ScrollView
           contentContainerStyle={styles.content}
           showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
+          keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag"
         >
 
           {/* ── Profile Card ── */}

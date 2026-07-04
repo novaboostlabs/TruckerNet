@@ -232,7 +232,7 @@ export default function CheckLoadScreen({ onClose, onLogLoad }: Props) {
           </TouchableOpacity>
         </View>
 
-        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="always" showsVerticalScrollIndicator={false}>
+        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" showsVerticalScrollIndicator={false}>
 
           {/* Load pay */}
           <Text style={styles.fieldLabel}>{t('checkLoad.loadPay')}</Text>

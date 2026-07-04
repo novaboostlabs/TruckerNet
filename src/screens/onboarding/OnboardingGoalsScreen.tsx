@@ -67,7 +67,7 @@ export default function OnboardingGoalsScreen({ onNext, onBack }: Props) {
         <ScrollView
           style={styles.scroll}
           contentContainerStyle={styles.scrollContent}
-          keyboardShouldPersistTaps="handled"
+          keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag"
           showsVerticalScrollIndicator={false}
         >
           <TouchableOpacity style={styles.backBtn} onPress={onBack} activeOpacity={0.7}>

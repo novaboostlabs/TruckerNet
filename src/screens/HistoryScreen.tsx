@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useFocusEffect } from '@react-navigation/native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Modal, TextInput, Alert } from 'react-native';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
@@ -224,6 +225,34 @@ export default function HistoryScreen() {
   const bounds          = filter === 'week' ? getWeekBounds(periodDate) : filter === 'month' ? getMonthBounds(periodDate) : null;
   const atCurrentPeriod = filter === 'week' ? isCurrentWeek(periodDate) : filter === 'month' ? isCurrentMonth(periodDate) : true;
 
+  // Shared period navigation — used by the arrows AND the swipe gesture.
+  const goPrevPeriod = useCallback(() => {
+    // Free tier sees the current period only — browsing past weeks/months is Pro.
+    if (!isPro) { presentPaywall('history'); return; }
+    setPeriodDate(d => shiftDate(d, filter, -1));
+    setSelectedDay(null);
+  }, [isPro, filter, presentPaywall]);
+
+  const goNextPeriod = useCallback(() => {
+    if (atCurrentPeriod) return;
+    setPeriodDate(d => shiftDate(d, filter, 1));
+    setSelectedDay(null);
+  }, [atCurrentPeriod, filter]);
+
+  // Horizontal swipe over the period navigator + calendar pages weeks/months,
+  // matching what drivers expect from any calendar app. Vertical scrolling wins
+  // (failOffsetY) so the gesture never fights the list.
+  const periodSwipe = useMemo(() => (
+    Gesture.Pan()
+      .activeOffsetX([-24, 24])
+      .failOffsetY([-16, 16])
+      .runOnJS(true)
+      .onEnd((e) => {
+        if (e.translationX >= 40)       goPrevPeriod(); // swipe right → earlier
+        else if (e.translationX <= -40) goNextPeriod(); // swipe left → later
+      })
+  ), [goPrevPeriod, goNextPeriod]);
+
   // Group loads by date for calendar dots
   const loadsByDate = useMemo(() => {
     const map: Record<string, number> = {};
@@ -378,66 +407,60 @@ export default function HistoryScreen() {
         </View>
         )}
 
-        {/* Period navigator */}
+        {/* Period navigator + calendar — swipe left/right to page periods */}
         {!searchActive && filter !== 'all' && (
-          <View style={styles.periodNav}>
-            <TouchableOpacity
-              style={styles.periodArrow}
-              onPress={() => {
-                // Free tier sees the current period only — browsing past
-                // weeks/months is Pro.
-                if (!isPro) { presentPaywall('history'); return; }
-                setPeriodDate(d => shiftDate(d, filter, -1));
-                setSelectedDay(null);
-              }}
-              activeOpacity={0.6}
-            >
-              <Ionicons name="chevron-back" size={20} color={isPro ? Colors.textSecondary : Colors.secondary} />
-            </TouchableOpacity>
-            <Text style={styles.periodLabel}>{bounds?.label}</Text>
-            <TouchableOpacity style={styles.periodArrow} onPress={() => { if (!atCurrentPeriod) { setPeriodDate(d => shiftDate(d, filter, 1)); setSelectedDay(null); } }} disabled={atCurrentPeriod} activeOpacity={0.6}>
-              <Ionicons name="chevron-forward" size={20} color={atCurrentPeriod ? Colors.textTertiary : Colors.textSecondary} />
-            </TouchableOpacity>
-          </View>
-        )}
+          <GestureDetector gesture={periodSwipe}>
+            <View collapsable={false}>
+              <View style={styles.periodNav}>
+                <TouchableOpacity style={styles.periodArrow} onPress={goPrevPeriod} activeOpacity={0.6}>
+                  <Ionicons name="chevron-back" size={20} color={isPro ? Colors.textSecondary : Colors.secondary} />
+                </TouchableOpacity>
+                <Text style={styles.periodLabel}>{bounds?.label}</Text>
+                <TouchableOpacity style={styles.periodArrow} onPress={goNextPeriod} disabled={atCurrentPeriod} activeOpacity={0.6}>
+                  <Ionicons name="chevron-forward" size={20} color={atCurrentPeriod ? Colors.textTertiary : Colors.textSecondary} />
+                </TouchableOpacity>
+              </View>
 
-        {/* Monthly calendar */}
-        {!searchActive && filter === 'month' && (
-          <View style={styles.calendarCard}>
-            <MonthCalendar
-              year={periodDate.getFullYear()}
-              month={periodDate.getMonth()}
-              loadsByDate={loadsByDate}
-              selectedDay={selectedDay}
-              onSelectDay={setSelectedDay}
-              today={TODAY}
-            />
-            {selectedDay && (
-              <TouchableOpacity style={styles.clearDayBtn} onPress={() => setSelectedDay(null)} activeOpacity={0.7}>
-                <Ionicons name="close-circle" size={14} color={Colors.textTertiary} />
-                <Text style={styles.clearDayText}>{t('history.showAll')} · {bounds?.label}</Text>
-              </TouchableOpacity>
-            )}
-          </View>
-        )}
+              {/* Monthly calendar */}
+              {filter === 'month' && (
+                <View style={styles.calendarCard}>
+                  <MonthCalendar
+                    year={periodDate.getFullYear()}
+                    month={periodDate.getMonth()}
+                    loadsByDate={loadsByDate}
+                    selectedDay={selectedDay}
+                    onSelectDay={setSelectedDay}
+                    today={TODAY}
+                  />
+                  {selectedDay && (
+                    <TouchableOpacity style={styles.clearDayBtn} onPress={() => setSelectedDay(null)} activeOpacity={0.7}>
+                      <Ionicons name="close-circle" size={14} color={Colors.textTertiary} />
+                      <Text style={styles.clearDayText}>{t('history.showAll')} · {bounds?.label}</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              )}
 
-        {/* Weekly calendar */}
-        {!searchActive && filter === 'week' && weekDates.length === 7 && (
-          <View style={styles.calendarCard}>
-            <WeekCalendar
-              weekDates={weekDates}
-              loadsByDate={loadsByDate}
-              selectedDay={selectedDay}
-              onSelectDay={setSelectedDay}
-              today={TODAY}
-            />
-            {selectedDay && (
-              <TouchableOpacity style={styles.clearDayBtn} onPress={() => setSelectedDay(null)} activeOpacity={0.7}>
-                <Ionicons name="close-circle" size={14} color={Colors.textTertiary} />
-                <Text style={styles.clearDayText}>{t('history.showAll')} · {bounds?.label}</Text>
-              </TouchableOpacity>
-            )}
-          </View>
+              {/* Weekly calendar */}
+              {filter === 'week' && weekDates.length === 7 && (
+                <View style={styles.calendarCard}>
+                  <WeekCalendar
+                    weekDates={weekDates}
+                    loadsByDate={loadsByDate}
+                    selectedDay={selectedDay}
+                    onSelectDay={setSelectedDay}
+                    today={TODAY}
+                  />
+                  {selectedDay && (
+                    <TouchableOpacity style={styles.clearDayBtn} onPress={() => setSelectedDay(null)} activeOpacity={0.7}>
+                      <Ionicons name="close-circle" size={14} color={Colors.textTertiary} />
+                      <Text style={styles.clearDayText}>{t('history.showAll')} · {bounds?.label}</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              )}
+            </View>
+          </GestureDetector>
         )}
 
         {/* Summary totals — hidden during search */}

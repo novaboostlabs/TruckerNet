@@ -1,4 +1,5 @@
 import 'react-native-url-polyfill/auto';
+import { AppState } from 'react-native';
 import { createClient } from '@supabase/supabase-js';
 import * as SecureStore from 'expo-secure-store';
 
@@ -46,3 +47,18 @@ export const supabase = createClient(
     },
   }
 );
+
+// Supabase's auto-refresh timer only runs while the app is foregrounded (per the
+// official React Native setup). Without this wiring the timer keeps "running"
+// while suspended, misses the refresh window, and the driver gets bounced to
+// Sign In on reopen even though they never signed out.
+AppState.addEventListener('change', (state) => {
+  if (state === 'active') {
+    supabase.auth.startAutoRefresh();
+  } else {
+    supabase.auth.stopAutoRefresh();
+  }
+});
+if (AppState.currentState === 'active') {
+  supabase.auth.startAutoRefresh();
+}

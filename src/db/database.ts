@@ -948,6 +948,20 @@ export function getActiveLoad(): LoadSummary | null {
   ) ?? null;
 }
 
+/** Soonest upcoming load — surfaces on the Dashboard with a "Start Load" action. */
+export function getUpcomingLoad(): LoadSummary | null {
+  return db.getFirstSync<LoadSummary>(
+    `SELECT id, pickup_city, pickup_state, delivery_city, delivery_state,
+            total_miles, gross_pay, net_pay, net_rate_per_mile, status
+     FROM loads WHERE status = 'upcoming' ORDER BY date ASC, created_at ASC LIMIT 1`
+  ) ?? null;
+}
+
+/** Status-only transition (Start Load / Mark Complete). Financials are unaffected. */
+export function setLoadStatus(id: string, status: string): void {
+  db.runSync('UPDATE loads SET status = ? WHERE id = ?', [status, id]);
+}
+
 // ── Personal lane history ──
 
 export interface LaneHistory {

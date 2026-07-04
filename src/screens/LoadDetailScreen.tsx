@@ -15,13 +15,16 @@ import { useAuth } from '../contexts/AuthContext';
 import { pushLoads } from '../lib/sync/loadsSync';
 import { getBolDisplayUri } from '../lib/storage';
 import { maybeContributeLoadRate } from '../lib/rateReports';
+import { startLoad, completeLoad } from '../lib/loadLifecycle';
 import GridBackground from '../components/GridBackground';
 import AccentRule from '../components/AccentRule';
 import ShareLoadCard from '../components/ShareLoadCard';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-const STATUSES = ['completed', 'upcoming', 'in_progress', 'cancelled'] as const;
+// Lifecycle order: Upcoming → In Progress → Completed. "Cancelled" is no longer
+// offered (delete covers it) but legacy rows still display via STATUS_I18N.
+const STATUSES = ['upcoming', 'in_progress', 'completed'] as const;
 type LoadStatus = typeof STATUSES[number];
 
 const LOAD_TYPES = [
@@ -140,7 +143,8 @@ export default function LoadDetailScreen({ loadId, onClose, startInEdit = false 
   }, [load?.bol_photo_url]);
 
   function handleAddChip(cat: string, defaultLabel: string, defaultAmt: string) {
-    setPending({ label: defaultLabel, amount: defaultAmt, category: cat });
+    // "Other" starts blank so the editable-name placeholder invites typing.
+    setPending({ label: cat === 'other' ? '' : defaultLabel, amount: defaultAmt, category: cat });
   }
 
   function handleConfirmExpense() {
@@ -148,7 +152,7 @@ export default function LoadDetailScreen({ loadId, onClose, startInEdit = false 
     const amt = parseFloat(pending.amount);
     if (!amt || amt <= 0) { setPending(null); return; }
     addSingleLoadExpense(loadId, {
-      label:    pending.label.trim() || pending.category,
+      label:    pending.label.trim() || t(`addLoad.expCat.${pending.category}`),
       category: pending.category,
       amount:   amt,
     });
@@ -200,6 +204,14 @@ export default function LoadDetailScreen({ loadId, onClose, startInEdit = false 
     setEditBrokerMC(load.broker_mc);
     setEditNotes(load.notes);
     setEditingLoad(true);
+  }
+
+  // One-tap lifecycle progression: Upcoming → In Progress → Completed.
+  function handleProgress() {
+    if (!load) return;
+    if (load.status === 'upcoming') startLoad(loadId, user?.id);
+    else completeLoad(loadId, user?.id);
+    refreshLoad();
   }
 
   function saveEditLoad() {
@@ -305,7 +317,7 @@ export default function LoadDetailScreen({ loadId, onClose, startInEdit = false 
       <ScrollView
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
+        keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag"
       >
 
         {/* Date + status badge — status tappable in edit mode */}
@@ -357,6 +369,20 @@ export default function LoadDetailScreen({ loadId, onClose, startInEdit = false 
             </View>
           </View>
         </View>
+
+        {/* One-tap lifecycle progression — the obvious next step for a live load */}
+        {!editingLoad && (load.status === 'upcoming' || load.status === 'in_progress') && (
+          <TouchableOpacity style={styles.progressBtn} onPress={handleProgress} activeOpacity={0.85}>
+            <Ionicons
+              name={load.status === 'upcoming' ? 'play' : 'checkmark-circle'}
+              size={18}
+              color={Colors.onPrimary}
+            />
+            <Text style={styles.progressBtnText}>
+              {load.status === 'upcoming' ? t('loadDetail.startLoad') : t('loadDetail.markComplete')}
+            </Text>
+          </TouchableOpacity>
+        )}
 
         {/* P&L card */}
         <Text style={styles.sectionHeader}>{t('loadDetail.payCosts')}</Text>
@@ -428,12 +454,14 @@ export default function LoadDetailScreen({ loadId, onClose, startInEdit = false 
               {/* Pending add row */}
               {editingExp && pending && (
                 <View style={styles.expPendingRow}>
+                  <Ionicons name="pencil-outline" size={13} color={Colors.textTertiary} />
                   <TextInput
                     style={styles.expPendingLabel}
                     value={pending.label}
                     onChangeText={(v) => setPending(p => p ? { ...p, label: v } : p)}
-                    placeholder={t('addLoad.expCat.other')}
+                    placeholder={t('addLoad.expLabelPlaceholder')}
                     placeholderTextColor={Colors.textTertiary}
+                    autoFocus={pending.category === 'other'}
                   />
                   <View style={styles.expPendingAmtWrap}>
                     <Text style={styles.expPendingDollar}>$</Text>
@@ -444,7 +472,7 @@ export default function LoadDetailScreen({ loadId, onClose, startInEdit = false 
                       keyboardType="decimal-pad"
                       placeholder="0"
                       placeholderTextColor={Colors.textTertiary}
-                      autoFocus
+                      autoFocus={pending.category !== 'other'}
                     />
                   </View>
                   <TouchableOpacity onPress={handleConfirmExpense} style={styles.expConfirmBtn}>
@@ -751,6 +779,15 @@ const makeStyles = (Colors: ThemeColors) => StyleSheet.create({
   routeLineWrap: { flexDirection: 'row', alignItems: 'center', marginLeft: 16, paddingVertical: 6, gap: 10 },
   routeLine: { width: 2, height: 28, backgroundColor: Colors.border, borderRadius: 1 },
   routeMiles: { fontFamily: FontFamily.regular, fontSize: FontSize.caption, color: Colors.textSecondary },
+
+  // Lifecycle progression button (Start Load / Mark Complete)
+  progressBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    backgroundColor: Colors.primary, borderRadius: Radius.md,
+    paddingVertical: 15, marginTop: -8, marginBottom: 24,
+    shadowColor: Colors.primary, shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.35, shadowRadius: 10, elevation: 8,
+  },
+  progressBtnText: { fontFamily: FontFamily.semiBold, fontSize: FontSize.body, color: Colors.onPrimary },
 
   sectionHeader: { ...sectionLabel(Colors), marginBottom: 10, paddingLeft: 4 },
 
