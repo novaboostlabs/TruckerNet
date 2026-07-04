@@ -957,34 +957,57 @@ Details for each are in the lettered sections below.
   no branch gap. (`feat/broker-name-search` also exists, holding the shelved
   Broker Check feature for a future revival — not merged, not needed for launch.)
 
-### ⚠️ Still open — in order
-1. **[USER, ~15 min] Fill legal placeholders + support email.** On
-   `truckernet.app/terms` and `/privacy`, replace `[INSERT EFFECTIVE DATE]` and
-   `[INSERT SUPPORT EMAIL]` with real values. Stand up `support@truckernet.app`
-   as a working inbox.
-2. **[USER, ~30 min] Production build → TestFlight:**
-   ```
-   eas build --platform ios --profile production
-   eas submit --platform ios --latest
-   ```
-   Answer "No" to Export Compliance (standard HTTPS only) when it processes.
-3. **[USER, ~30 min] On-device QA on TestFlight** (real iPhone — purchases/OAuth
-   don't work in simulator or Expo Go). Full checklist is in
-   `APP_STORE_LISTING.md` → "TestFlight QA checklist". The must-pass items:
-   real purchase + 7-day trial → Pro unlocks, Restore Purchases works, Google +
-   Apple sign-in both work, and **Replay Setup persists after a full app
-   restart** (this reverted twice this session — verify it explicitly).
-4. **[USER, ~1 hr] Screenshots + finish the listing.** Capture the 6 screens
-   from `APP_STORE_LISTING.md`'s shot-list on that TestFlight build (seeded
-   Pro account, ~3–4 weeks of loads so nothing looks empty). Paste in the
-   description/subtitle/keywords from the same file. Set Support URL
-   (`truckernet.app`) + Privacy URL (`truckernet.app/privacy`) in App Store
-   Connect. Fill the privacy "nutrition label" (email, location, usage
-   analytics, crash data — no data sold).
-5. **[USER, ~5 min] Submit for review**, with a seeded demo login in the App
-   Review notes so the reviewer doesn't see empty states. Budget 1–3 weeks;
-   expect at least one rejection round is normal (common causes: IAP metadata
-   mismatch, missing in-app account deletion — confirm Settings has one).
+### ✅ Newly confirmed done (2026-07-05)
+- Legal placeholders filled + support email working (user, "a few days ago").
+- **Purchase → Pro unlock VERIFIED working on TestFlight sandbox.** Root cause of
+  "purchase succeeds but Pro never unlocks" was: the two products were NOT
+  attached to the `pro` entitlement in RevenueCat. User attached them → Pro
+  unlocked immediately (no rebuild needed — RC re-evaluates the mapping
+  server-side; restore/relaunch picks it up). Code was correct all along.
+  NOTE for later: attach products to `pro` for the ANNUAL plan test + any future
+  Android products too — same trap.
+- Description + keywords pasted into App Store Connect (user).
+- TestFlight build exists and installs; sandbox IAP flow works (TestFlight uses
+  the sandbox env automatically with the real Apple ID — no sandbox account
+  needed; that earlier confusion is resolved).
+
+### 🔴 Still open — in order (as of 2026-07-05)
+
+0. **[BLOCKER — CODE — likely App Store rejection] "Delete Account" doesn't
+   actually delete the account.** `SettingsScreen.handleDeleteAccount` just calls
+   `onClose(); signOut();` — it does NOT delete the Supabase auth user or their
+   cloud data. Apple guideline 5.1.1(v) requires real in-app account+data
+   deletion, and reviewers test it (delete → sign back in → data must be gone).
+   FIX: a Supabase Edge Function `delete-account` (verifies JWT → deletes the
+   user's rows across all tables → deletes the auth user via admin API), called
+   from the app in place of the bare signOut. Client change is pure JS (can ship
+   via EAS Update or the next build); function deploys via
+   `supabase functions deploy delete-account`. **NOT YET BUILT — offered to the
+   user 2026-07-05.**
+1. **[USER — in progress] Screenshots.** Capturing via AppLaunchpad /
+   appscreens.com from the `APP_STORE_LISTING.md` shot-list (6 screens, seeded
+   Pro account). Then upload the 6.7" iPhone set to App Store Connect.
+2. **[USER] Finish the App Store Connect listing:** set Support URL
+   (`truckernet.app`) + Privacy URL (`truckernet.app/privacy`); fill the privacy
+   "nutrition label" (email, location, usage analytics, crash data — no data
+   sold); confirm age rating (4+).
+3. **[USER] Finish on-device TestFlight QA** — purchase is verified; still run
+   the rest of `APP_STORE_LISTING.md` → "TestFlight QA checklist": Restore
+   Purchases, Google + Apple sign-in, and **Replay Setup persists after a full
+   app restart** (reverted twice this session — verify explicitly).
+4. **[USER] (only if code changed) Rebuild + resubmit to TestFlight:**
+   `eas build --platform ios --profile production` → `eas submit --platform ios
+   --latest`. Needed if the Delete Account fix ships as a build rather than an
+   EAS Update. Export Compliance = "No".
+5. **[USER] Submit for review** with a seeded demo login in the App Review notes
+   so the reviewer never sees empty states. Budget 1–3 weeks; one rejection
+   round is normal.
+
+### 💡 Recommended before builds run out: set up EAS Update (OTA)
+User is low on monthly EAS builds. `expo-updates` is NOT installed yet. Setting
+it up (install + configure, then ONE build to bake it in) means all future
+JS/copy/UI changes ship via `eas update` — zero builds. Native changes
+(new modules, app.json, permissions) still need a build. Offered 2026-07-05.
 
 ### Known, accepted limitations (not blockers — documented so they're not
 "discovered" again as bugs)
