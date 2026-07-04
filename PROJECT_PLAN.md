@@ -915,6 +915,26 @@ Details for each are in the lettered sections below.
 
 ## 6. Work Log (newest first)
 
+### 2026-07-04 — Broker Check shelved for v1 (name search built + verified first)
+Built FMCSA name search (type a broker name → "is this your broker?" picker →
+exact verification on the picked entity) and verified the whole feature against
+the LIVE FMCSA API with the real webKey (endpoints work, parsing matches the
+actual JSON, webKey inlines at runtime = 40 chars confirmed in Expo Go).
+- **Decision: shelved Broker Check (FMCSA) for v1** (founder call, sound). Its
+  instant value is only authority-active/revoked — thin on its own; the real
+  moat (crowdsourced payment behavior / days-to-pay) needs user volume, months
+  out. Name search also carries inherent friction (ambiguous similar-name
+  matches, multi-second FMCSA latency).
+- Unwired from AddLoadScreen (state/effects/JSX/imports removed); debug logs
+  removed. Code preserved: `feat/broker-name-search` branch + dormant
+  `src/lib/brokerCheck.ts`, `components/BrokerCheckCard.tsx`,
+  `components/BrokerCandidatePicker.tsx` (in repo, not imported). Revisit
+  post-launch once there's volume to build the payment-scorecard data.
+- Broker NAME/MC fields on the load + the existing crowdsourced Broker Scorecard
+  are untouched. (Scorecard has the same cold-start problem + the brief
+  "checking scorecard" flash — candidate for the same treatment later.)
+- `EXPO_PUBLIC_FMCSA_WEBKEY` left in place (harmless; ready if revived).
+
 ### 2026-07-02 — Fuel tab shows the setup estimate until real fill-ups exist
 Symmetry fix: break-even already USES the setup fuel estimate
 (`weekly_fuel_cost ÷ weekly_miles`) as its CPM fallback, but the Fuel tab showed
