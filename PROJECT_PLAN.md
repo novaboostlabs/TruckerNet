@@ -16,7 +16,7 @@
 > branch and push `main`** so the user's build always reflects the latest.
 > (Decided 2026-06-19 after changes weren't appearing because `main` was stale.)
 
-_Last updated: 2026-07-05 — App is feature-complete for v1.0.0. **Delete Account status is UNKNOWN, not broken:** the reported "still broken" retest was actually still running the OLD pre-fix JS bundle (a TestFlight build only updates via a new build or an OTA update — neither had happened yet), so nothing about the fix has been genuinely tested yet. Set up **EAS Update (OTA)** this session (`expo-updates` installed + configured) so this and future JS-only fixes can ship without burning a full build each time — but the very first OTA still needs ONE new `eas build` to bake in the native OTA runtime. **USER: trigger that one production build + submit, THEN retest Delete Account** (check Supabase Edge Function logs + Users table per §5.8 item 0) — that will be the first real test of the fix. Purchase → Pro unlock is separately CONFIRMED working on TestFlight. See §6 Work Log for full details, newest first._
+_Last updated: 2026-07-05 — App is feature-complete for v1.0.0. **Delete Account is CONFIRMED WORKING** — user ran a real on-device retest after the production build shipped the fix + EAS Update (OTA) runtime, and reported it as fully functional (auth user is genuinely removed server-side, not just a local sign-out). Purchase → Pro unlock was separately CONFIRMED working on TestFlight. The two riskiest pre-launch items are now both verified. See §6 Work Log for full history, newest first. Remaining open items are the launch-logistics checklist in §5.8 (screenshots, App Store Connect listing, remaining TestFlight QA, submit for review)._
 
 > **Backend sync state:** Local-first, SQLite is source of truth. As of
 > 2026-07-01/02: pull now MERGES instead of replacing (local wins on conflict,
@@ -1003,20 +1003,10 @@ Real in-app account deletion, closing the 5.1.1(v) gap flagged above.
 
 ### 🔴 Still open — in order (as of 2026-07-05)
 
-0. **[BLOCKER — needs a real build to even test] Delete Account: status unknown.**
-   Every retest so far actually ran the OLD pre-fix JS bundle (no build/OTA had
-   shipped it yet) — so "still broken" wasn't a failed fix, it was an untested
-   one. **USER: trigger `eas build --platform ios --profile production` →
-   `eas submit --platform ios --latest`** (this one build also bakes in the new
-   EAS Update/OTA runtime — see Work Log). Once that's on TestFlight, retest
-   Delete Account for the first time for real, and check Supabase Dashboard →
-   Edge Functions → delete-account → Logs (should show `deleting user …` /
-   `confirmed user … removed`, or a `delete_incomplete` error) + Authentication
-   → Users (email row should be gone) → Auth user must ALSO have been deployed
-   via `supabase functions deploy delete-account` if that wasn't done already.
-   Report back what the logs show either way — if it still fails after a real
-   build, that's the first genuine signal something in the function itself is
-   wrong.
+0. ~~**Delete Account: status unknown.**~~ **RESOLVED 2026-07-05** — production
+   build shipped the fix + OTA runtime, user retested on-device and confirmed
+   it's fully functional (real server-side account + auth-user deletion, not
+   just a local sign-out). See Work Log.
 1. **[USER — in progress] Screenshots.** Capturing via AppLaunchpad /
    appscreens.com from the `APP_STORE_LISTING.md` shot-list (6 screens, seeded
    Pro account). Then upload the 6.7" iPhone set to App Store Connect.
@@ -1024,24 +1014,24 @@ Real in-app account deletion, closing the 5.1.1(v) gap flagged above.
    (`truckernet.app`) + Privacy URL (`truckernet.app/privacy`); fill the privacy
    "nutrition label" (email, location, usage analytics, crash data — no data
    sold); confirm age rating (4+).
-3. **[USER] Finish on-device TestFlight QA** — purchase is verified; still run
-   the rest of `APP_STORE_LISTING.md` → "TestFlight QA checklist": Restore
-   Purchases, Google + Apple sign-in, Delete Account (new), and **Replay Setup
-   persists after a full app restart** (reverted twice this session — verify
-   explicitly).
-4. **[USER] Rebuild + resubmit to TestFlight:**
-   `eas build --platform ios --profile production` → `eas submit --platform ios
-   --latest`. Needed to ship the Delete Account client change unless EAS Update
-   is set up first. Export Compliance = "No".
+3. **[USER] Finish on-device TestFlight QA** — purchase and Delete Account are
+   both verified; still run the rest of `APP_STORE_LISTING.md` →
+   "TestFlight QA checklist": Restore Purchases, Google + Apple sign-in, and
+   **Replay Setup persists after a full app restart** (reverted twice this
+   session — verify explicitly).
+4. ~~**Rebuild + resubmit to TestFlight**~~ **DONE** — production build shipped
+   2026-07-05 with the Delete Account fix + EAS Update/OTA runtime baked in.
+   Future JS-only fixes can ship via `eas update --channel production` instead
+   of a full rebuild.
 5. **[USER] Submit for review** with a seeded demo login in the App Review notes
    so the reviewer never sees empty states. Budget 1–3 weeks; one rejection
    round is normal.
 
-### 💡 Recommended before builds run out: set up EAS Update (OTA)
-User is low on monthly EAS builds. `expo-updates` is NOT installed yet. Setting
-it up (install + configure, then ONE build to bake it in) means all future
-JS/copy/UI changes ship via `eas update` — zero builds. Native changes
-(new modules, app.json, permissions) still need a build. Offered 2026-07-05.
+### ✅ EAS Update (OTA) — set up and live
+`expo-updates` installed + configured 2026-07-05, baked into the 2026-07-05
+production build. All future JS/copy/UI-only changes ship via
+`eas update --channel production` — zero build credits. Native changes (new
+modules, app.json, permissions) still need a full `eas build`.
 
 ### Known, accepted limitations (not blockers — documented so they're not
 "discovered" again as bugs)
@@ -1064,6 +1054,19 @@ JS/copy/UI changes ship via `eas update` — zero builds. Native changes
 ---
 
 ## 6. Work Log (newest first)
+
+### 2026-07-05 — Delete Account: CONFIRMED WORKING on real device
+User triggered the production build (`eas build` → `eas submit`), which shipped
+both the Delete Account fix and the new EAS Update/OTA runtime to TestFlight
+for the first time. Retested on-device and confirmed it now works correctly:
+the account and its data are genuinely deleted server-side, and the deleted
+user can no longer sign back in — not just the old bare-sign-out behavior.
+This closes out the last known-risky item before the App Store 5.1.1(v)
+requirement (real in-app account deletion) and was the last unverified piece
+of this session's work. Purchase → Pro unlock was separately confirmed
+working earlier. Remaining pre-launch work is now purely launch logistics
+(screenshots, App Store Connect listing, remaining TestFlight QA items,
+submit for review) — see §5.8.
 
 ### 2026-07-05 — EAS Update (OTA) set up + realization: the retest never ran the new code
 User retested Delete Account after the previous fix and reported the exact same
