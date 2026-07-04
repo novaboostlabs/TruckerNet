@@ -135,3 +135,82 @@ Run on a **real iPhone** via TestFlight — purchases and OAuth do not work in t
 - [ ] Privacy "nutrition label": declare — email (auth), location (routing/mileage), usage data (PostHog analytics), crash data (Sentry). No data sold to third parties.
 - [ ] Age rating: business/finance tool, no objectionable content — should qualify for 4+
 - [ ] Reviewer demo account: provide a seeded login (not empty) in App Review notes so the reviewer sees a full app
+
+---
+
+## Reviewer demo account — setup steps + seed data
+
+**Setup order:**
+1. Sign up in the TestFlight build with an email you own (e.g. `appreview@truckernet.app` or a personal alias) + a real password.
+2. Confirm via the Supabase confirmation email — same flow every user goes through.
+3. Complete onboarding + profile with the values below.
+4. Log the loads, then the fuel fill-ups, then the two general expenses — each list is oldest-first.
+5. Put the finished email + password into App Store Connect → App Review Information.
+6. **Grant this account Pro** in RevenueCat Dashboard → Customers → search by its Supabase user ID → grant the `pro` entitlement (no card charged). Do this LAST, after the account exists, so the reviewer never hits a paywall.
+
+Dates below are given as "days before you enter this data" (e.g. `-24` = 24 days ago) — count back from whatever day you actually do this, oldest first. All loads use Mapbox address autocomplete for pickup/delivery so miles + per-state IFTA split fill in automatically; don't hand-type state mileage.
+
+### Onboarding + Profile
+
+| Field | Value |
+|---|---|
+| Weekly fuel cost | $700 |
+| Weekly miles | 2,500 |
+| Truck payment | $1,650/mo |
+| Insurance | $600/mo |
+| Maintenance | $350/mo |
+| ELD | $45/mo |
+| Load board | $50/mo |
+| Parking | $60/mo |
+| Other: "Phone/Data plan" | $80/mo |
+| Income goal | $3,000 / weekly |
+| Tax rate | 25% (default) |
+| Name | Marcus Reyes |
+| Equipment type | Dry Van |
+| Truck number | T-114 |
+| Home base | Dallas, TX |
+
+(Resulting break-even ≈ $0.54/mi — comfortably inside real-world range; don't overthink precision, it just needs to be non-zero and plausible.)
+
+### Loads (enter oldest → newest; "today" = the day you do this)
+
+| # | Day | Pickup | Delivery | Equipment | Gross Pay | Status | Notes |
+|---|---|---|---|---|---|---|---|
+| 1 | -24 | Dallas, TX | Atlanta, GA | Dry Van | $1,950 | Completed | ~795 mi |
+| 2 | -22 | Atlanta, GA | Charlotte, NC | Dry Van | $430 | Completed | ~245 mi, short-haul |
+| 3 | -19 | Charlotte, NC | Memphis, TN | Reefer | $1,730 | Completed | ~630 mi |
+| 4 | -17 | Memphis, TN | Dallas, TX | Dry Van | $1,060 | Completed | ~450 mi |
+| 5 | -14 | Dallas, TX | Denver, CO | Flatbed | $2,250 | Completed | ~790 mi |
+| 6 | -12 | Denver, CO | Kansas City, MO | Dry Van | $1,380 | Completed | ~600 mi |
+| 7 | -10 | Kansas City, MO | Dallas, TX | Dry Van | $1,100 | Completed | ~500 mi |
+| 8 | -8 | Dallas, TX | Houston, TX | Dry Van | $385 | Completed | ~240 mi, **Backhaul toggle ON** |
+| 9 | -6 | Houston, TX | New Orleans, LA | Dry Van | $840 | Completed | ~350 mi |
+| 10 | -4 | New Orleans, LA | Dallas, TX | Reefer | $1,325 | Completed | ~510 mi. Broker: "Sunbelt Logistics", MC 123456. Add load expenses: Scale $11, Lumper $75 |
+| 11 | -2 | Dallas, TX | Atlanta, GA | Dry Van | $1,990 | Completed | ~795 mi |
+| 12 | -1 | Nashville, TN | Dallas, TX | Dry Van | $0 | Completed | ~660 mi, **Deadhead toggle ON** (empty reposition) |
+| 13 | 0 (today) | Dallas, TX | Atlanta, GA | Dry Van | $1,975 | **In Progress** | ~795 mi — shows the live "Mark Complete" flow |
+| 14 | 0 (today) | Atlanta, GA | Charlotte, NC | Dry Van | $410 | **Upcoming** | ~245 mi — shows the "Start Load" flow |
+
+### Fuel fill-ups (enter oldest → newest)
+
+Starting odometer: **412,600** (set this as your very first fill-up's reading, a day or two before load #1).
+
+| # | Day | State | Gallons | $/gal | Amount | Odometer |
+|---|---|---|---|---|---|---|
+| 1 | -24 | TX | 123 | $3.85 | $473.55 | 413,400 |
+| 2 | -21 | LA | 123 | $3.95 | $485.85 | 414,200 |
+| 3 | -18 | MS | 123 | $3.75 | $461.25 | 415,000 |
+| 4 | -15 | GA | 123 | $3.90 | $479.70 | 415,800 |
+| 5 | -12 | CO | 123 | $3.70 | $455.10 | 416,600 |
+| 6 | -9 | KS | 123 | $3.65 | $449.00 | 417,400 |
+| 7 | -6 | TX | 123 | $3.80 | $467.40 | 418,200 |
+| 8 | -3 | TX | 118 | $3.85 | $454.30 | 418,965 |
+
+(This lands MPG around ~6.5, a realistic loaded sleeper-cab figure — don't worry about matching it exactly.)
+
+### General (one-off) expenses — for the History tab
+
+| Day | Label | Category | Amount |
+|---|---|---|---|
+| -16 | Truck wash + minor repair | Maintenance | $180 |
+| -7 | Parking fine | Fine | $75 |

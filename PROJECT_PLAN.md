@@ -16,7 +16,15 @@
 > branch and push `main`** so the user's build always reflects the latest.
 > (Decided 2026-06-19 after changes weren't appearing because `main` was stale.)
 
-_Last updated: 2026-07-05 — App is feature-complete for v1.0.0. **Delete Account is CONFIRMED WORKING** — user ran a real on-device retest after the production build shipped the fix + EAS Update (OTA) runtime, and reported it as fully functional (auth user is genuinely removed server-side, not just a local sign-out). Purchase → Pro unlock was separately CONFIRMED working on TestFlight. The two riskiest pre-launch items are now both verified. See §6 Work Log for full history, newest first. Remaining open items are the launch-logistics checklist in §5.8 (screenshots, App Store Connect listing, remaining TestFlight QA, submit for review)._
+_Last updated: 2026-07-04 (later session) — App is code-complete for v1.0.0 plus
+a full UX polish pass (load lifecycle, keyboard/gesture fixes, onboarding
+validation, fuel tab, session persistence, earned-vs-pending money) shipped
+via two `eas update` OTA pushes — no rebuild needed. **Android RevenueCat code
+path is now wired** (only the actual SDK key + Play Console setup remain,
+tracked in the new §5.8 "Android" section). Screenshots are captured and
+uploaded. The concrete next action is creating + seeding the reviewer demo
+account — full seed data lives in `APP_STORE_LISTING.md`. See §6 Work Log for
+full history, newest first._
 
 > **Backend sync state:** Local-first, SQLite is source of truth. As of
 > 2026-07-01/02: pull now MERGES instead of replacing (local wins on conflict,
@@ -1001,31 +1009,64 @@ Real in-app account deletion, closing the 5.1.1(v) gap flagged above.
   change is pure JS — ships via EAS Update once that's set up, or the next
   build either way.
 
-### 🔴 Still open — in order (as of 2026-07-05)
+### 🔴 Still open — in order (as of 2026-07-04, later session)
 
 0. ~~**Delete Account: status unknown.**~~ **RESOLVED 2026-07-05** — production
    build shipped the fix + OTA runtime, user retested on-device and confirmed
    it's fully functional (real server-side account + auth-user deletion, not
    just a local sign-out). See Work Log.
-1. **[USER — in progress] Screenshots.** Capturing via AppLaunchpad /
-   appscreens.com from the `APP_STORE_LISTING.md` shot-list (6 screens, seeded
-   Pro account). Then upload the 6.7" iPhone set to App Store Connect.
+1. ~~**Screenshots.**~~ **DONE** — captured and uploaded to App Store Connect.
 2. **[USER] Finish the App Store Connect listing:** set Support URL
    (`truckernet.app`) + Privacy URL (`truckernet.app/privacy`); fill the privacy
    "nutrition label" (email, location, usage analytics, crash data — no data
    sold); confirm age rating (4+).
-3. **[USER] Finish on-device TestFlight QA** — purchase and Delete Account are
+3. **[USER] Create + seed the reviewer demo account, then fill in App Review
+   Information.** Full step-by-step + exact seed data (onboarding values, 14
+   loads, 8 fuel fill-ups, 2 general expenses) now lives in
+   `APP_STORE_LISTING.md` → "Reviewer demo account — setup steps + seed data".
+   Last step in that section: grant the account Pro via the RevenueCat
+   dashboard (Customers → grant `pro` entitlement) so the reviewer never hits
+   a paywall. Sign-in-required toggle must be ON (guest mode was removed).
+4. **[USER] Finish on-device TestFlight QA** — purchase and Delete Account are
    both verified; still run the rest of `APP_STORE_LISTING.md` →
    "TestFlight QA checklist": Restore Purchases, Google + Apple sign-in, and
    **Replay Setup persists after a full app restart** (reverted twice this
    session — verify explicitly).
-4. ~~**Rebuild + resubmit to TestFlight**~~ **DONE** — production build shipped
+5. ~~**Rebuild + resubmit to TestFlight**~~ **DONE** — production build shipped
    2026-07-05 with the Delete Account fix + EAS Update/OTA runtime baked in.
    Future JS-only fixes can ship via `eas update --channel production` instead
-   of a full rebuild.
-5. **[USER] Submit for review** with a seeded demo login in the App Review notes
-   so the reviewer never sees empty states. Budget 1–3 weeks; one rejection
-   round is normal.
+   of a full rebuild. Two polish-pass OTA updates already shipped this way
+   (load lifecycle/keyboard/onboarding/fuel-tab fixes + earned-vs-pending money
+   split) — see Work Log.
+6. **[USER] Submit for review** with the seeded demo login (step 3) in the App
+   Review notes so the reviewer never sees empty states. Budget 1–3 weeks; one
+   rejection round is normal.
+
+### 🤖 Android — in progress alongside iOS submission
+- [x] **RevenueCat code path wired** (2026-07-04) — `SubscriptionContext.tsx`
+  was already ~90% platform-agnostic; fixed the one iOS-only string (restore
+  error hardcoded "Apple ID" → now branches "Google account" on Android) and
+  clarified the `ANDROID_API_KEY` placeholder + added a dev-console warning.
+  Purchases/restore/manage-subscription-deep-link were already correct — once
+  the key below is pasted in, Android purchases work with zero further code
+  changes (RevenueCat offerings are cross-platform).
+- [x] **Google Play Console developer account created** — pending Google's
+  account-verification review before an app listing can be created (external,
+  no action needed; just wait).
+- [x] **App Store screenshots captured** (6.7" iPhone set) — same assets were
+  used for both stores; Play needs an additional 1024×500 feature graphic (new
+  asset, no iOS equivalent).
+- [ ] **[USER] Once Play Console clears verification:** create the app listing
+  (reuse `APP_STORE_LISTING.md` description almost verbatim — see the
+  field-mapping table Claude gave in chat 2026-07-04), complete Data Safety +
+  content rating questionnaires (same answers as the iOS App Privacy work,
+  §5.7 "App Privacy questionnaire answers").
+- [ ] **[USER] Create the Android app in RevenueCat**, matching Play Console
+  subscriptions (`truckernet_pro_monthly`/`truckernet_pro_annual`, 7-day
+  trial) attached to the existing `pro` entitlement, then paste the Android
+  public SDK key into `ANDROID_API_KEY` in `SubscriptionContext.tsx`.
+- [ ] `eas build --platform android --profile production` once ready to test
+  on a real device (needs an `.aab`, uploaded to Internal testing first).
 
 ### ✅ EAS Update (OTA) — set up and live
 `expo-updates` installed + configured 2026-07-05, baked into the 2026-07-05
@@ -1054,6 +1095,41 @@ modules, app.json, permissions) still need a full `eas build`.
 ---
 
 ## 6. Work Log (newest first)
+
+### 2026-07-04 — Reviewer demo account plan + Android RevenueCat wiring
+User confirmed the App Review Information plan: create a real TestFlight
+account with an owned-but-unused email, seed it with realistic data, hand
+those credentials to Apple, and grant it Pro via RevenueCat so the reviewer
+sees the whole app unlocked (guest mode was removed pre-launch, so sign-in is
+mandatory for review too).
+- **Wrote the full seed dataset into `APP_STORE_LISTING.md`** (new "Reviewer
+  demo account" section) — durable so it survives across sessions: onboarding
+  values (fuel/expenses/miles/goal/profile), 14 loads across a Dallas-anchored
+  multi-state corridor (11 completed incl. one deadhead leg + backhaul example
+  + one with load-attached expenses/broker info, 1 in-progress, 1 upcoming —
+  deliberately exercises the new lifecycle buttons), 8 fuel fill-ups, 2
+  one-off expenses. Dates given as relative day-offsets so they stay valid
+  whenever the user actually does the data entry.
+- **Android RevenueCat code path wired** — audited `SubscriptionContext.tsx`
+  (already ~90% platform-agnostic: `Platform.OS`-keyed API key, cross-platform
+  offering/package resolution, purchase/restore logic) and the rest of the
+  subscription UI for iOS-only assumptions. Found and fixed one real bug: the
+  restore-purchases failure message hardcoded "Apple ID" regardless of
+  platform — now says "Google account" on Android. Manage Subscription's
+  store deep-link and the delete-account subscription-disclosure copy were
+  already correctly platform-branched. Clarified the `ANDROID_API_KEY`
+  placeholder comment + added a dev-console warning naming exactly what's
+  missing. `tsc --noEmit` clean.
+- **Remaining (all external, tracked in §5.8 "Android"):** Play Console
+  developer verification is pending Google's review (user already registered);
+  once cleared, create the Android app in RevenueCat + Play Console
+  subscriptions and paste the SDK key — no further code changes needed after
+  that.
+- Google Play Store listing walkthrough given in chat (field-by-field mapping
+  from the already-written App Store copy, Data Safety section reuse from the
+  iOS App Privacy answers, .aab vs .ipa build format note) — not yet copied
+  into a project file since Play listing creation itself is still blocked on
+  account verification.
 
 ### 2026-07-04 — Earned vs pending money split (income goal correctness)
 User feedback after testing the OTA: a load takes days to finish — in-progress/
