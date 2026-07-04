@@ -9,7 +9,11 @@ import { getSetting, setSetting } from '../db/database';
 
 // Live iOS public SDK key from RevenueCat (set 2026-06-29).
 const IOS_API_KEY     = 'appl_JvoQxWtuPHFOIitrxyHEVEmGuve';
-const ANDROID_API_KEY = ''; // add when Play Console + RC Android app is set up
+// Paste the Android public SDK key here once the RevenueCat Android app is
+// created and its products are attached to the `pro` entitlement (RC dashboard
+// → Project → Apps → Android → API Keys). Everything else in this file is
+// already platform-agnostic — this string is the only remaining step.
+const ANDROID_API_KEY = '';
 
 // The entitlement IDENTIFIER (not display name) set in the RevenueCat dashboard.
 // Dashboard: identifier "pro", display name "TruckerNet Pro", with products
@@ -145,7 +149,12 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
     async function initRC() {
       try {
         if (!PLATFORM_API_KEY) {
-          console.warn('[TruckerNet] RevenueCat: no API key for platform', Platform.OS);
+          console.warn(
+            `[TruckerNet] RevenueCat: no API key for platform "${Platform.OS}".`,
+            Platform.OS === 'android'
+              ? 'Set ANDROID_API_KEY in SubscriptionContext.tsx once the RevenueCat Android app + Play Console billing are set up.'
+              : '',
+          );
           setLoading(false);
           return;
         }
@@ -265,7 +274,11 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
       const isNowPro     = customerInfo.entitlements.active[ENTITLEMENT_ID] !== undefined;
       setIsPro(isNowPro);
       return {
-        error: isNowPro ? null : 'No active subscription found on this Apple ID.',
+        error: isNowPro
+          ? null
+          : Platform.OS === 'ios'
+            ? 'No active subscription found on this Apple ID.'
+            : 'No active subscription found on this Google account.',
       };
     } catch (e: any) {
       console.error('[TruckerNet] Restore error:', e);
