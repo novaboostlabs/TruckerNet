@@ -12,6 +12,7 @@ import {
   expensesAreStale, daysSinceExpenseReview, getStaleCategoryAlerts, StaleCategoryAlert,
   getTaxSetAside, TaxSetAside,
   getRecentLoads, getActiveLoad, getUpcomingLoad, LoadSummary, getIncomeGoal,
+  getWeekPendingPnL, getMonthPendingPnL, PendingPnL,
   getWeeklyNetTrend, getCostBreakdown, WeekTrendPoint, CostBreakdown,
   getSetting, deleteLoad,
 } from '../db/database';
@@ -56,6 +57,8 @@ interface DashData {
   loads: LoadRow[];
   activeLoad: LoadSummary | null;
   upcomingLoad: LoadSummary | null;
+  weekPending: PendingPnL;
+  monthPending: PendingPnL;
   hasRealLoads: boolean;
   incomeGoal: { amount: number; period: 'weekly' | 'monthly' } | null;
   driverName: string;
@@ -80,8 +83,11 @@ function readDashData(): DashData {
   const { breakEvenRPM, fuelCPM, fixedCPM, milesSource } = calcBreakEven();
   const count = getLoadCount();
   const empty  = { net: 0, gross: 0, miles: 0, loads: 0 };
+  const noPending: PendingPnL = { net: 0, loads: 0 };
   const week   = count > 0 ? getWeekPnL()        : empty;
   const month  = count > 0 ? getMonthPnL()       : empty;
+  const weekPending  = count > 0 ? getWeekPendingPnL()  : noPending;
+  const monthPending = count > 0 ? getMonthPendingPnL() : noPending;
   const recent = count > 0 ? getRecentLoads(5).map(loadFromSummary) : [];
   const active = count > 0 ? getActiveLoad()     : null;
   // The upcoming card only shows when nothing is actively running — one clear
@@ -95,6 +101,8 @@ function readDashData(): DashData {
     loads:     recent,
     activeLoad: active,
     upcomingLoad: upcoming,
+    weekPending,
+    monthPending,
     hasRealLoads: count > 0,
     incomeGoal: getIncomeGoal(),
     tax: getTaxSetAside(),
@@ -356,6 +364,8 @@ export default function DashboardScreen() {
             net={d.incomeGoal.period === 'weekly' ? d.weekNet : d.monthNet}
             goal={d.incomeGoal.amount}
             period={d.incomeGoal.period}
+            pending={(d.incomeGoal.period === 'weekly' ? d.weekPending : d.monthPending).net}
+            pendingLoads={(d.incomeGoal.period === 'weekly' ? d.weekPending : d.monthPending).loads}
           />
         ) : (
           <View style={styles.weekHero}>
@@ -372,8 +382,18 @@ export default function DashboardScreen() {
             </Text>
             <Text style={styles.weekHeroUnit}>{t('dashboard.netPay')}</Text>
 
+            {/* Booked-but-undelivered money — kept separate from earned net */}
+            {d.weekPending.net > 0 && (
+              <View style={styles.pendingRow}>
+                <View style={styles.pendingDot} />
+                <Text style={styles.pendingText}>
+                  {t('dashboard.weekPendingLine', { amount: `$${fmt(d.weekPending.net)}`, count: d.weekPending.loads })}
+                </Text>
+              </View>
+            )}
+
             {d.weekLoads === 0 ? (
-              <Text style={styles.weekHeroEmpty}>{t('dashboard.weekEmpty')}</Text>
+              d.weekPending.net > 0 ? null : <Text style={styles.weekHeroEmpty}>{t('dashboard.weekEmpty')}</Text>
             ) : (
               <>
                 <View style={styles.heroDivider} />
@@ -647,6 +667,9 @@ const makeStyles = (Colors: ThemeColors) => StyleSheet.create({
     lineHeight: 60, letterSpacing: -2, marginTop: 4,
   },
   weekHeroUnit:  { fontFamily: FontFamily.monoRegular, fontSize: FontSize.label, color: Colors.textSecondary, marginBottom: 18, letterSpacing: 0.5 },
+  pendingRow:  { flexDirection: 'row', alignItems: 'center', gap: 7, marginTop: -8, marginBottom: 14 },
+  pendingDot:  { width: 7, height: 7, borderRadius: 3.5, backgroundColor: Colors.primary + '55' },
+  pendingText: { flex: 1, fontFamily: FontFamily.monoRegular, fontSize: FontSize.caption, color: Colors.textSecondary, lineHeight: 16 },
   weekHeroEmpty: { fontFamily: FontFamily.regular, fontSize: FontSize.label, color: Colors.textSecondary, marginTop: 6, lineHeight: 20 },
   goalNudge: {
     flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start',

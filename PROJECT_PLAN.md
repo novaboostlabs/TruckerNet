@@ -1055,6 +1055,21 @@ modules, app.json, permissions) still need a full `eas build`.
 
 ## 6. Work Log (newest first)
 
+### 2026-07-04 — Earned vs pending money split (income goal correctness)
+User feedback after testing the OTA: a load takes days to finish — in-progress/
+upcoming loads must not count as earned toward the income goal; the goal should
+show progress now AND what it becomes once the load delivers.
+- **Earned = completed loads only**, everywhere money/actual-miles aggregate:
+  week/month P&L, weekly trend, tax set-aside, break-even 90-day actuals +
+  source tag, streaks, IFTA (+hasIFTAData). (Part 1 had only excluded upcoming;
+  in-progress also isn't earned yet.)
+- New `getWeekPendingPnL()`/`getMonthPendingPnL()` (upcoming + in_progress net).
+- **GoalProgressCard**: translucent "once delivered" segment layered under the
+  earned fill + line "+$X rolling now → Y% once delivered"; "log your first
+  load" fresh copy suppressed while a load is rolling.
+- Fallback week hero shows "+$X on loads still rolling" the same way.
+- i18n en/es/pa/zh; parity 0/0; tsc clean. Shipped via `eas update`.
+
 ### 2026-07-04 — Final polish pass, part 1 (user punch list + flow streamlining)
 User set a polish goal: fix the reported UX gaps and streamline the load flow to
 Uber/Elevate standard. All items below shipped on `polish/final-pass` → `main`.

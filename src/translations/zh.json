@@ -306,7 +306,9 @@
     "milesSource_estimate": "估算",
     "setGoalNudge": "设定收入目标",
     "upcoming": "即将执行",
-    "startLoad": "开始运输"
+    "startLoad": "开始运输",
+    "goalPendingLine": "+{{amount}} 在途 → 送达后 {{pct}}%",
+    "weekPendingLine": "+{{amount}} 来自在途货载"
   },
   "checkLoad": {
     "title": "查看订单",

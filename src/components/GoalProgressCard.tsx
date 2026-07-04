@@ -9,6 +9,10 @@ interface Props {
   goal:     number;
   period:   'weekly' | 'monthly';
   variant?: 'compact' | 'hero';
+  /** Net pay booked on upcoming/in-progress loads — shown as a translucent
+   *  "once delivered" segment on the bar, never mixed into the earned number. */
+  pending?:      number;
+  pendingLoads?: number;
 }
 
 function daysLeftInPeriod(period: 'weekly' | 'monthly'): number {
@@ -22,7 +26,7 @@ function daysLeftInPeriod(period: 'weekly' | 'monthly'): number {
   return dow === 0 ? 0 : 7 - dow;
 }
 
-export default function GoalProgressCard({ net, goal, period, variant = 'compact' }: Props) {
+export default function GoalProgressCard({ net, goal, period, variant = 'compact', pending = 0, pendingLoads = 0 }: Props) {
   const { colors: Colors } = useTheme();
   const styles = useMemo(() => makeStyles(Colors), [Colors]);
   const { t } = useTranslation();
@@ -31,6 +35,10 @@ export default function GoalProgressCard({ net, goal, period, variant = 'compact
   const days    = daysLeftInPeriod(period);
   const fmt     = (n: number) => `$${Math.max(0, Math.round(n)).toLocaleString('en-US')}`;
   const remaining = Math.max(0, goal - net);
+
+  // Booked-but-not-delivered money: projected % once the current load(s) finish.
+  const hasPending   = pending > 0 && !reached;
+  const projectedPct = Math.max(pct, Math.min(((net + pending) / goal) * 100, 100));
 
   // Distinguish a fresh period (nothing banked yet — the "Monday-zero" state) from
   // an actual loss. A new week shouldn't greet the driver with a red 0% bar.
@@ -51,9 +59,11 @@ export default function GoalProgressCard({ net, goal, period, variant = 'compact
     ? t('dashboard.goalEyebrowWeekly')
     : t('dashboard.goalEyebrowMonthly');
 
+  // "Log your first load" reads wrong when a load is already rolling — a fresh
+  // period with pending money falls through to the normal days-left copy.
   const subtext = reached
     ? t('dashboard.goalReached')
-    : fresh
+    : fresh && !hasPending
       ? t('dashboard.goalFresh')
       : days === 0
         ? t('dashboard.goalLastDay')
@@ -76,10 +86,26 @@ export default function GoalProgressCard({ net, goal, period, variant = 'compact
           {!reached && ` · ${t('dashboard.goalToGo', { amount: fmt(remaining) })}`}
         </Text>
 
-        {/* Progress bar */}
+        {/* Progress bar — earned solid; pending as a translucent extension */}
         <View style={[styles.track, styles.heroTrack]}>
+          {hasPending && (
+            <View style={[styles.pendingFill, styles.heroPendingFill, { width: `${projectedPct}%` as any, backgroundColor: Colors.primary + '38' }]} />
+          )}
           <View style={[styles.fill, styles.heroFill, { width: `${pct}%` as any, backgroundColor: barColor }]} />
         </View>
+
+        {hasPending && (
+          <View style={styles.pendingRow}>
+            <View style={styles.pendingDot} />
+            <Text style={styles.pendingText}>
+              {t('dashboard.goalPendingLine', {
+                amount: fmt(pending),
+                count:  pendingLoads,
+                pct:    Math.round(projectedPct),
+              })}
+            </Text>
+          </View>
+        )}
 
         <Text style={styles.heroDays}>{subtext}</Text>
       </View>
@@ -95,8 +121,11 @@ export default function GoalProgressCard({ net, goal, period, variant = 'compact
         </Text>
       </View>
 
-      {/* Progress bar */}
+      {/* Progress bar — earned solid; pending as a translucent extension */}
       <View style={styles.track}>
+        {hasPending && (
+          <View style={[styles.pendingFill, { width: `${projectedPct}%` as any, backgroundColor: Colors.primary + '38' }]} />
+        )}
         <View style={[styles.fill, { width: `${pct}%` as any, backgroundColor: barColor }]} />
       </View>
 
@@ -164,6 +193,15 @@ const makeStyles = (Colors: ThemeColors) => StyleSheet.create({
     height:       6,
     borderRadius: 3,
   },
+  // Translucent projection layer under the earned fill
+  pendingFill: {
+    position: 'absolute', left: 0, top: 0, bottom: 0,
+    borderRadius: 3,
+  },
+  heroPendingFill: { borderRadius: 4 },
+  pendingRow: { flexDirection: 'row', alignItems: 'center', gap: 7, marginBottom: 10 },
+  pendingDot: { width: 7, height: 7, borderRadius: 3.5, backgroundColor: Colors.primary + '55' },
+  pendingText: { flex: 1, fontFamily: FontFamily.monoRegular, fontSize: FontSize.caption, color: Colors.textSecondary, lineHeight: 16 },
   footerRow: {
     flexDirection:  'row',
     justifyContent: 'space-between',

@@ -306,7 +306,9 @@
     "milesSource_estimate": "ਅੰਦਾਜ਼ਾ",
     "setGoalNudge": "ਆਮਦਨ ਟੀਚਾ ਸੈੱਟ ਕਰੋ",
     "upcoming": "ਆਉਣ ਵਾਲਾ",
-    "startLoad": "ਲੋਡ ਸ਼ੁਰੂ ਕਰੋ"
+    "startLoad": "ਲੋਡ ਸ਼ੁਰੂ ਕਰੋ",
+    "goalPendingLine": "+{{amount}} ਅਜੇ ਰਸਤੇ ਵਿੱਚ → ਡਿਲੀਵਰ ਹੋਣ ’ਤੇ {{pct}}%",
+    "weekPendingLine": "+{{amount}} ਅਜੇ ਚੱਲ ਰਹੇ ਲੋਡਾਂ ’ਤੇ"
   },
   "checkLoad": {
     "title": "ਲੋਡ ਜਾਂਚੋ",

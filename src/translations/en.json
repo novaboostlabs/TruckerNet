@@ -306,7 +306,9 @@
     "milesSource_estimate": "est.",
     "setGoalNudge": "Set an income goal",
     "upcoming": "UPCOMING",
-    "startLoad": "Start Load"
+    "startLoad": "Start Load",
+    "goalPendingLine": "+{{amount}} rolling now → {{pct}}% once delivered",
+    "weekPendingLine": "+{{amount}} on loads still rolling"
   },
   "checkLoad": {
     "title": "Check Load",

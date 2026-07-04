@@ -408,7 +408,7 @@ export function getMonthlyMiles(): number {
   const rolling = db.getFirstSync<{ total_miles: number; load_count: number }>(
     `SELECT COALESCE(SUM(total_miles), 0) as total_miles, COUNT(*) as load_count
      FROM loads
-     WHERE status NOT IN ('cancelled','upcoming') AND date >= ?`,
+     WHERE status = 'completed' AND date >= ?`,
     [ninetyDaysAgo],
   );
   if (rolling && rolling.load_count >= 5 && rolling.total_miles > 0) {
@@ -535,7 +535,7 @@ export function calcBreakEven(): {
     return localDateISO(d);
   })();
   const rolling = db.getFirstSync<{ load_count: number }>(
-    `SELECT COUNT(*) as load_count FROM loads WHERE status NOT IN ('cancelled','upcoming') AND date >= ?`,
+    `SELECT COUNT(*) as load_count FROM loads WHERE status = 'completed' AND date >= ?`,
     [ninetyDaysAgo],
   );
 
@@ -619,7 +619,7 @@ function nextDeadlineISO(): string {
 function periodNet(startISO: string): number {
   const row = db.getFirstSync<{ net: number }>(
     `SELECT COALESCE(SUM(net_pay), 0) as net
-     FROM loads WHERE status NOT IN ('cancelled','upcoming') AND date >= ?`,
+     FROM loads WHERE status = 'completed' AND date >= ?`,
     [startISO],
   );
   // Subtract standalone expenses for the same period
@@ -752,7 +752,7 @@ export function getWeekPnL(): PeriodPnL {
             COALESCE(SUM(gross_pay),0)   as gross,
             COALESCE(SUM(total_miles),0) as miles,
             COUNT(*)                     as loads
-     FROM loads WHERE date >= ? AND status NOT IN ('cancelled','upcoming')`,
+     FROM loads WHERE date >= ? AND status = 'completed'`,
     [weekStart()]
   );
   const base = row ?? { net: 0, gross: 0, miles: 0, loads: 0 };
@@ -765,12 +765,29 @@ export function getMonthPnL(): PeriodPnL {
             COALESCE(SUM(gross_pay),0)   as gross,
             COALESCE(SUM(total_miles),0) as miles,
             COUNT(*)                     as loads
-     FROM loads WHERE date >= ? AND status NOT IN ('cancelled','upcoming')`,
+     FROM loads WHERE date >= ? AND status = 'completed'`,
     [monthStart()]
   );
   const base = row ?? { net: 0, gross: 0, miles: 0, loads: 0 };
   return { ...base, net: base.net - sumGeneralExpenses(monthStart()) };
 }
+
+// ── Pending (booked-but-not-delivered) money: upcoming + in-progress loads.
+// Powers the "what your progress becomes once this load delivers" state on the
+// income goal — earned and pending are never mixed into one number.
+export interface PendingPnL { net: number; loads: number; }
+
+function pendingSince(startISO: string): PendingPnL {
+  const row = db.getFirstSync<PendingPnL>(
+    `SELECT COALESCE(SUM(net_pay),0) as net, COUNT(*) as loads
+     FROM loads WHERE date >= ? AND status IN ('upcoming','in_progress')`,
+    [startISO]
+  );
+  return row ?? { net: 0, loads: 0 };
+}
+
+export function getWeekPendingPnL(): PendingPnL  { return pendingSince(weekStart()); }
+export function getMonthPendingPnL(): PendingPnL { return pendingSince(monthStart()); }
 
 export interface WeekTrendPoint { weekStart: string; net: number; gross: number; }
 
@@ -793,7 +810,7 @@ export function getWeeklyNetTrend(weeks = 12): WeekTrendPoint[] {
             COALESCE(SUM(net_pay),0)   as net,
             COALESCE(SUM(gross_pay),0) as gross
      FROM loads
-     WHERE status NOT IN ('cancelled','upcoming') AND date >= ?
+     WHERE status = 'completed' AND date >= ?
      GROUP BY week_start
      ORDER BY week_start ASC`,
     [startISO]
@@ -906,7 +923,7 @@ export function consecutiveWeeksOverBreakEven(): number {
     const row = db.getFirstSync<{ miles: number; net: number }>(
       `SELECT COALESCE(SUM(total_miles), 0) as miles,
               COALESCE(SUM(net_pay), 0) as net
-       FROM loads WHERE status NOT IN ('cancelled','upcoming') AND date >= ? AND date <= ?`,
+       FROM loads WHERE status = 'completed' AND date >= ? AND date <= ?`,
       [start, end],
     );
 
@@ -1086,7 +1103,7 @@ export function getIFTAData(year: number, q: number): IFTARow[] {
     `SELECT sm.state, SUM(sm.miles) as miles
      FROM state_mileage sm
      JOIN loads l ON sm.load_id = l.id
-     WHERE l.date >= ? AND l.date <= ? AND l.status NOT IN ('cancelled','upcoming')
+     WHERE l.date >= ? AND l.date <= ? AND l.status = 'completed'
      GROUP BY sm.state`,
     [start, end]
   );
@@ -1117,7 +1134,7 @@ export function hasIFTAData(year: number, q: number): boolean {
   // Mirrors getIFTAData: only miles actually driven count toward the quarter.
   const row = db.getFirstSync<{ n: number }>(
     `SELECT COUNT(*) as n FROM loads
-     WHERE date >= ? AND date <= ? AND status NOT IN ('cancelled','upcoming')`,
+     WHERE date >= ? AND date <= ? AND status = 'completed'`,
     [start, end]
   );
   return (row?.n ?? 0) > 0;

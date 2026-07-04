@@ -306,7 +306,9 @@
     "milesSource_estimate": "est.",
     "setGoalNudge": "Fija una meta de ingresos",
     "upcoming": "PRÓXIMA",
-    "startLoad": "Iniciar Carga"
+    "startLoad": "Iniciar Carga",
+    "goalPendingLine": "+{{amount}} en ruta → {{pct}}% al entregar",
+    "weekPendingLine": "+{{amount}} en cargas aún en ruta"
   },
   "checkLoad": {
     "title": "Revisar Carga",
