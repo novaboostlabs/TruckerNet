@@ -10,6 +10,9 @@ import { FontFamily, FontSize, Spacing, Radius, ThemeColors, sectionLabel } from
 import { useTheme } from '../../theme/ThemeContext';
 import GridBackground from '../../components/GridBackground';
 import AccentRule from '../../components/AccentRule';
+import FadeInSlide from '../../components/anim/FadeInSlide';
+import PagerDot from '../../components/anim/PagerDot';
+import PressableScale from '../../components/anim/PressableScale';
 import { capture } from '../../lib/analytics';
 
 interface Props {
@@ -30,12 +33,16 @@ export default function WalkthroughScreen({ onSignUp, onSignIn, onDone }: Props)
   const styles = useMemo(() => makeStyles(Colors), [Colors]);
   const scrollRef = useRef<ScrollView>(null);
   const [index, setIndex] = useState(0);
+  // Slides play their staggered entrance the first time they become active, then
+  // stay static — so swiping back and forth never re-flashes content.
+  const [seen, setSeen] = useState<Set<number>>(() => new Set([0]));
 
   function onScroll(e: NativeSyntheticEvent<NativeScrollEvent>) {
     const i = Math.round(e.nativeEvent.contentOffset.x / SCREEN_W);
     if (i !== index) {
       capture('walkthrough_slide_viewed', { slide: i + 1, total: SLIDE_COUNT });
       setIndex(i);
+      setSeen(prev => prev.has(i) ? prev : new Set(prev).add(i));
     }
   }
 
@@ -74,31 +81,40 @@ export default function WalkthroughScreen({ onSignUp, onSignIn, onDone }: Props)
         style={styles.pager}
       >
         <Slide
+          entered={seen.has(0)}
           headline={t('walkthrough.s1.headline')}
           sub={t('walkthrough.s1.sub')}
           mock={<HowItWorksMock t={t} />}
         />
         <Slide
+          entered={seen.has(1)}
           headline={t('walkthrough.s2.headline')}
           sub={t('walkthrough.s2.sub')}
           mock={<CheckLoadMock t={t} />}
         />
         <Slide
+          entered={seen.has(2)}
           headline={t('walkthrough.s3.headline')}
           sub={t('walkthrough.s3.sub')}
           mock={<FairMarketMock t={t} />}
         />
         <Slide
+          entered={seen.has(3)}
           headline={t('walkthrough.s4.headline')}
           sub={t('walkthrough.s4.sub')}
           mock={<IFTAMock t={t} />}
         />
       </ScrollView>
 
-      {/* Dots */}
+      {/* Dots — the active one smoothly stretches + tints */}
       <View style={styles.dots}>
         {Array.from({ length: SLIDE_COUNT }).map((_, i) => (
-          <View key={i} style={[styles.dot, i === index && styles.dotActive]} />
+          <PagerDot
+            key={i}
+            active={i === index}
+            activeColor={Colors.primary}
+            inactiveColor={Colors.surfaceHigh}
+          />
         ))}
       </View>
 
@@ -106,20 +122,20 @@ export default function WalkthroughScreen({ onSignUp, onSignIn, onDone }: Props)
       <View style={styles.footer}>
         <Text style={styles.punchline}>{t(`walkthrough.s${index + 1}.punchline`)}</Text>
         {!isLast ? (
-          <TouchableOpacity style={styles.primaryBtn} onPress={goNext} activeOpacity={0.85}>
+          <PressableScale style={styles.primaryBtn} onPress={goNext}>
             <Text style={styles.primaryBtnText}>{t('common.next')}</Text>
             <Ionicons name="arrow-forward" size={18} color={Colors.onPrimary} />
-          </TouchableOpacity>
+          </PressableScale>
         ) : replay ? (
-          <TouchableOpacity style={styles.primaryBtn} onPress={onDone} activeOpacity={0.85}>
+          <PressableScale style={styles.primaryBtn} onPress={onDone}>
             <Text style={styles.primaryBtnText}>{t('common.done')}</Text>
-          </TouchableOpacity>
+          </PressableScale>
         ) : (
           <>
-            <TouchableOpacity style={styles.primaryBtn} onPress={() => { capture('walkthrough_cta_tapped', { choice: 'get_started' }); onSignUp?.(); }} activeOpacity={0.85}>
+            <PressableScale style={styles.primaryBtn} onPress={() => { capture('walkthrough_cta_tapped', { choice: 'get_started' }); onSignUp?.(); }}>
               <Text style={styles.primaryBtnText}>{t('walkthrough.getStarted')}</Text>
               <Ionicons name="arrow-forward" size={18} color={Colors.onPrimary} />
-            </TouchableOpacity>
+            </PressableScale>
             <TouchableOpacity style={styles.secondaryBtn} onPress={() => { capture('walkthrough_cta_tapped', { choice: 'sign_in' }); onSignIn?.(); }} activeOpacity={0.7}>
               <Text style={styles.secondaryBtnText}>{t('walkthrough.signIn')}</Text>
             </TouchableOpacity>
@@ -132,15 +148,22 @@ export default function WalkthroughScreen({ onSignUp, onSignIn, onDone }: Props)
 
 // ── Slide shell ───────────────────────────────────────────────────────────────
 
-function Slide({ headline, sub, mock }: { headline: string; sub: string; mock: React.ReactNode }) {
+function Slide({ headline, sub, mock, entered }: { headline: string; sub: string; mock: React.ReactNode; entered: boolean }) {
   const { colors: Colors } = useTheme();
   const styles = useMemo(() => makeStyles(Colors), [Colors]);
+
+  // Until the slide has been reached, hold its content hidden so it can stagger
+  // in on arrival (mock → headline → rule → sub). Once entered it stays put.
+  if (!entered) {
+    return <View style={styles.slide} />;
+  }
+
   return (
     <View style={styles.slide}>
-      <View style={styles.mockWrap}>{mock}</View>
-      <Text style={styles.headline}>{headline}</Text>
-      <AccentRule style={{ marginBottom: 14 }} />
-      <Text style={styles.sub}>{sub}</Text>
+      <FadeInSlide delay={40}  offsetY={18} style={styles.mockWrap}>{mock}</FadeInSlide>
+      <FadeInSlide delay={160}><Text style={styles.headline}>{headline}</Text></FadeInSlide>
+      <FadeInSlide delay={230}><AccentRule style={{ marginBottom: 14 }} /></FadeInSlide>
+      <FadeInSlide delay={300}><Text style={styles.sub}>{sub}</Text></FadeInSlide>
     </View>
   );
 }

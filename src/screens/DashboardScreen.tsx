@@ -36,6 +36,9 @@ import AddExpenseScreen from './AddExpenseScreen';
 import SettingsScreen from './SettingsScreen';
 import LoadDetailScreen from './LoadDetailScreen';
 import SwipeableRow from '../components/SwipeableRow';
+import AnimatedNumber from '../components/anim/AnimatedNumber';
+import FadeInSlide from '../components/anim/FadeInSlide';
+import PressableScale from '../components/anim/PressableScale';
 import { pushLoads } from '../lib/sync/loadsSync';
 import { startLoad, completeLoad } from '../lib/loadLifecycle';
 
@@ -358,6 +361,7 @@ export default function DashboardScreen() {
         })()}
 
         {/* ── ZONE 1: Hero — the single most important number ── */}
+        <FadeInSlide delay={40}>
         {d.incomeGoal ? (
           <GoalProgressCard
             variant="hero"
@@ -377,9 +381,13 @@ export default function DashboardScreen() {
               </View>
             </View>
 
-            <Text style={[styles.weekHeroNet, { color: netColor(d.weekNet) }]}>
-              {signedNet(d.weekNet)}
-            </Text>
+            <AnimatedNumber
+              value={d.weekNet}
+              from={0}
+              format={signedNet}
+              style={[styles.weekHeroNet, { color: netColor(d.weekNet) }]}
+              duration={800}
+            />
             <Text style={styles.weekHeroUnit}>{t('dashboard.netPay')}</Text>
 
             {/* Booked-but-undelivered money — kept separate from earned net */}
@@ -432,15 +440,19 @@ export default function DashboardScreen() {
             </TouchableOpacity>
           </View>
         )}
+        </FadeInSlide>
 
         {/* ── ZONE 2: Daily action — the primary CTA, right after the numbers ── */}
-        <TouchableOpacity style={styles.evalButton} activeOpacity={0.8} onPress={() => setShowCheckLoad(true)}>
+        <FadeInSlide delay={110}>
+        <PressableScale style={styles.evalButton} onPress={() => setShowCheckLoad(true)}>
           <Ionicons name="flash" size={15} color={Colors.onPrimary} />
           <Text style={styles.evalText}>{t('dashboard.checkLoadBtn')}</Text>
           <Ionicons name="chevron-forward" size={15} color={Colors.onPrimary} />
-        </TouchableOpacity>
+        </PressableScale>
+        </FadeInSlide>
 
         {/* ── ZONE 3: Reference — break-even strip ── */}
+        <FadeInSlide delay={180}>
         <TouchableOpacity
           style={styles.beStrip}
           activeOpacity={0.7}
@@ -464,6 +476,7 @@ export default function DashboardScreen() {
           </View>
           <Ionicons name="chevron-forward" size={16} color={Colors.textTertiary} />
         </TouchableOpacity>
+        </FadeInSlide>
 
         {/* ── ZONE 4: Recent loads (universally useful — before the Pro-gated charts) ── */}
         {/* Expense review banner sits here so it's seen but doesn't interrupt hero */}

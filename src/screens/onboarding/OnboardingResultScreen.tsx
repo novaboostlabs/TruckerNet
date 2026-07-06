@@ -9,6 +9,10 @@ import { calcBreakEven, getSetting, getTotalMonthlyExpenses, getMonthlyMiles } f
 import { capture } from '../../lib/analytics';
 import GridBackground from '../../components/GridBackground';
 import AccentRule from '../../components/AccentRule';
+import AnimatedNumber from '../../components/anim/AnimatedNumber';
+import FadeInSlide from '../../components/anim/FadeInSlide';
+import PressableScale from '../../components/anim/PressableScale';
+import * as haptics from '../../lib/haptics';
 
 interface Props { onComplete: () => void; onBack: () => void; }
 
@@ -34,11 +38,16 @@ export default function OnboardingResultScreen({ onComplete, onBack }: Props) {
     setMonthlyFuel(r.fuelCPM * monthly);       // fuelCPM × miles = $ fuel/mo
     setMonthlyFixed(getTotalMonthlyExpenses()); // sum of user_expenses
 
-    // Animate in
+    // Animate the hero card in, then fire a success haptic timed to land as the
+    // break-even number finishes counting up — the payoff moment of onboarding.
     Animated.parallel([
       Animated.timing(fadeAnim, { toValue: 1, duration: 600, useNativeDriver: true }),
       Animated.spring(scaleAnim, { toValue: 1, tension: 80, friction: 8, useNativeDriver: true }),
     ]).start();
+    if (r.breakEvenRPM > 0) {
+      const h = setTimeout(() => haptics.success(), 1150);
+      return () => clearTimeout(h);
+    }
   }, []);
 
   function handleStart() {
@@ -77,17 +86,26 @@ export default function OnboardingResultScreen({ onComplete, onBack }: Props) {
 
           <View style={styles.rateCard}>
             <Text style={styles.rateLabel}>{t('dashboard.breakEven')}</Text>
-            <Text style={styles.rateNumber}>
-              {rpm > 0 ? `$${rpm.toFixed(3)}` : '$—.———'}
-            </Text>
+            {rpm > 0 ? (
+              <AnimatedNumber
+                value={rpm}
+                from={0}
+                format={(n) => `$${n.toFixed(3)}`}
+                style={styles.rateNumber}
+                delay={350}
+                duration={950}
+              />
+            ) : (
+              <Text style={styles.rateNumber}>$—.———</Text>
+            )}
             <Text style={styles.rateUnit}>{t('common.perMile')}</Text>
           </View>
 
           <Text style={styles.subtitle}>{t('onboarding.result.subtitle')}</Text>
         </Animated.View>
 
-        {/* Formula explanation */}
-        <View style={styles.formulaCard}>
+        {/* Formula explanation — slides in just after the number settles */}
+        <FadeInSlide delay={900} style={styles.formulaCard}>
           <Text style={styles.formulaTitle}>{t('onboarding.result.explanation')}</Text>
 
           <View style={styles.formulaRow}>
@@ -127,7 +145,7 @@ export default function OnboardingResultScreen({ onComplete, onBack }: Props) {
               </View>
             </View>
           )}
-        </View>
+        </FadeInSlide>
 
         {/* Nudge if no data */}
         {rpm === 0 && (
@@ -141,10 +159,10 @@ export default function OnboardingResultScreen({ onComplete, onBack }: Props) {
 
         <View style={styles.spacer} />
 
-        <TouchableOpacity style={styles.button} onPress={handleStart} activeOpacity={0.85}>
+        <PressableScale style={styles.button} onPress={handleStart}>
           <Text style={styles.buttonText}>{t('onboarding.result.startTracking')}</Text>
           <Ionicons name="arrow-forward" size={18} color={Colors.onPrimary} />
-        </TouchableOpacity>
+        </PressableScale>
       </View>
     </SafeAreaView>
   );

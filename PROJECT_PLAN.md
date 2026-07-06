@@ -1096,6 +1096,38 @@ modules, app.json, permissions) still need a full `eas build`.
 
 ## 6. Work Log (newest first)
 
+### 2026-07-04 — Animation pass #1 (premium feel: count-ups, entrances, press)
+User wanted the app to "look and feel the part," not just function — animations
+as the missing polish layer (haptics already landed). They suggested three.js /
+"Flutter animations"; corrected both (this is Expo RN, not Flutter; three.js is
+a 3D/WebGL engine, wrong tool + jank risk on mid-range Android). Chose
+Reanimated + Moti, high-impact-first.
+- **New isolated helpers in `src/components/anim/`** so the app's motion vocab
+  is centralized + swappable:
+  - `AnimatedNumber` — count-up text (RN Animated; JS-thread listener formats
+    the interpolated value). Optional `from` to count from 0 on mount; with no
+    `from` it only animates when the value later CHANGES (ticks up when you
+    complete a load). easeOut = "settling on the real number."
+  - `FadeInSlide` — fade + slide-up entrance with per-item `delay` for stagger
+    (native driver: opacity/transform on UI thread).
+  - `PressableScale` — press-down spring scale, pairs with existing haptics.
+  - `PagerDot` — walkthrough dot that stretches + tints smoothly.
+- **Applied to the highest-impact moments:** break-even reveal counts up from
+  $0 (delay-timed success haptic as it settles) + formula card staggers in;
+  walkthrough slides stagger their mock→headline→sub in on first view (tracked
+  via a `seen` set so back/forward swipes never re-flash) + animated dots +
+  press-scale on primary CTAs; dashboard hero net (both goal card + weekly
+  fallback) counts up from 0 and re-counts when it changes, top 3 zones stagger
+  in on first appearance, Check Load CTA gets press-scale.
+- **Moti decision reversed for launch safety:** installed it (user's pick) and
+  it typechecked against Reanimated 4, but its RN-4 runtime compat can't be
+  verified without a device, and these are launch-critical screens (walkthrough/
+  onboarding/dashboard). Rebuilt `FadeInSlide`/dots on plain RN Animated
+  (identical visuals, guaranteed Expo-Go-and-prod parity) and **uninstalled
+  moti** (was pulling framer-motion; unused after the swap). Re-add later once
+  we can device-verify, then optionally move the helpers' internals over — call
+  sites won't change. `tsc --noEmit` clean. Ships via `eas update` (JS-only).
+
 ### 2026-07-04 — Reviewer demo account plan + Android RevenueCat wiring
 User confirmed the App Review Information plan: create a real TestFlight
 account with an owned-but-unused email, seed it with realistic data, hand

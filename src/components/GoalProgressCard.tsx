@@ -3,6 +3,7 @@ import { View, Text, StyleSheet } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { Colors, FontFamily, FontSize, Spacing, Radius, ThemeColors, sectionLabel } from '../theme/theme';
 import { useTheme } from '../theme/ThemeContext';
+import AnimatedNumber from './anim/AnimatedNumber';
 
 interface Props {
   net:      number;
@@ -80,7 +81,13 @@ export default function GoalProgressCard({ net, goal, period, variant = 'compact
           </Text>
         </View>
 
-        <Text style={[styles.heroNet, { color: barColor }]}>{fmt(net)}</Text>
+        <AnimatedNumber
+          value={Math.max(0, Math.round(net))}
+          from={0}
+          format={(n) => `$${Math.round(n).toLocaleString('en-US')}`}
+          style={[styles.heroNet, { color: barColor }]}
+          duration={800}
+        />
         <Text style={styles.heroOf}>
           {t('dashboard.goalOf', { goal: fmt(goal) })}
           {!reached && ` · ${t('dashboard.goalToGo', { amount: fmt(remaining) })}`}
