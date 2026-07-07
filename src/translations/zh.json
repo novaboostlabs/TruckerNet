@@ -719,7 +719,9 @@
     "appearance_dark": "深色",
     "taxSection": "税款预留",
     "taxRate": "预估税率",
-    "taxRateSub": "默认25%涵盖大多数司机的自雇税和所得税"
+    "taxRateSub": "默认25%涵盖大多数司机的自雇税和所得税",
+    "backupErrorDetailTitle": "备份错误详情",
+    "backupRetry": "立即重试"
   },
   "rateInsights": {
     "communityTitle": "社区数据",

@@ -719,7 +719,9 @@
     "appearance_dark": "ਗੂੜ੍ਹਾ",
     "taxSection": "ਟੈਕਸ ਬੱਚਤ",
     "taxRate": "ਅਨੁਮਾਨਿਤ ਟੈਕਸ ਦਰ",
-    "taxRateSub": "25% ਦੀ ਡਿਫੌਲਟ ਦਰ ਜ਼ਿਆਦਾਤਰ ਡਰਾਈਵਰਾਂ ਲਈ ਢੁਕਵੀਂ ਹੈ"
+    "taxRateSub": "25% ਦੀ ਡਿਫੌਲਟ ਦਰ ਜ਼ਿਆਦਾਤਰ ਡਰਾਈਵਰਾਂ ਲਈ ਢੁਕਵੀਂ ਹੈ",
+    "backupErrorDetailTitle": "ਬੈਕਅਪ ਗਲਤੀ ਵੇਰਵੇ",
+    "backupRetry": "ਹੁਣੇ ਦੁਬਾਰਾ ਕੋਸ਼ਿਸ਼ ਕਰੋ"
   },
   "rateInsights": {
     "communityTitle": "ਕਮਿਊਨਿਟੀ",

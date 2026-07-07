@@ -719,7 +719,9 @@
     "appearance_dark": "Dark",
     "taxSection": "Tax set-aside",
     "taxRate": "Estimated tax rate",
-    "taxRateSub": "Default 25% covers self-employment + income tax for most drivers"
+    "taxRateSub": "Default 25% covers self-employment + income tax for most drivers",
+    "backupErrorDetailTitle": "Backup error details",
+    "backupRetry": "Retry Now"
   },
   "rateInsights": {
     "communityTitle": "Community",

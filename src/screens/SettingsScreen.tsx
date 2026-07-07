@@ -124,13 +124,34 @@ export default function SettingsScreen({ onClose, onNavigateToExpenses, initialS
   const [syncing, setSyncing]       = useState(false);
   const [deletingAccount, setDeletingAccount] = useState(false);
 
-  const handleSyncNow = useCallback(async () => {
-    if (!user || syncing) return;
+  const runSync = useCallback(async () => {
+    if (!user) return;
     setSyncing(true);
     await syncAll(user.id);
     setSyncStatus(getSyncStatus());
     setSyncing(false);
-  }, [user, syncing]);
+  }, [user]);
+
+  const handleSyncNow = useCallback(() => {
+    if (!user || syncing) return;
+    // A failed backup is tappable to reveal the raw error underneath — the row
+    // itself only ever shows the generic "Backup failed" so a driver isn't
+    // confused by a Postgres/network message, but that detail has to be
+    // reachable somewhere for support/debugging. "Retry" runs the real sync
+    // directly (not this gate again), so it doesn't just reopen the same alert.
+    if (syncStatus.lastError) {
+      Alert.alert(
+        t('settings.backupErrorDetailTitle'),
+        syncStatus.lastError,
+        [
+          { text: t('settings.backupRetry'), onPress: () => { void runSync(); } },
+          { text: t('common.close'), style: 'cancel' },
+        ],
+      );
+      return;
+    }
+    void runSync();
+  }, [user, syncing, syncStatus.lastError, t, runSync]);
 
   const backupSublabel = syncing
     ? t('settings.backupSyncing')

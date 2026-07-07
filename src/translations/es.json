@@ -719,7 +719,9 @@
     "appearance_dark": "Oscuro",
     "taxSection": "Reserva para impuestos",
     "taxRate": "Tasa impositiva estimada",
-    "taxRateSub": "El 25% predeterminado cubre los impuestos para la mayoría de conductores"
+    "taxRateSub": "El 25% predeterminado cubre los impuestos para la mayoría de conductores",
+    "backupErrorDetailTitle": "Detalles del error de respaldo",
+    "backupRetry": "Reintentar"
   },
   "rateInsights": {
     "communityTitle": "Comunidad",
