@@ -1009,36 +1009,47 @@ Real in-app account deletion, closing the 5.1.1(v) gap flagged above.
   change is pure JS — ships via EAS Update once that's set up, or the next
   build either way.
 
-### 🔴 Still open — in order (as of 2026-07-04, later session)
+### 🔴 Still open — in order (as of 2026-07-07)
 
 0. ~~**Delete Account: status unknown.**~~ **RESOLVED 2026-07-05** — production
    build shipped the fix + OTA runtime, user retested on-device and confirmed
    it's fully functional (real server-side account + auth-user deletion, not
    just a local sign-out). See Work Log.
 1. ~~**Screenshots.**~~ **DONE** — captured and uploaded to App Store Connect.
-2. **[USER] Finish the App Store Connect listing:** set Support URL
+2. **[USER] 🔴 Apply `supabase/migrations/2026-07-07_fix_weight_typo_column.sql`
+   via the SQL Editor** — a hand-typo'd `weight_Ibs` (capital I) NOT NULL column
+   on the live `loads` table has been silently blocking every load sync since
+   whenever it was created. Non-destructive (just drops the NOT NULL). Do this
+   BEFORE seeding the demo account below, or the loads won't back up either.
+   While in the dashboard, worth a quick visual scan of `fuel_entries` +
+   `state_mileage` (Table Editor) for similar surprises — all three base tables
+   predate the migration files. See Work Log 2026-07-07.
+3. **[USER] Finish the App Store Connect listing:** set Support URL
    (`truckernet.app`) + Privacy URL (`truckernet.app/privacy`); fill the privacy
    "nutrition label" (email, location, usage analytics, crash data — no data
    sold); confirm age rating (4+).
-3. **[USER] Create + seed the reviewer demo account, then fill in App Review
+4. **[USER] Create + seed the reviewer demo account, then fill in App Review
    Information.** Full step-by-step + exact seed data (onboarding values, 14
    loads, 8 fuel fill-ups, 2 general expenses) now lives in
    `APP_STORE_LISTING.md` → "Reviewer demo account — setup steps + seed data".
    Last step in that section: grant the account Pro via the RevenueCat
    dashboard (Customers → grant `pro` entitlement) so the reviewer never hits
    a paywall. Sign-in-required toggle must be ON (guest mode was removed).
-4. **[USER] Finish on-device TestFlight QA** — purchase and Delete Account are
+   **Do step 2 (the migration) first** — otherwise none of the seeded loads
+   will actually reach the cloud for the reviewer's device to pull down.
+5. **[USER] Finish on-device TestFlight QA** — purchase and Delete Account are
    both verified; still run the rest of `APP_STORE_LISTING.md` →
    "TestFlight QA checklist": Restore Purchases, Google + Apple sign-in, and
    **Replay Setup persists after a full app restart** (reverted twice this
    session — verify explicitly).
-5. ~~**Rebuild + resubmit to TestFlight**~~ **DONE** — production build shipped
+6. ~~**Rebuild + resubmit to TestFlight**~~ **DONE** — production build shipped
    2026-07-05 with the Delete Account fix + EAS Update/OTA runtime baked in.
    Future JS-only fixes can ship via `eas update --channel production` instead
-   of a full rebuild. Two polish-pass OTA updates already shipped this way
-   (load lifecycle/keyboard/onboarding/fuel-tab fixes + earned-vs-pending money
-   split) — see Work Log.
-6. **[USER] Submit for review** with the seeded demo login (step 3) in the App
+   of a full rebuild. Several polish-pass + bugfix OTA updates already shipped
+   this way (load lifecycle/keyboard/onboarding/fuel-tab fixes, earned-vs-
+   pending money split, animation pass #1, the two sync bugs above) — see
+   Work Log.
+7. **[USER] Submit for review** with the seeded demo login (step 4) in the App
    Review notes so the reviewer never sees empty states. Budget 1–3 weeks; one
    rejection round is normal.
 
@@ -1095,6 +1106,27 @@ modules, app.json, permissions) still need a full `eas build`.
 ---
 
 ## 6. Work Log (newest first)
+
+### 2026-07-07 — Loads sync blocked by a typo'd column on the hand-built base table
+Next error surfaced via the same "show the real error" tap (after the
+user_expenses fix landed): `null value in column "weight_Ibs" of relation
+"loads" violates not-null constraint`. Confirmed via grep that every migration
+and every app reference uses the correctly-spelled `weight_lbs` — nothing in
+this repo ever created `weight_Ibs` (capital I). The `loads` table's base
+structure predates the migration files (created by hand, per the 2026-06-30
+security-audit note), and picked up this typo somewhere in that process; the
+stray column was left `NOT NULL`, so the app — which has never known it
+exists — has been failing every single load insert to the cloud since
+whenever that column was added. Loads specifically may never have synced
+successfully at all before this.
+
+**Fix:** new `supabase/migrations/2026-07-07_fix_weight_typo_column.sql` —
+non-destructively drops the `NOT NULL` constraint on `weight_Ibs` (doesn't
+delete the column or touch data; reversible). **USER must apply via SQL
+Editor** — no live DB access from this repo. Flagged to the user that
+`fuel_entries` and `state_mileage` (the other two hand-built base tables)
+are worth a quick visual scan in Table Editor for similar surprises, since
+none of the three ever went through a tracked CREATE TABLE migration.
 
 ### 2026-07-04 — Cloud backup was silently failing for EVERY account (real bug)
 User reported "Cloud backup failed" repeatedly while seeding a demo account,
