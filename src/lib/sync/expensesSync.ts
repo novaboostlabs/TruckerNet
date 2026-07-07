@@ -36,7 +36,13 @@ export async function pushExpenses(userId: string): Promise<SyncResult> {
   try {
     const rows    = getUserExpenses();
     const weekly  = getWeeklyMiles();
-    const now     = new Date().toISOString();
+    // Collected rather than returned-on-first-hit: expenses, deletes, and the
+    // profile (weekly miles/fuel) are unrelated pieces of data. A failure in
+    // one must never silently skip the others — that's exactly how a bad
+    // 'updated_at' column on user_expenses ALSO silently stopped weekly
+    // miles/fuel from ever reaching the cloud (this function used to bail out
+    // on the first error, before reaching the profile upsert below).
+    let firstError: string | null = null;
 
     if (rows.length > 0) {
       // rows arrive ordered by sort_order asc, so the index preserves ordering
@@ -51,10 +57,11 @@ export async function pushExpenses(userId: string): Promise<SyncResult> {
         monthly_equivalent: r.monthly_equivalent,
         is_active:          true,
         sort_order:         index,
-        updated_at:         now,
+        // NOTE: no updated_at here — the hosted user_expenses table (and the
+        // local SQLite table) only ever had created_at.
       }));
       const { error } = await supabase.from(TABLE).upsert(payload, { onConflict: 'id' });
-      if (error) return { error: error.message };
+      if (error) firstError ??= error.message;
     }
 
     // Propagate only expenses the user explicitly deleted (drain the tombstone
@@ -65,13 +72,14 @@ export async function pushExpenses(userId: string): Promise<SyncResult> {
     if (deletedIds.length > 0) {
       const { error: delError } = await supabase
         .from(TABLE).delete().eq('user_id', userId).in('id', deletedIds);
-      if (delError) return { error: delError.message };
-      clearQueuedDeletes(TABLE, deletedIds);
+      if (delError) firstError ??= delError.message;
+      else clearQueuedDeletes(TABLE, deletedIds);
     }
 
-    // Persist weekly miles + fuel estimate on the profile row.
-    // Use upsert (not update) so a missing profile row is created rather than
-    // silently skipping the save — guards against trigger race conditions.
+    // Persist weekly miles + fuel estimate on the profile row — always
+    // attempted, regardless of whether the expenses/delete steps above
+    // succeeded. Use upsert (not update) so a missing profile row is created
+    // rather than silently skipping the save.
     const weeklyFuelCost = parseFloat(getSetting('weekly_fuel_cost') ?? '0') || 0;
     const { error: profError } = await supabase
       .from('profiles')
@@ -79,9 +87,9 @@ export async function pushExpenses(userId: string): Promise<SyncResult> {
         { id: userId, weekly_miles: weekly, weekly_fuel_cost: weeklyFuelCost },
         { onConflict: 'id' }
       );
-    if (profError) return { error: profError.message };
+    if (profError) firstError ??= profError.message;
 
-    return { error: null };
+    return { error: firstError };
   } catch (e: any) {
     return { error: e?.message ?? 'Unknown push error' };
   }

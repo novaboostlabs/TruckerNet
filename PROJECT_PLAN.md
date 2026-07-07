@@ -1096,6 +1096,42 @@ modules, app.json, permissions) still need a full `eas build`.
 
 ## 6. Work Log (newest first)
 
+### 2026-07-04 — Cloud backup was silently failing for EVERY account (real bug)
+User reported "Cloud backup failed" repeatedly while seeding a demo account,
+even on solid signal and on all their accounts. The prior session's "show the
+real error on tap" fix (below) immediately paid off: the raw error was
+`Could not find the 'updated_at' column of 'user_expenses' in the schema
+cache`.
+
+**Root cause:** `src/lib/sync/expensesSync.ts` `pushExpenses()` has included an
+`updated_at: now` field in the `user_expenses` upsert payload since
+2026-06-21 (commit 2256fcc3) — but that column was never created, not in the
+local SQLite schema, not in any Supabase migration
+(`2026-06-19_user_expenses_sync.sql` only has `created_at`). PostgREST rejects
+unknown columns, so **every single expense backup for every account has
+been silently failing since that commit** — pre-launch, no real users
+affected, but this absolutely would have hit real drivers day one.
+
+**Compounding bug found while fixing:** `pushExpenses` returned immediately on
+that error, before ever reaching the LATER step in the same function that
+persists weekly_miles/weekly_fuel_cost to the `profiles` table — so for any
+account with ≥1 expense, weekly miles/fuel also silently never reached the
+cloud. Restructured to attempt expenses, queued-deletes, and the profile
+upsert independently (collect the first error rather than early-return), so
+one failing piece can never again silently block an unrelated one.
+
+**Fix:** removed the `updated_at` field entirely (unused — no read path
+references it, no last-write-wins logic depends on it; the app's documented
+conflict model is local-wins with no timestamps). No migration needed —
+pure JS fix, shipped via `eas update`. `tsc --noEmit` clean.
+
+### 2026-07-04 — Cloud backup: surface the real error instead of "failed"
+Settings' "Cloud backup" row captured the actual sync error internally
+(`last_sync_error` setting) but only ever displayed a generic "Backup failed"
+— a dead end for diagnosing anything. Tapping a failed row now shows the raw
+error in an Alert with a direct Retry action. This is what let the bug above
+get found and fixed within one exchange instead of guessing blind.
+
 ### 2026-07-04 — Animation pass #1 (premium feel: count-ups, entrances, press)
 User wanted the app to "look and feel the part," not just function — animations
 as the missing polish layer (haptics already landed). They suggested three.js /
