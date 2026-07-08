@@ -717,8 +717,13 @@ export function getLoadCount(): number {
 // Loads logged in the current calendar month — drives the free-tier 15-loads/mo
 // gate. Cancelled loads still count (the user did the work of logging them).
 export function getLoadCountThisMonth(): number {
+  // Free-tier quota counts loads LOGGED this calendar month (created_at), not
+  // the load's business date — otherwise back-dating a load onto a previous
+  // month (History calendar → "Log load this day") bypasses the 15/month cap
+  // entirely. created_at is a full ISO timestamp; lexicographic >= against the
+  // YYYY-MM-DD month start is correct for ISO strings.
   const row = db.getFirstSync<{ n: number }>(
-    'SELECT COUNT(*) as n FROM loads WHERE date >= ?',
+    'SELECT COUNT(*) as n FROM loads WHERE created_at >= ?',
     [monthStart()]
   );
   return row?.n ?? 0;

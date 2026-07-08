@@ -5,8 +5,10 @@ import { getLoadCountThisMonth } from '../db/database';
  * Pair these with `useSubscription().isPro` at each call site:
  * pro users bypass every gate.
  *
- * Spec: monetization-paywall-plan. Free tier = 15 loads/month, fair-market
- * benchmark Pro-only, History past-periods Pro-only, IFTA teaser/export Pro-only.
+ * Spec: monetization-paywall-plan. Free tier = 15 loads LOGGED per calendar
+ * month (counted by created_at, so back-dated loads still consume quota),
+ * fair-market benchmark Pro-only, IFTA teaser/export Pro-only.
+ * History past-period browsing is FREE (user decision 2026-07-08).
  */
 
 /** Free accounts can log this many loads per calendar month. */
