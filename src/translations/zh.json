@@ -117,7 +117,8 @@
     "optional": "可选",
     "required": "必填",
     "saving": "保存中...",
-    "continue": "继续"
+    "continue": "继续",
+    "dismiss": "关闭"
   },
   "auth": {
     "welcomeBack": "欢迎回来。",
@@ -723,7 +724,9 @@
     "taxRate": "预估税率",
     "taxRateSub": "默认25%涵盖大多数司机的自雇税和所得税",
     "backupErrorDetailTitle": "备份错误详情",
-    "backupRetry": "立即重试"
+    "backupRetry": "立即重试",
+    "signInStorageIssueTitle": "检测到登录问题",
+    "signInStorageIssueSub": "有些东西阻止了你的登录信息保存在此设备上——点击查看详情。"
   },
   "rateInsights": {
     "communityTitle": "社区数据",

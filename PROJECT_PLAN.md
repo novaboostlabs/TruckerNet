@@ -1104,6 +1104,35 @@ modules, app.json, permissions) still need a full `eas build`.
 
 ## 6. Work Log (newest first)
 
+### 2026-07-08 — Free-tier quota bypass + session-loss diagnostics
+**Load quota bypass (real bug, closed):** the 15-loads/month free cap counted
+by the load's business `date`, so back-dating a load onto a previous month —
+trivial now via yesterday's History-calendar "Log load this day" feature —
+never consumed quota. `getLoadCountThisMonth()` now counts by `created_at`
+(when the load was actually logged) instead. Restored/synced loads keep their
+original `created_at`, so a reinstall doesn't reset the quota either.
+
+**Session-loss diagnostics (root cause not yet confirmed — instrumented, not
+guessed):** user reports being signed out every single time they close the
+app, on both accounts. Verified our `AppState` auto-refresh wiring against
+Supabase's own React Native docs — it matches their documented pattern, so
+NOT touched further without evidence. The real suspect: `SecureStoreAdapter`
+in `supabase.ts` had zero error handling on `setItem` — if writing the
+session to the Keychain silently throws, the app works fine for the rest of
+that run (session lives in memory) but has nothing to restore on the next
+cold launch, which exactly matches "every single time." Added
+`recordStorageError()`: any read/write/remove failure is now (a) written to
+a local setting + surfaced in Settings as a tap-to-see-detail row (same
+pattern that found the last two real bugs) and (b) reported to Sentry.
+**USER ACTION:** reproduce (use the app, fully close it, reopen, note whether
+signed out) — if a "Sign-in issue detected" row appears in Settings, report
+the exact detail text; if nothing appears despite reproducing, that itself is
+a finding (storage isn't the cause, points back to token-refresh timing) and
+tells us where to look next.
+
+i18n ×4 (`common.dismiss`, `settings.signInStorageIssueTitle/Sub`), parity
+0/0, tsc clean, shipped via `eas update`.
+
 ### 2026-07-08 — Seed-data session findings: 4 fixes (RC identity being the big one)
 User started entering the reviewer seed data and surfaced 4 issues, all fixed:
 

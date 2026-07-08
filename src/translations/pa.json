@@ -117,7 +117,8 @@
     "optional": "ਵਿਕਲਪਿਕ",
     "required": "ਲਾਜ਼ਮੀ",
     "saving": "ਸੁਰੱਖਿਅਤ ਹੋ ਰਿਹਾ ਹੈ...",
-    "continue": "ਜਾਰੀ ਰੱਖੋ"
+    "continue": "ਜਾਰੀ ਰੱਖੋ",
+    "dismiss": "ਖਾਰਜ ਕਰੋ"
   },
   "auth": {
     "welcomeBack": "ਵਾਪਸ ਸੁਆਗਤ ਹੈ।",
@@ -723,7 +724,9 @@
     "taxRate": "ਅਨੁਮਾਨਿਤ ਟੈਕਸ ਦਰ",
     "taxRateSub": "25% ਦੀ ਡਿਫੌਲਟ ਦਰ ਜ਼ਿਆਦਾਤਰ ਡਰਾਈਵਰਾਂ ਲਈ ਢੁਕਵੀਂ ਹੈ",
     "backupErrorDetailTitle": "ਬੈਕਅਪ ਗਲਤੀ ਵੇਰਵੇ",
-    "backupRetry": "ਹੁਣੇ ਦੁਬਾਰਾ ਕੋਸ਼ਿਸ਼ ਕਰੋ"
+    "backupRetry": "ਹੁਣੇ ਦੁਬਾਰਾ ਕੋਸ਼ਿਸ਼ ਕਰੋ",
+    "signInStorageIssueTitle": "ਸਾਈਨ-ਇਨ ਸਮੱਸਿਆ ਮਿਲੀ",
+    "signInStorageIssueSub": "ਕੁਝ ਤੁਹਾਡੇ ਲੌਗਇਨ ਨੂੰ ਇਸ ਡਿਵਾਈਸ ’ਤੇ ਸੇਵ ਹੋਣ ਤੋਂ ਰੋਕ ਰਿਹਾ ਹੈ — ਵੇਰਵੇ ਦੇਖਣ ਲਈ ਟੈਪ ਕਰੋ।"
   },
   "rateInsights": {
     "communityTitle": "ਕਮਿਊਨਿਟੀ",

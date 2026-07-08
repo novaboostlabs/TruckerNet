@@ -117,7 +117,8 @@
     "load": "load",
     "loads": "loads",
     "saving": "Saving...",
-    "continue": "Continue"
+    "continue": "Continue",
+    "dismiss": "Dismiss"
   },
   "auth": {
     "welcomeBack": "Welcome back.",
@@ -723,7 +724,9 @@
     "taxRate": "Estimated tax rate",
     "taxRateSub": "Default 25% covers self-employment + income tax for most drivers",
     "backupErrorDetailTitle": "Backup error details",
-    "backupRetry": "Retry Now"
+    "backupRetry": "Retry Now",
+    "signInStorageIssueTitle": "Sign-in issue detected",
+    "signInStorageIssueSub": "Something is preventing your login from being saved on this device — tap to see details."
   },
   "rateInsights": {
     "communityTitle": "Community",

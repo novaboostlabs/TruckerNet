@@ -117,7 +117,8 @@
     "load": "carga",
     "loads": "cargas",
     "saving": "Guardando...",
-    "continue": "Continuar"
+    "continue": "Continuar",
+    "dismiss": "Descartar"
   },
   "auth": {
     "welcomeBack": "Bienvenido de nuevo.",
@@ -723,7 +724,9 @@
     "taxRate": "Tasa impositiva estimada",
     "taxRateSub": "El 25% predeterminado cubre los impuestos para la mayoría de conductores",
     "backupErrorDetailTitle": "Detalles del error de respaldo",
-    "backupRetry": "Reintentar"
+    "backupRetry": "Reintentar",
+    "signInStorageIssueTitle": "Problema de inicio de sesión detectado",
+    "signInStorageIssueSub": "Algo está impidiendo que tu inicio de sesión se guarde en este dispositivo — toca para ver los detalles."
   },
   "rateInsights": {
     "communityTitle": "Comunidad",

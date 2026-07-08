@@ -121,6 +121,10 @@ export default function SettingsScreen({ onClose, onNavigateToExpenses, initialS
 
   // ── Cloud-backup status (so the driver can SEE their data is safe) ──
   const [syncStatus, setSyncStatus] = useState(() => getSyncStatus());
+  // Sign-in storage diagnostic: only ever set if writing/reading the session
+  // from the device's secure storage actually threw — see supabase.ts. Not
+  // shown at all in the normal case.
+  const [authStorageError, setAuthStorageError] = useState(() => getSetting('last_auth_storage_error'));
   const [syncing, setSyncing]       = useState(false);
   const [deletingAccount, setDeletingAccount] = useState(false);
 
@@ -499,6 +503,38 @@ export default function SettingsScreen({ onClose, onNavigateToExpenses, initialS
                   onPress={handleSyncNow}
                   rightElement={syncing ? <ActivityIndicator size="small" color={Colors.primary} /> : undefined}
                 />
+                {/* Only ever appears if reading/writing the sign-in session to
+                    the device's secure storage actually failed — the likely
+                    cause of "signed out every time I close the app." */}
+                {!!authStorageError && (
+                  <>
+                    <RowDivider />
+                    <Row
+                      icon="key-outline"
+                      iconBg={Colors.dangerDim}
+                      iconColor={Colors.danger}
+                      label={t('settings.signInStorageIssueTitle')}
+                      sublabel={t('settings.signInStorageIssueSub')}
+                      chevron={false}
+                      onPress={() => {
+                        Alert.alert(
+                          t('settings.signInStorageIssueTitle'),
+                          authStorageError,
+                          [
+                            {
+                              text: t('common.dismiss'),
+                              onPress: () => {
+                                setSetting('last_auth_storage_error', '');
+                                setAuthStorageError(null);
+                              },
+                            },
+                            { text: t('common.close'), style: 'cancel' },
+                          ],
+                        );
+                      }}
+                    />
+                  </>
+                )}
               </View>
             </>
           )}
