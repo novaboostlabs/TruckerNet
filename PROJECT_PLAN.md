@@ -1104,6 +1104,38 @@ modules, app.json, permissions) still need a full `eas build`.
 
 ## 6. Work Log (newest first)
 
+### 2026-07-08 — Language selector reappearing every launch — same bug class, second location
+Immediately after the sign-in routing fix landed, user reported the app now
+opens to the language picker on every launch instead of the dashboard. This
+was very likely happening the WHOLE TIME, just masked — when every reopen
+also bounced to sign-in, an extra "pick your language again" step blended
+into the larger annoyance and went unreported until the bigger bug was gone.
+
+**Root cause — literally the same bug class as the session issue, in a
+second, un-fixed location:** grepped for every direct `SecureStore.*` call in
+the app and found exactly two files. `supabase.ts` already had the
+`AFTER_FIRST_UNLOCK` keychain accessibility fix + error recording (from
+earlier today). `src/lib/i18n.ts`'s `getSavedLanguage()`/`saveLanguage()`
+had NEITHER — raw `SecureStore.getItemAsync/setItemAsync` with default
+accessibility, silently swallowing any error and returning null on failure.
+`RootNavigator`'s `init()` checks language FIRST, unconditionally, on every
+cold start — a silent failure there routes to the language picker before
+session/routing logic is even reached.
+
+**Fix:** extracted `src/lib/secureStorage.ts` — one hardened
+`secureGet`/`secureSet`/`secureRemove`, `AFTER_FIRST_UNLOCK` + error
+recording (same Settings-visible diagnostic + Sentry) baked in once. Both
+`i18n.ts` and `supabase.ts`'s `SecureStoreAdapter` now go through this
+shared module instead of raw `expo-secure-store` calls — eliminates the
+duplicated (and previously partially-unfixed) accessibility/error-handling
+logic, and means a third occurrence of this bug class elsewhere in the app
+isn't possible without deliberately bypassing the shared module. Self-
+correcting on next language pick regardless of the exact prior failure
+mechanism (possible accessibility-class mismatch between old default-written
+values and new AFTER_FIRST_UNLOCK reads, or the same silent-throw pattern as
+the session bug) — write and read are now consistent going forward either way.
+tsc clean, shipped via `eas update`.
+
 ### 2026-07-08 — FOUND: "signed out every time I close the app" — stale-closure routing bug, not session loss
 The round-2 diagnostic log delivered a definitive answer on first use:
 ```

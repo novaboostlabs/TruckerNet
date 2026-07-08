@@ -1,6 +1,6 @@
 import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
-import * as SecureStore from 'expo-secure-store';
+import { secureGet, secureSet } from './secureStorage';
 
 import en from '../translations/en.json';
 import es from '../translations/es.json';
@@ -24,18 +24,12 @@ export const LANGUAGES: {
 export const LANGUAGE_STORAGE_KEY = '@truckernet_language';
 
 export async function getSavedLanguage(): Promise<SupportedLanguage | null> {
-  try {
-    const lang = await SecureStore.getItemAsync(LANGUAGE_STORAGE_KEY);
-    return (lang as SupportedLanguage) || null;
-  } catch {
-    return null;
-  }
+  const lang = await secureGet(LANGUAGE_STORAGE_KEY);
+  return (lang as SupportedLanguage) || null;
 }
 
 export async function saveLanguage(lang: SupportedLanguage): Promise<void> {
-  try {
-    await SecureStore.setItemAsync(LANGUAGE_STORAGE_KEY, lang);
-  } catch {}
+  await secureSet(LANGUAGE_STORAGE_KEY, lang);
 }
 
 export async function initI18n(language: SupportedLanguage = 'en'): Promise<void> {
