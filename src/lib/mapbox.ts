@@ -14,10 +14,24 @@ const METERS_PER_MILE = 1609.344;
 
 export interface AddressSuggestion {
   id: string;
-  /** Full street-level address for display, e.g. "1247 Industrial Blvd, Dallas, TX 75207". */
+  /** Full street-level address for display, e.g. "1247 Industrial Blvd, Dallas, Texas 75207". */
   label: string;
   lng: number;
   lat: number;
+  /**
+   * 2-letter USPS state code, e.g. "CA" — read directly from Mapbox's
+   * structured `context.region.region_code`, NOT parsed out of `label`.
+   * Geocoding v6's `full_address` spells the state out in full ("California"),
+   * even for house-number-level results, so a regex looking for 2 uppercase
+   * letters in the label NEVER matches. Always prefer this field; see
+   * `suggestionState()` below for the one legitimate fallback case (no
+   * suggestion was ever selected — the driver just typed free text).
+   */
+  state: string;
+}
+
+function regionCode(f: any): string {
+  return f.properties?.context?.region?.region_code ?? '';
 }
 
 export function isMapboxConfigured(): boolean {
@@ -57,6 +71,7 @@ export async function searchAddress(
         label: f.properties?.full_address ?? f.properties?.name ?? '',
         lng: coords[0],
         lat: coords[1],
+        state: regionCode(f),
       };
     })
     .filter((s: AddressSuggestion) => !!s.label && s.lng != null && s.lat != null);
@@ -95,10 +110,42 @@ export async function geocodeAddress(
       label: f.properties?.full_address ?? f.properties?.name ?? q,
       lng:   coords[0],
       lat:   coords[1],
+      state: regionCode(f),
     };
   } catch {
     return null;
   }
+}
+
+// ── City/state extraction ──────────────────────────────────────────────────
+//
+// Prefer `suggestionState()` / a selected AddressSuggestion's `.state` field
+// everywhere a real Mapbox selection is available — it's the structured
+// region_code, always a correct 2-letter code. The regex fallbacks below
+// exist ONLY for the case where a driver typed an address but never actually
+// picked a suggestion from the dropdown (so there's no structured data at
+// all) — they parse best-effort from whatever text ended up in the field.
+
+export function extractState(label: string): string {
+  const m = label.match(/,\s*([A-Z]{2})(?:\s+\d{5}[-\d]*)?(?:,|\s*$)/);
+  return m?.[1] ?? '';
+}
+
+export function extractCity(label: string): string {
+  const clean = label.replace(/,?\s*United States\s*$/i, '').trim();
+  const parts = clean.split(',').map(s => s.trim());
+  for (let i = 0; i < parts.length; i++) {
+    if (/^[A-Z]{2}(?:\s+\d{5})?$/.test(parts[i])) {
+      return parts[i - 1] ?? '';
+    }
+  }
+  return parts[parts.length - 2] ?? '';
+}
+
+/** The correct state for a possibly-selected suggestion: structured data first, regex fallback only if there's no selection at all. */
+export function suggestionState(sel: AddressSuggestion | null | undefined, fallbackLabel?: string): string {
+  if (sel?.state) return sel.state;
+  return extractState(fallbackLabel ?? sel?.label ?? '');
 }
 
 export interface RouteData {

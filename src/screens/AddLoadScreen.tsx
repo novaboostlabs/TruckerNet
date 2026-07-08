@@ -30,7 +30,7 @@ import AddressAutocomplete from '../components/AddressAutocomplete';
 import FairMarketLock from '../components/FairMarketLock';
 import GridBackground from '../components/GridBackground';
 import AccentRule from '../components/AccentRule';
-import { getRouteData, geocodeAddress, AddressSuggestion } from '../lib/mapbox';
+import { getRouteData, geocodeAddress, AddressSuggestion, extractCity, suggestionState } from '../lib/mapbox';
 import { splitRouteByState } from '../lib/stateSplit';
 import { planFuelStops } from '../lib/fuelOptimizer';
 import FuelStopCard from '../components/FuelStopCard';
@@ -83,22 +83,6 @@ interface Props {
   // surface the "your first true net pay" celebration. Passes the load's net pay.
   onFirstLoad?: (netPay: number) => void;
   prefill?: AddLoadPrefill;
-}
-
-function extractState(label: string): string {
-  const m = label.match(/,\s*([A-Z]{2})(?:\s+\d{5}[-\d]*)?(?:,|\s*$)/);
-  return m?.[1] ?? '';
-}
-
-function extractCity(label: string): string {
-  const clean = label.replace(/,?\s*United States\s*$/i, '').trim();
-  const parts = clean.split(',').map(s => s.trim());
-  for (let i = 0; i < parts.length; i++) {
-    if (/^[A-Z]{2}(?:\s+\d{5})?$/.test(parts[i])) {
-      return parts[i - 1] ?? '';
-    }
-  }
-  return parts[parts.length - 2] ?? '';
 }
 
 function money(n: number): string {
@@ -280,8 +264,8 @@ export default function AddLoadScreen({ onClose, onSaved, onFirstLoad, prefill }
         }
 
         // Fallback to address-based 50/50 split if geometry split fails
-        const pState = extractState(pickupSel.label);
-        const dState = extractState(deliverySel.label);
+        const pState = suggestionState(pickupSel);
+        const dState = suggestionState(deliverySel);
         const totalMi = Math.round(mi);
         if (!pState && !dState) {
           setStateMiles([{ state: '', miles: String(totalMi) }]);
@@ -314,16 +298,16 @@ export default function AddLoadScreen({ onClose, onSaved, onFirstLoad, prefill }
     return getPersonalLaneHistory({
       pickupLat: pickupSel.lat, pickupLng: pickupSel.lng,
       deliveryLat: deliverySel.lat, deliveryLng: deliverySel.lng,
-      originState: extractState(pickupSel.label),
-      destState:   extractState(deliverySel.label),
+      originState: suggestionState(pickupSel),
+      destState:   suggestionState(deliverySel),
       equipment:   loadType,
     });
   }, [pickupSel, deliverySel, loadType]);
 
   useEffect(() => {
     if (!pickupSel || !deliverySel) { setCommunityRate(null); return; }
-    const orig = extractState(pickupSel.label);
-    const dest = extractState(deliverySel.label);
+    const orig = suggestionState(pickupSel);
+    const dest = suggestionState(deliverySel);
     const mi   = parseFloat(miles) || 0;
     if (!orig || !dest || mi <= 0) { setCommunityRate(null); return; }
 
@@ -345,8 +329,8 @@ export default function AddLoadScreen({ onClose, onSaved, onFirstLoad, prefill }
   const grossRPM  = loadMi > 0 ? gross  / loadMi  : 0;
 
   // Origin/dest states feed regional market strength into the fair estimate.
-  const fairOrigin = pickupSel   ? extractState(pickupSel.label)   : undefined;
-  const fairDest   = deliverySel ? extractState(deliverySel.label) : undefined;
+  const fairOrigin = pickupSel   ? suggestionState(pickupSel)   : undefined;
+  const fairDest   = deliverySel ? suggestionState(deliverySel) : undefined;
   const fair = hasInputs ? getFairMarketRate(loadMi, loadType, gross, fairOrigin, fairDest) : null;
 
   const verdictColor =
@@ -545,10 +529,10 @@ export default function AddLoadScreen({ onClose, onSaved, onFirstLoad, prefill }
           date:            loadDate,
           pickup_address:  pLabel,
           pickup_city:     extractCity(pLabel),
-          pickup_state:    extractState(pLabel),
+          pickup_state:    suggestionState(pickupSel, pLabel),
           delivery_address: dLabel,
           delivery_city:   extractCity(dLabel),
-          delivery_state:  extractState(dLabel),
+          delivery_state:  suggestionState(deliverySel, dLabel),
           // Coordinates (when picked from autocomplete) power the nearby-lane history.
           pickup_lat:      pickupSel?.lat ?? null,
           pickup_lng:      pickupSel?.lng ?? null,

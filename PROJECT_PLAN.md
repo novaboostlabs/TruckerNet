@@ -1104,6 +1104,51 @@ modules, app.json, permissions) still need a full `eas build`.
 
 ## 6. Work Log (newest first)
 
+### 2026-07-08 — pickup_state/delivery_state have been blank since Mapbox v6 (systemic, not per-load)
+User: Rate Network showed "0 loads shared" despite 2 completed, real-money
+loads. Checked the gating conditions in `maybeContributeLoadRate` (status,
+states, sane $/mi) rather than assuming a bug — user confirmed status was
+Completed and sharing was on, but pointed out the actual defect themselves:
+selecting "Los Angeles, CA" from the Mapbox suggestion list saved as
+"Los Angeles, " with the state slot empty.
+
+**Root cause, confirmed by hitting the live Mapbox v6 API directly (not
+guessed):** `full_address` in Geocoding v6 responses spells the state out in
+full ("California"), even for house-number-level results (verified: a
+specific street address returned `"...Dallas, Georgia 30132..."`, not "GA").
+`extractState()` (duplicated in 3 files) only ever matched a literal 2-letter
+uppercase token via regex — against v6 responses that essentially never
+contain one. So `pickup_state`/`delivery_state` have been blank (or wrong,
+whenever the regex got lucky) for EVERY load ever entered via address
+autocomplete, in this app's entire history — not a recent regression.
+
+**Blast radius:** Rate Network contribution gating (this bug report),
+fair-market regional strength adjustment, community rate matching, personal
+lane-history matching, driver profile "home base," and every state string
+shown in Dashboard/History/LoadDetail route rows. IFTA per-state mileage is
+UNAFFECTED — `stateSplit.ts` derives states from actual route geometry
+(lat/lng → TopoJSON polygon lookup), never from label text.
+
+**Fix:** Mapbox v6 already returns the correct code as structured data
+(`properties.context.region.region_code`) — confirmed via a real API call.
+Added `state: string` to `AddressSuggestion` in `mapbox.ts`, populated from
+that field in both `searchAddress()` and `geocodeAddress()`. Consolidated the
+3 duplicated `extractState`/`extractCity` regex pairs (AddLoadScreen,
+CheckLoadScreen, ProfileSetupScreen) into single exports on `mapbox.ts`, plus
+a new `suggestionState(sel, fallbackLabel?)` helper that prefers the
+structured field and only falls back to regex-parsing when no suggestion was
+ever selected (driver typed free text and ignored the dropdown). Every call
+site across the 3 screens now uses `suggestionState()`. `AddressAutocomplete`
+needed no changes — it already forwards the full suggestion object untouched.
+`tsc --noEmit` clean. Pure JS — no migration, ships via `eas update`.
+
+**Known gap, not fixed this session:** existing loads saved before this fix
+keep their blank state until re-entered — Load Detail's edit mode doesn't
+support re-picking the route (documented V2 backlog item "Editable route on
+Load Detail"), so the only fix for an already-saved load is delete + re-add.
+Not a concern pre-launch (no real users yet); the user's 2 test loads will be
+superseded by the fresh demo-account seeding anyway.
+
 ### 2026-07-08 — Loads sync: real root cause was a JS falsy-zero bug, not a typo'd column
 Continuation of the error surfaced via the "show the real error" tap:
 `null value in column "weight_Ibs" of relation "loads" violates not-null

@@ -18,7 +18,7 @@ import GridBackground from '../components/GridBackground';
 import AccentRule from '../components/AccentRule';
 import { useSubscription } from '../contexts/SubscriptionContext';
 import { usePaywall } from '../contexts/PaywallContext';
-import { getRouteMiles, AddressSuggestion } from '../lib/mapbox';
+import { getRouteMiles, AddressSuggestion, suggestionState } from '../lib/mapbox';
 import { AddLoadPrefill } from './AddLoadScreen';
 import { getCommunityRate, CommunityRate, CommunityTier } from '../lib/rateReports';
 import { capture } from '../lib/analytics';
@@ -67,10 +67,6 @@ function money(n: number, decimals = 0): string {
   return n.toLocaleString('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
 }
 
-function extractState(label: string): string {
-  const m = label.match(/,\s*([A-Z]{2})(?:\s+\d{5}[-\d]*)?(?:,|\s*$)/);
-  return m?.[1] ?? '';
-}
 
 export default function CheckLoadScreen({ onClose, onLogLoad }: Props) {
   const { colors: Colors } = useTheme();
@@ -123,16 +119,16 @@ export default function CheckLoadScreen({ onClose, onLogLoad }: Props) {
     return getPersonalLaneHistory({
       pickupLat: pickupSel.lat, pickupLng: pickupSel.lng,
       deliveryLat: deliverySel.lat, deliveryLng: deliverySel.lng,
-      originState: extractState(pickupSel.label),
-      destState:   extractState(deliverySel.label),
+      originState: suggestionState(pickupSel),
+      destState:   suggestionState(deliverySel),
       equipment:   loadType,
     });
   }, [pickupSel, deliverySel, loadType]);
 
   useEffect(() => {
     if (!pickupSel || !deliverySel) { setCommunityRate(null); return; }
-    const orig = extractState(pickupSel.label);
-    const dest = extractState(deliverySel.label);
+    const orig = suggestionState(pickupSel);
+    const dest = suggestionState(deliverySel);
     const mi   = parseFloat(miles) || 0;
     if (!orig || !dest || mi <= 0) { setCommunityRate(null); return; }
 
@@ -194,8 +190,8 @@ export default function CheckLoadScreen({ onClose, onLogLoad }: Props) {
 
   // Pass origin/dest states (when both endpoints are geocoded) so the fair-market
   // estimate reflects regional market strength, not just miles + equipment.
-  const fairOrigin = pickupSel   ? extractState(pickupSel.label)   : undefined;
-  const fairDest   = deliverySel ? extractState(deliverySel.label) : undefined;
+  const fairOrigin = pickupSel   ? suggestionState(pickupSel)   : undefined;
+  const fairDest   = deliverySel ? suggestionState(deliverySel) : undefined;
   const fair = hasInputs ? getFairMarketRate(loadMiles, loadType, grossPay, fairOrigin, fairDest) : null;
   const deadheadCost = calcDeadheadCost(loadMiles, fuelCPM, fixedCPM);
 

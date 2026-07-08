@@ -13,7 +13,7 @@ import { capture } from '../../lib/analytics';
 import GridBackground from '../../components/GridBackground';
 import AccentRule from '../../components/AccentRule';
 import AddressAutocomplete from '../../components/AddressAutocomplete';
-import { AddressSuggestion } from '../../lib/mapbox';
+import { AddressSuggestion, extractCity, suggestionState } from '../../lib/mapbox';
 
 interface Props {
   onContinue: () => void;
@@ -21,20 +21,6 @@ interface Props {
   /** Signed-in review mode (Replay Setup): the CTA saves and returns to the
    *  app instead of reading "Create My Account". */
   replay?:    boolean;
-}
-
-// Pull "City" and "ST" out of a Mapbox place label (e.g. "Dallas, TX, United States").
-function extractState(label: string): string {
-  const m = label.match(/,\s*([A-Z]{2})(?:\s+\d{5}[-\d]*)?(?:,|\s*$)/);
-  return m?.[1] ?? '';
-}
-function extractCity(label: string): string {
-  const clean = label.replace(/,?\s*United States\s*$/i, '').trim();
-  const parts = clean.split(',').map((s) => s.trim());
-  for (let i = 0; i < parts.length; i++) {
-    if (/^[A-Z]{2}(?:\s+\d{5})?$/.test(parts[i])) return parts[i - 1] ?? '';
-  }
-  return parts[parts.length - 2] ?? parts[0] ?? '';
 }
 
 const EQUIPMENT_TYPES = [
@@ -74,8 +60,7 @@ export default function ProfileSetupScreen({ onContinue, onBack, replay = false 
     // Prefer the geocoded city/state; fall back to whatever the driver typed.
     let homeBase = '';
     if (homeBaseSel) {
-      const label = homeBaseSel.label;
-      homeBase = [extractCity(label), extractState(label)].filter(Boolean).join(', ');
+      homeBase = [extractCity(homeBaseSel.label), suggestionState(homeBaseSel)].filter(Boolean).join(', ');
     }
     if (!homeBase) homeBase = homeBaseInput.trim();
     if (homeBase) setSetting('profile_home_base', homeBase);
@@ -181,9 +166,8 @@ export default function ProfileSetupScreen({ onContinue, onBack, replay = false 
               onChangeText={(v) => { setHomeBaseInput(v); if (homeBaseSel) setHomeBaseSel(null); }}
               onSelect={(s) => {
                 setHomeBaseSel(s);
-                const label = s.label;
-                const parsed = [extractCity(label), extractState(label)].filter(Boolean).join(', ');
-                setHomeBaseInput(parsed || label);
+                const parsed = [extractCity(s.label), suggestionState(s)].filter(Boolean).join(', ');
+                setHomeBaseInput(parsed || s.label);
               }}
               placeholder={t('profile.cityPlaceholder')}
               icon="location-outline"
