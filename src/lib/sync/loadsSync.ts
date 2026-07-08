@@ -45,7 +45,12 @@ export async function pushLoads(userId: string): Promise<SyncResult> {
         total_miles:           l.total_miles,
         gross_pay:             l.gross_pay,
         additional_costs:      l.additional_costs,
-        weight_lbs:            l.weight_lbs || null,
+        // weight_lbs is NOT NULL (default 0) both locally and in Supabase — a
+        // load with no weight entered is legitimately 0, not "unknown". Using
+        // `|| null` here (instead of `??`) turned that valid 0 into null on
+        // every such load, since 0 is falsy in JS, which then violated the
+        // column's NOT NULL constraint on every push.
+        weight_lbs:            l.weight_lbs,
         bol_number:            l.bol_number,
         bol_photo_url:         l.bol_photo_url || null,
         broker_name:           l.broker_name,

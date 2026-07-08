@@ -1009,21 +1009,17 @@ Real in-app account deletion, closing the 5.1.1(v) gap flagged above.
   change is pure JS — ships via EAS Update once that's set up, or the next
   build either way.
 
-### 🔴 Still open — in order (as of 2026-07-07)
+### 🔴 Still open — in order (as of 2026-07-08)
 
 0. ~~**Delete Account: status unknown.**~~ **RESOLVED 2026-07-05** — production
    build shipped the fix + OTA runtime, user retested on-device and confirmed
    it's fully functional (real server-side account + auth-user deletion, not
    just a local sign-out). See Work Log.
 1. ~~**Screenshots.**~~ **DONE** — captured and uploaded to App Store Connect.
-2. **[USER] 🔴 Apply `supabase/migrations/2026-07-07_fix_weight_typo_column.sql`
-   via the SQL Editor** — a hand-typo'd `weight_Ibs` (capital I) NOT NULL column
-   on the live `loads` table has been silently blocking every load sync since
-   whenever it was created. Non-destructive (just drops the NOT NULL). Do this
-   BEFORE seeding the demo account below, or the loads won't back up either.
-   While in the dashboard, worth a quick visual scan of `fuel_entries` +
-   `state_mileage` (Table Editor) for similar surprises — all three base tables
-   predate the migration files. See Work Log 2026-07-07.
+2. ~~**Apply the weight_Ibs migration.**~~ **SUPERSEDED 2026-07-08** — that
+   diagnosis was wrong (no such column exists); the migration was removed and
+   the real bug (a JS falsy-zero fix in `loadsSync.ts`) shipped via `eas
+   update` instead. No SQL Editor action needed. See Work Log 2026-07-08.
 3. **[USER] Finish the App Store Connect listing:** set Support URL
    (`truckernet.app`) + Privacy URL (`truckernet.app/privacy`); fill the privacy
    "nutrition label" (email, location, usage analytics, crash data — no data
@@ -1035,8 +1031,9 @@ Real in-app account deletion, closing the 5.1.1(v) gap flagged above.
    Last step in that section: grant the account Pro via the RevenueCat
    dashboard (Customers → grant `pro` entitlement) so the reviewer never hits
    a paywall. Sign-in-required toggle must be ON (guest mode was removed).
-   **Do step 2 (the migration) first** — otherwise none of the seeded loads
-   will actually reach the cloud for the reviewer's device to pull down.
+   Get the latest OTA update on-device first (force-quit twice) so the
+   weight_lbs fix is live before seeding — otherwise loads with no weight
+   entered still won't sync.
 5. **[USER] Finish on-device TestFlight QA** — purchase and Delete Account are
    both verified; still run the rest of `APP_STORE_LISTING.md` →
    "TestFlight QA checklist": Restore Purchases, Google + Apple sign-in, and
@@ -1107,26 +1104,43 @@ modules, app.json, permissions) still need a full `eas build`.
 
 ## 6. Work Log (newest first)
 
-### 2026-07-07 — Loads sync blocked by a typo'd column on the hand-built base table
-Next error surfaced via the same "show the real error" tap (after the
-user_expenses fix landed): `null value in column "weight_Ibs" of relation
-"loads" violates not-null constraint`. Confirmed via grep that every migration
-and every app reference uses the correctly-spelled `weight_lbs` — nothing in
-this repo ever created `weight_Ibs` (capital I). The `loads` table's base
-structure predates the migration files (created by hand, per the 2026-06-30
-security-audit note), and picked up this typo somewhere in that process; the
-stray column was left `NOT NULL`, so the app — which has never known it
-exists — has been failing every single load insert to the cloud since
-whenever that column was added. Loads specifically may never have synced
-successfully at all before this.
+### 2026-07-08 — Loads sync: real root cause was a JS falsy-zero bug, not a typo'd column
+Continuation of the error surfaced via the "show the real error" tap:
+`null value in column "weight_Ibs" of relation "loads" violates not-null
+constraint`. **The prior entry's diagnosis (a hand-typo'd "weight_Ibs" column)
+was wrong** — retracted here. User applied that migration; the error persisted
+unchanged, which was the tell. Asked for a direct `information_schema.columns`
+dump of `public.loads` instead of trusting the error text's rendering, and it
+proved there is exactly one column, correctly spelled `weight_lbs`, `NOT NULL`,
+type `real` — no second column exists. What actually happened: the Alert
+displayed the real error using a font where lowercase "l" and capital "I" are
+visually identical, and "weight_Ibs" was always "weight_lbs".
 
-**Fix:** new `supabase/migrations/2026-07-07_fix_weight_typo_column.sql` —
-non-destructively drops the `NOT NULL` constraint on `weight_Ibs` (doesn't
-delete the column or touch data; reversible). **USER must apply via SQL
-Editor** — no live DB access from this repo. Flagged to the user that
-`fuel_entries` and `state_mileage` (the other two hand-built base tables)
-are worth a quick visual scan in Table Editor for similar surprises, since
-none of the three ever went through a tracked CREATE TABLE migration.
+**Real root cause:** `src/lib/sync/loadsSync.ts` pushLoads() had
+`weight_lbs: l.weight_lbs || null` — classic JS falsy-zero bug. `weight_lbs`
+defaults to `0` locally (weight is optional on most loads), and `0 || null`
+evaluates to `null` because `0` is falsy in JS. So every load with no weight
+entered got explicitly nulled before the push, hitting the live column's
+`NOT NULL` constraint on essentially every load. Fixed by sending `l.weight_lbs`
+directly (matches the sibling NOT NULL numeric fields in the same payload,
+none of which had a fallback). Audited the rest of `loadsSync.ts` +
+`fuelSync.ts`/`expensesSync.ts`/`generalExpensesSync.ts`/`profileSync.ts` for
+the same `|| null`-against-NOT-NULL pattern — only this one line had it;
+`bol_photo_url`'s `|| null` is fine since that column is genuinely nullable.
+
+**Cleanup:** removed the incorrect
+`supabase/migrations/2026-07-07_fix_weight_typo_column.sql` — it targeted a
+column that never existed, so it was a harmless no-op on the live database
+(confirmed via the same diagnostic query), but leaving a migration referencing
+a phantom column in the repo would mislead future readers. This fix needed
+**no database migration at all** — pure JS, ships via `eas update`. `tsc
+--noEmit` clean.
+
+**Process note for future debugging sessions:** when a Postgres/PostgREST error
+names an ambiguous-looking identifier (l/I, O/0, etc.), get a direct schema
+dump before writing a fix — don't trust how an error string renders on a phone
+screen. Cost one extra round-trip here; would have cost more had the wrong
+migration been more than a no-op.
 
 ### 2026-07-04 — Cloud backup was silently failing for EVERY account (real bug)
 User reported "Cloud backup failed" repeatedly while seeding a demo account,
