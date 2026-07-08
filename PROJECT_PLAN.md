@@ -1104,6 +1104,27 @@ modules, app.json, permissions) still need a full `eas build`.
 
 ## 6. Work Log (newest first)
 
+### 2026-07-08 — FOUND: language never persisted — invalid SecureStore key (the "@" prefix)
+The new diagnostic (added minutes earlier for exactly this) fired on first
+reproduction — no ambiguity this time: `[write] @truckernet_language:
+Invalid key provided to SecureStore. Keys must not be empty and contain only
+alphanumeric characters, ".", "-", and "_".` SecureStore keys can't contain
+`@` — unlike AsyncStorage, where `@app:key` is a normal convention. The
+language key has been `'@truckernet_language'` since it was written; every
+single write has thrown immediately. The language preference has never once
+been successfully saved, which is exactly consistent with the user's report
+that this predates everything else. My earlier `AFTER_FIRST_UNLOCK` fix on
+this same key was harmless but addressed the wrong layer — the read/write
+never even reached the Keychain, they failed key VALIDATION before that.
+
+**Fix:** renamed the key to `'truckernet_language'` (dropped, not
+transformed in place — makes explicit that any old value under the invalid
+key is simply orphaned, never readable anyway) in `src/lib/i18n.ts`. Grepped
+every `secureGet`/`secureSet`/`secureRemove` call site in the app: only
+language (now fixed) and Supabase's own internally-generated session keys
+(already proven working — user confirmed sign-in persists). No further
+instances of this mistake. tsc clean, shipped via `eas update`.
+
 ### 2026-07-08 — Language selector reappearing every launch — same bug class, second location
 Immediately after the sign-in routing fix landed, user reported the app now
 opens to the language picker on every launch instead of the dashboard. This

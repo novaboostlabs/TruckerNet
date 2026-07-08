@@ -21,7 +21,13 @@ export const LANGUAGES: {
   { code: 'zh', nativeName: '中文',      englishName: 'Chinese', flag: '🇨🇳' },
 ];
 
-export const LANGUAGE_STORAGE_KEY = '@truckernet_language';
+// No leading "@" — SecureStore keys may only contain alphanumerics, ".", "-",
+// and "_" (unlike AsyncStorage, where "@app:key" is a common convention).
+// The old "@truckernet_language" key was invalid syntax and every write threw
+// immediately — the language preference has never once been successfully
+// saved. Renaming (not just stripping "@" in place) makes that explicit: any
+// stale, unreadable value under the old key is simply orphaned, never read.
+export const LANGUAGE_STORAGE_KEY = 'truckernet_language';
 
 export async function getSavedLanguage(): Promise<SupportedLanguage | null> {
   const lang = await secureGet(LANGUAGE_STORAGE_KEY);
