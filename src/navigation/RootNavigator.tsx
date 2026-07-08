@@ -149,7 +149,19 @@ export default function RootNavigator() {
     init();
   }, [authLoading]); // eslint-disable-line
 
-  // ── Advance when user signs in (or signs up) ──
+  // ── Self-healing: never let a valid session sit on the sign-in screen ──
+  // Depends on BOTH session AND step (not session alone). This is the fix for
+  // a real reported bug: the cold-start effect above reads `session` from a
+  // closure snapshot tied to `authLoading` changing, and can capture a stale
+  // null even when getSession() resolves a valid session moments earlier
+  // (confirmed via the auth-event log: INITIAL_SESSION_CHECK/INITIAL_SESSION
+  // both showed a valid session, yet the app still parked on Sign In). The
+  // old version of this effect only re-ran when `session` itself changed —
+  // if session was ALREADY valid on the very first render (never actually
+  // "changing" to a new value), it had nothing to react to and never fired.
+  // Depending on `step` too means ANY time we land on signin/signup, this
+  // re-checks with the CURRENT session value and corrects immediately —
+  // regardless of what caused the stale routing in the first place.
   useEffect(() => {
     if (!initialized.current) return;
     if (step !== 'signin' && step !== 'signup') return;
@@ -161,7 +173,7 @@ export default function RootNavigator() {
     //   - Existing account on a fresh device → pull restores the setup → app.
     //   - Genuinely new account with nothing in the cloud → onboarding.
     void routeSignedIn(session.user.id);
-  }, [session]); // eslint-disable-line
+  }, [session, step]); // eslint-disable-line
 
   // ── Return to sign-in when session ends ──
   useEffect(() => {

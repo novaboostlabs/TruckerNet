@@ -1104,6 +1104,52 @@ modules, app.json, permissions) still need a full `eas build`.
 
 ## 6. Work Log (newest first)
 
+### 2026-07-08 — FOUND: "signed out every time I close the app" — stale-closure routing bug, not session loss
+The round-2 diagnostic log delivered a definitive answer on first use:
+```
+6:29:53 — SIGNED_IN (session: yes)
+6:29:46 — INITIAL_SESSION (session: yes)
+6:29:46 — INITIAL_SESSION_CHECK (session: yes)
+```
+Every entry shows a valid session, including the very first cold-start check.
+No `SIGNED_OUT`, no error. Supabase never lost the session — the app HAD a
+valid session from the moment it launched, yet still showed the sign-in
+screen (the `SIGNED_IN` 7s later is the user's manual re-login). This flips
+the entire investigation: not a token/storage problem, a routing bug in our
+own code. User also clarified this has been happening since before any of
+this session's changes — a pre-existing structural issue, not a regression.
+
+**Root cause:** RootNavigator's "determine starting point" effect only
+re-runs when `authLoading` changes, and reads `session` from a closure
+snapshot at that exact render (`eslint-disable-line` was suppressing the
+exhaustive-deps warning on this). If `session` and `authLoading` settle in a
+slightly different order than assumed — plausible given `session` is fed by
+two independent async paths (our own `getSession().then()` AND Supabase's
+`onAuthStateChange` `INITIAL_SESSION` event, both writing the same state) —
+this effect can capture a stale `session: null` and park on 'signin' despite
+the real session already being valid.
+
+There WAS a self-healing effect meant to catch exactly this (redirect once a
+session appears while sitting on sign-in) — but it only depended on
+`[session]`. If session was already valid on the very first render (never
+actually transitioning to a NEW value for that effect to react to), the
+safety net had nothing to fire on.
+
+**Fix:** self-healing effect now depends on `[session, step]` instead of
+`[session]` alone. Any time `step` becomes `'signin'`/`'signup'` — regardless
+of what caused it — it re-checks the CURRENT session value and immediately
+routes to the app if one exists. This doesn't require pinning the exact
+microtask-ordering mechanism (React/Promise timing across a `.then()` +
+`.finally()` chain racing an independent event listener is genuinely subtle);
+it makes the system self-correct regardless of root cause. At worst a driver
+now sees a brief flash of the sign-in screen before it corrects, instead of
+being stranded needing to re-enter credentials.
+**USER ACTION:** verify — close the app, reopen, confirm you land on the
+dashboard without re-entering credentials. Check Settings → "Sign-in event
+log" if it still misbehaves; a repeat `INITIAL_SESSION*(session: yes)`
+immediately followed by dashboard (no `SIGNED_IN`) confirms the fix.
+tsc clean, shipped via `eas update`.
+
 ### 2026-07-08 — Session-loss diagnostics, round 2: log what Supabase's client actually reports
 The SecureStore write/read instrumentation from the first diagnostics pass
 came back clean — user reproduced (closed + reopened, got bounced to sign-in
