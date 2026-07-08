@@ -726,7 +726,10 @@
     "backupErrorDetailTitle": "ਬੈਕਅਪ ਗਲਤੀ ਵੇਰਵੇ",
     "backupRetry": "ਹੁਣੇ ਦੁਬਾਰਾ ਕੋਸ਼ਿਸ਼ ਕਰੋ",
     "signInStorageIssueTitle": "ਸਾਈਨ-ਇਨ ਸਮੱਸਿਆ ਮਿਲੀ",
-    "signInStorageIssueSub": "ਕੁਝ ਤੁਹਾਡੇ ਲੌਗਇਨ ਨੂੰ ਇਸ ਡਿਵਾਈਸ ’ਤੇ ਸੇਵ ਹੋਣ ਤੋਂ ਰੋਕ ਰਿਹਾ ਹੈ — ਵੇਰਵੇ ਦੇਖਣ ਲਈ ਟੈਪ ਕਰੋ।"
+    "signInStorageIssueSub": "ਕੁਝ ਤੁਹਾਡੇ ਲੌਗਇਨ ਨੂੰ ਇਸ ਡਿਵਾਈਸ ’ਤੇ ਸੇਵ ਹੋਣ ਤੋਂ ਰੋਕ ਰਿਹਾ ਹੈ — ਵੇਰਵੇ ਦੇਖਣ ਲਈ ਟੈਪ ਕਰੋ।",
+    "authLogTitle": "ਸਾਈਨ-ਇਨ ਈਵੈਂਟ ਲੌਗ",
+    "authLogSub": "ਡਾਇਗਨੌਸਟਿਕ — ਹਾਲੀਆ ਸਰਗਰਮੀ ਦੇਖਣ ਲਈ ਟੈਪ ਕਰੋ",
+    "authLogEmpty": "ਅਜੇ ਤੱਕ ਕੋਈ ਸਾਈਨ-ਇਨ ਈਵੈਂਟ ਦਰਜ ਨਹੀਂ ਹੋਇਆ।"
   },
   "rateInsights": {
     "communityTitle": "ਕਮਿਊਨਿਟੀ",

@@ -726,7 +726,10 @@
     "backupErrorDetailTitle": "备份错误详情",
     "backupRetry": "立即重试",
     "signInStorageIssueTitle": "检测到登录问题",
-    "signInStorageIssueSub": "有些东西阻止了你的登录信息保存在此设备上——点击查看详情。"
+    "signInStorageIssueSub": "有些东西阻止了你的登录信息保存在此设备上——点击查看详情。",
+    "authLogTitle": "登录事件日志",
+    "authLogSub": "诊断信息——点击查看最近的登录活动",
+    "authLogEmpty": "尚未记录任何登录事件。"
   },
   "rateInsights": {
     "communityTitle": "社区数据",

@@ -726,7 +726,10 @@
     "backupErrorDetailTitle": "Detalles del error de respaldo",
     "backupRetry": "Reintentar",
     "signInStorageIssueTitle": "Problema de inicio de sesión detectado",
-    "signInStorageIssueSub": "Algo está impidiendo que tu inicio de sesión se guarde en este dispositivo — toca para ver los detalles."
+    "signInStorageIssueSub": "Algo está impidiendo que tu inicio de sesión se guarde en este dispositivo — toca para ver los detalles.",
+    "authLogTitle": "Registro de eventos de inicio de sesión",
+    "authLogSub": "Diagnóstico — toca para ver la actividad reciente",
+    "authLogEmpty": "Aún no hay eventos de inicio de sesión registrados."
   },
   "rateInsights": {
     "communityTitle": "Comunidad",

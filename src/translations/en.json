@@ -726,7 +726,10 @@
     "backupErrorDetailTitle": "Backup error details",
     "backupRetry": "Retry Now",
     "signInStorageIssueTitle": "Sign-in issue detected",
-    "signInStorageIssueSub": "Something is preventing your login from being saved on this device — tap to see details."
+    "signInStorageIssueSub": "Something is preventing your login from being saved on this device — tap to see details.",
+    "authLogTitle": "Sign-in event log",
+    "authLogSub": "Diagnostic — tap to view recent sign-in activity",
+    "authLogEmpty": "No sign-in events recorded yet."
   },
   "rateInsights": {
     "communityTitle": "Community",

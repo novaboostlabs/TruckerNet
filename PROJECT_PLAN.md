@@ -1104,6 +1104,32 @@ modules, app.json, permissions) still need a full `eas build`.
 
 ## 6. Work Log (newest first)
 
+### 2026-07-08 — Session-loss diagnostics, round 2: log what Supabase's client actually reports
+The SecureStore write/read instrumentation from the first diagnostics pass
+came back clean — user reproduced (closed + reopened, got bounced to sign-in
+again) and no "Sign-in issue detected" row appeared, ruling out a silent
+storage-write failure as the cause. Went one layer deeper: new
+`src/lib/authDiagnostics.ts` records a rotating log (last 8) of every
+Supabase auth event with a timestamp + whether a session was present —
+`INITIAL_SESSION_CHECK` (cold-start `getSession()` result),
+`INITIAL_SESSION_ERROR` if that call itself throws, every
+`onAuthStateChange` event verbatim (`SIGNED_IN`, `TOKEN_REFRESHED`,
+`SIGNED_OUT`, etc.), and a distinct `APP_ROUTED_TO_SIGNIN_MIDSESSION` tag
+specifically when RootNavigator's own routing (not Supabase) decides to bounce
+to sign-in while already in the app — separates "Supabase says the session
+really ended" from "our navigation acted on stale/incorrect state."
+Surfaced in Settings as an always-available "Sign-in event log" row (not
+conditional like the storage-error row, since it always has something to
+show). Log lives in local settings, NOT cleared by the sign-in bounce
+itself (only by an explicit sign-out), so it survives exactly the
+reproduction that matters: close app → reopen → bounced → sign back in →
+check Settings → see what led up to it.
+**USER ACTION:** reproduce again, then check Settings → "Sign-in event log"
+(no need to wait for an error row this time) and report what it shows —
+this should identify root cause directly.
+i18n ×4 (`settings.authLogTitle/Sub/Empty`), parity 0/0, tsc clean, shipped
+via `eas update`.
+
 ### 2026-07-08 — Free-tier quota bypass + session-loss diagnostics
 **Load quota bypass (real bug, closed):** the 15-loads/month free cap counted
 by the load's business `date`, so back-dating a load onto a previous month —

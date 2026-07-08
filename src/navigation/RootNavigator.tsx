@@ -22,6 +22,7 @@ import { capture } from '../lib/analytics';
 import { AppFlowContext } from '../contexts/AppFlowContext';
 import { syncAll, pushAll } from '../lib/sync';
 import { setupNotifications } from '../lib/notifications';
+import { recordAuthEvent } from '../lib/authDiagnostics';
 
 const Stack = createNativeStackNavigator();
 const WALKTHROUGH_SETTING = 'walkthrough_seen';
@@ -170,6 +171,10 @@ export default function RootNavigator() {
 
     // Session ended — always return to sign-in. guest_mode is cleared by
     // clearAllUserData() which runs on explicit sign-out.
+    // Distinct tag from the AuthContext auth-state log: this confirms it was
+    // OUR navigation reacting to session becoming falsy WHILE the app was
+    // already open, as opposed to a cold-start finding no session at all.
+    recordAuthEvent('APP_ROUTED_TO_SIGNIN_MIDSESSION', false);
     setStep('signin');
   }, [session, authLoading]); // eslint-disable-line
 

@@ -3,6 +3,7 @@ import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 import { clearAllUserData } from '../db/database';
 import { identify, reset } from '../lib/analytics';
+import { recordAuthEvent } from '../lib/authDiagnostics';
 
 interface AuthContextValue {
   session: Session | null;
@@ -26,11 +27,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       .then(({ data: { session } }) => {
         setSession(session);
         setUser(session?.user ?? null);
+        recordAuthEvent('INITIAL_SESSION_CHECK', !!session);
       })
       .catch((e) => {
         console.warn('[TruckerNet] getSession error:', e);
         // Session unreadable (SecureStore error, corrupted token, etc.) —
         // treat as signed out so the app can proceed to the sign-in screen.
+        recordAuthEvent(`INITIAL_SESSION_ERROR: ${e instanceof Error ? e.message : String(e)}`, false);
       })
       .finally(() => {
         setLoading(false);
@@ -39,6 +42,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       setSession(session);
       setUser(session?.user ?? null);
+      recordAuthEvent(event, !!session);
       if (session?.user) {
         identify(session.user.id, { email: session.user.email });
       } else if (event === 'SIGNED_OUT') {
