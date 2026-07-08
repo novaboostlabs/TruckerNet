@@ -150,6 +150,10 @@ Run on a **real iPhone** via TestFlight — purchases and OAuth do not work in t
 
 Dates below are given as "days before you enter this data" (e.g. `-24` = 24 days ago) — count back from whatever day you actually do this, oldest first. All loads use Mapbox address autocomplete for pickup/delivery so miles + per-state IFTA split fill in automatically; don't hand-type state mileage.
 
+**Fastest way to enter back-dated loads:** History tab → Month view → navigate
+to the right month → tap the target day on the calendar → **"Log load this
+day"** — the Add Load sheet opens pre-set to that date (no arrow-tapping).
+
 ### Onboarding + Profile
 
 | Field | Value |

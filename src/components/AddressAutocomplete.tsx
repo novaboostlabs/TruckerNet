@@ -17,6 +17,13 @@ interface Props {
   placeholder: string;
   icon: IoniconName;
   iconColor?: string;
+  /**
+   * Fires when the suggestion dropdown appears (or grows). Hosts whose field
+   * sits near the bottom of a ScrollView use this to scroll the list into
+   * view — otherwise the dropdown renders below the fold / under the footer
+   * button and looks broken.
+   */
+  onSuggestionsOpen?: () => void;
 }
 
 const DEBOUNCE_MS = 300;
@@ -24,7 +31,7 @@ const DEBOUNCE_MS = 300;
 // Debounced address type-ahead. Suggestions render inline below the field
 // (rather than an overlay) so it behaves correctly inside a ScrollView.
 export default function AddressAutocomplete({
-  value, onChangeText, onSelect, placeholder, icon, iconColor,
+  value, onChangeText, onSelect, placeholder, icon, iconColor, onSuggestionsOpen,
 }: Props) {
   const { colors: Colors } = useTheme();
   const styles = useMemo(() => makeStyles(Colors), [Colors]);
@@ -82,6 +89,14 @@ export default function AddressAutocomplete({
   }
 
   const showList = focused && suggestions.length > 0 && value.trim() !== selectedText.current;
+
+  // Announce the dropdown appearing/growing so a bottom-of-screen host can
+  // scroll it into view. Waits a frame so the rows have laid out first.
+  useEffect(() => {
+    if (!showList || !onSuggestionsOpen) return;
+    const t = setTimeout(onSuggestionsOpen, 50);
+    return () => clearTimeout(t);
+  }, [showList, suggestions.length]); // eslint-disable-line
 
   return (
     <View>

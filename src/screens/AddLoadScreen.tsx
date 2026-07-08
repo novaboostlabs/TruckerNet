@@ -56,6 +56,9 @@ export interface AddLoadPrefill {
   milesAuto?:   boolean;
   brokerName?:  string;
   brokerMC?:    string;
+  /** ISO date (YYYY-MM-DD) to log the load on — set when adding from a
+   *  selected day in the History calendar. Defaults to today. */
+  date?:        string;
 }
 
 const LOAD_TYPES: LoadType[] = [
@@ -144,8 +147,9 @@ export default function AddLoadScreen({ onClose, onSaved, onFirstLoad, prefill }
   // human-verified rather than an automatic route estimate.
   const stateEdited      = useRef(false);
 
-  // ── Load date (defaults to today; user can go back to backlog past loads) ──
-  const [loadDate, setLoadDate] = useState(() => localDateISO());
+  // ── Load date (defaults to today, or the History-calendar day that opened
+  //    this sheet; the arrows still adjust it) ──
+  const [loadDate, setLoadDate] = useState(() => prefill?.date ?? localDateISO());
 
   function shiftLoadDate(days: number) {
     const d = new Date(loadDate + 'T12:00:00');
@@ -162,9 +166,10 @@ export default function AddLoadScreen({ onClose, onSaved, onFirstLoad, prefill }
   // ── Load details ──
   const [grossPay, setGrossPay] = useState(prefill?.grossPay ?? '');
   const [loadType, setLoadType] = useState<LoadType>(prefill?.loadType ?? defaultLoadTypeFromProfile());
-  // Smart default: coming from Check Load ("Accept & Log") means the driver just
-  // took this load → Upcoming. Logging directly usually means a finished run.
-  const [status,   setStatus]   = useState<LoadStatus>(prefill ? 'upcoming' : 'completed');
+  // Smart default: coming from Check Load ("Accept & Log" always carries the
+  // pay) means the driver just took this load → Upcoming. Logging directly —
+  // including onto a past History-calendar day — usually means a finished run.
+  const [status,   setStatus]   = useState<LoadStatus>(prefill?.grossPay ? 'upcoming' : 'completed');
   const [backhaul, setBackhaul] = useState(prefill?.backhaul ?? false);
   // Deadhead = empty/unpaid reposition leg. Miles still count for IFTA, so it's
   // savable with $0 gross (the gross requirement is waived when this is on).

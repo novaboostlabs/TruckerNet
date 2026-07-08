@@ -646,7 +646,8 @@
     "searchNoResultsHint": "Try a city name, state abbreviation, or broker name.",
     "expenseTag": "One-off expense",
     "deleteExpenseTitle": "Delete expense?",
-    "deleteExpenseBody": "This one-off expense will be removed and your totals updated."
+    "deleteExpenseBody": "This one-off expense will be removed and your totals updated.",
+    "addLoadDay": "Log load this day"
   },
   "settings": {
     "title": "Settings",

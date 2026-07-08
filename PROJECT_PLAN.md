@@ -1104,6 +1104,43 @@ modules, app.json, permissions) still need a full `eas build`.
 
 ## 6. Work Log (newest first)
 
+### 2026-07-08 — Seed-data session findings: 4 fixes (RC identity being the big one)
+User started entering the reviewer seed data and surfaced 4 issues, all fixed:
+
+1. **Log a load onto a History-calendar day.** Back-dating a load meant tapping
+   the Add Load date arrow ~24 times. Now: select a day on the History month/
+   week calendar → "Log load this day" (pill next to the section label; full
+   CTA button in the selected-day empty state) → Add Load opens pre-set to
+   that date (`AddLoadPrefill.date`; History hosts its own AddLoad modal).
+   Also tightened the status smart-default: only a Check Load prefill (which
+   always carries pay) defaults to Upcoming — a date-only prefill stays
+   Completed (back-dated logging is a finished run).
+2. **History past-period browsing is now FREE (user decision).** Removed the
+   paywall gate from prev-period arrow + swipe. "Looking at last month
+   shouldn't cost money" — the free-tier limit that matters is 15 loads/mo at
+   log time. Memory `monetization-paywall-plan` updated; do not re-gate.
+3. **Pro no longer leaks to new accounts on the same device (real bug).**
+   RC entitlements bound to an anonymous per-DEVICE customer — appconnect@
+   (brand-new) showed Pro instantly because the device's sandbox purchase was
+   attached to that anonymous customer. Fixed: `SubscriptionContext` now calls
+   `Purchases.logIn(supabaseUid)` on sign-in / `logOut()` on sign-out (guarded
+   by an rcReady flag post-configure; isAnonymous check before logOut; fails
+   closed on identity errors when signed out). Notes: (a) "Restore Purchases"
+   on any account still re-grants from the device's store receipt — that's
+   Apple's per-Apple-ID model, required behavior, not a leak; (b) an account
+   that purchased under the OLD anonymous identity needs one Restore to
+   transfer its Pro to its uid — affects the user's personal TestFlight
+   account; (c) dashboard-granting `pro` to the reviewer account's Supabase
+   uid now actually works (the APP_STORE_LISTING instructions assumed this).
+4. **Profile-setup home-base dropdown was hidden** under the Continue button
+   (last field on screen; suggestions rendered below the fold). Fixed
+   generically: `AddressAutocomplete` gained `onSuggestionsOpen` (fires when
+   the dropdown appears/grows); ProfileSetup scrolls to end on it + bottom
+   padding raised 12→160 so there's room above the footer.
+
+i18n `history.addLoadDay` ×4, parity 0/0, tsc clean, shipped via `eas update`.
+APP_STORE_LISTING seed instructions updated to use the new calendar-day flow.
+
 ### 2026-07-08 — Walkthrough viewable from sign-in + onboarding ("see how it works")
 Follow-up to the per-account onboarding fix: a new account created on a
 device that already saw the first-install walkthrough never gets to see what

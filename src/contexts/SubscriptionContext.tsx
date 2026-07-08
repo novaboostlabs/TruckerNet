@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import { Platform } from 'react-native';
 import Constants from 'expo-constants';
 import { getSetting, setSetting } from '../db/database';
+import { useAuth } from './AuthContext';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // RevenueCat configuration
@@ -124,10 +125,14 @@ function toPlanPrice(pkg: any): PlanPrice | null {
 }
 
 export function SubscriptionProvider({ children }: { children: React.ReactNode }) {
+  const { user } = useAuth();
   const [isPro,   setIsPro]   = useState(false);
   const [loading, setLoading] = useState(true);
   const [pricing, setPricing] = useState<Pricing>({ monthly: null, annual: null });
   const [trialEligible, setTrialEligible] = useState<TrialEligibility>({ monthly: true, annual: true });
+  // Flips true once Purchases.configure() has run — the identity effect below
+  // must never call logIn/logOut on an unconfigured SDK.
+  const [rcReady, setRcReady] = useState(false);
 
   useEffect(() => {
     if (MOCK_MODE) {
@@ -166,6 +171,7 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
         }
 
         Purchases.configure({ apiKey });
+        setRcReady(true); // identity effect below may now logIn/logOut safely
 
         // Fetch the current entitlement state.
         const customerInfo = await Purchases.getCustomerInfo();
@@ -216,6 +222,44 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
 
     initRC();
   }, []); // eslint-disable-line
+
+  // ── Tie the RevenueCat identity to the signed-in TruckerNet account ───────
+  // Without this, entitlements bind to an anonymous per-DEVICE customer, so a
+  // brand-new account created on a phone that ever purchased Pro inherited it
+  // automatically. logIn/logOut scopes entitlements to the Supabase user id:
+  //  - a new account starts free (correct);
+  //  - the purchasing account keeps Pro across its own devices;
+  //  - "Restore Purchases" still re-grants from the device's store receipt on
+  //    whichever account runs it (Apple requires restore to always work —
+  //    per-Apple-ID sharing is the platform's model, not something we control);
+  //  - dashboard-granted entitlements (reviewer demo account) target the
+  //    Supabase uid and now actually reach that account.
+  useEffect(() => {
+    if (MOCK_MODE || NATIVE_MODULE_MISSING || !rcReady) return;
+
+    (async () => {
+      try {
+        if (user?.id) {
+          const { customerInfo } = await Purchases.logIn(user.id);
+          setIsPro(customerInfo.entitlements.active[ENTITLEMENT_ID] !== undefined);
+        } else {
+          // logOut throws if already anonymous — only call when identified.
+          const anonymous = await Purchases.isAnonymous();
+          if (!anonymous) {
+            const info = await Purchases.logOut();
+            setIsPro(info?.entitlements?.active?.[ENTITLEMENT_ID] !== undefined);
+          } else {
+            setIsPro(false);
+          }
+        }
+      } catch (e) {
+        console.warn('[TruckerNet] RevenueCat identity switch failed:', e);
+        // Fail closed on identity uncertainty: never leave a previous account's
+        // Pro visible to whoever is signed in now.
+        if (!user?.id) setIsPro(false);
+      }
+    })();
+  }, [user?.id, rcReady]); // eslint-disable-line
 
   // ── Mock toggle (dev only, no-op in production) ───────────────────────────
   function setMockPro(value: boolean) {

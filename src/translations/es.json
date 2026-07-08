@@ -612,7 +612,8 @@
     "searchNoResultsHint": "Prueba con una ciudad, abreviatura de estado o nombre de bróker.",
     "expenseTag": "Gasto puntual",
     "deleteExpenseTitle": "¿Eliminar gasto?",
-    "deleteExpenseBody": "Este gasto puntual se eliminará y se actualizarán tus totales."
+    "deleteExpenseBody": "Este gasto puntual se eliminará y se actualizarán tus totales.",
+    "addLoadDay": "Registrar carga este día"
   },
   "expenses": {
     "title": "Gastos",

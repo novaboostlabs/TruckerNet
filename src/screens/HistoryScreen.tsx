@@ -9,8 +9,6 @@ import { useTranslation } from 'react-i18next';
 import { Colors, FontFamily, FontSize, Spacing, Radius, SectionLabel, ThemeColors, sectionLabel } from '../theme/theme';
 import { useTheme } from '../theme/ThemeContext';
 import { getDateLocale } from '../lib/i18n';
-import { useSubscription } from '../contexts/SubscriptionContext';
-import { usePaywall } from '../contexts/PaywallContext';
 import {
   getHistoryLoads, getHistoryTotals, getHistoryLoadsDateRange, getHistoryTotalsDateRange,
   searchHistoryLoads, getGeneralExpensesDateRange, getAllGeneralExpenses, deleteGeneralExpense,
@@ -24,6 +22,7 @@ import { pushGeneralExpenses } from '../lib/sync/generalExpensesSync';
 import MonthCalendar from '../components/MonthCalendar';
 import WeekCalendar  from '../components/WeekCalendar';
 import LoadDetailScreen from './LoadDetailScreen';
+import AddLoadScreen from './AddLoadScreen';
 import GridBackground from '../components/GridBackground';
 import AccentRule from '../components/AccentRule';
 
@@ -125,8 +124,6 @@ export default function HistoryScreen() {
   const { colors: Colors } = useTheme();
   const styles = useMemo(() => makeStyles(Colors), [Colors]);
   const { t } = useTranslation();
-  const { isPro } = useSubscription();
-  const { present: presentPaywall } = usePaywall();
   const { user } = useAuth();
   const navigation = useNavigation<any>();
   const route      = useRoute<any>();
@@ -148,6 +145,9 @@ export default function HistoryScreen() {
   const [selectedDay,   setSelectedDay]   = useState<string | null>(null);
   const [selectedLoadId, setSelectedLoadId] = useState<string | null>(null);
   const [selectedEdit,   setSelectedEdit]   = useState(false);
+  // Log a load directly onto the selected calendar day — no more tapping the
+  // Add Load date arrow 20 times to reach a back-dated day.
+  const [addLoadDate,    setAddLoadDate]    = useState<string | null>(null);
 
   // ── Search ────────────────────────────────────────────────────────────────────
   const [searchActive,  setSearchActive]  = useState(false);
@@ -232,12 +232,13 @@ export default function HistoryScreen() {
   const atCurrentPeriod = filter === 'week' ? isCurrentWeek(periodDate) : filter === 'month' ? isCurrentMonth(periodDate) : true;
 
   // Shared period navigation — used by the arrows AND the swipe gesture.
+  // Browsing past weeks/months is FREE (user decision 2026-07-08): looking at
+  // your own history is table-stakes, not a premium feature. The free tier's
+  // real limit is the 15-loads/month cap at log time.
   const goPrevPeriod = useCallback(() => {
-    // Free tier sees the current period only — browsing past weeks/months is Pro.
-    if (!isPro) { presentPaywall('history'); return; }
     setPeriodDate(d => shiftDate(d, filter, -1));
     setSelectedDay(null);
-  }, [isPro, filter, presentPaywall]);
+  }, [filter]);
 
   const goNextPeriod = useCallback(() => {
     if (atCurrentPeriod) return;
@@ -362,6 +363,17 @@ export default function HistoryScreen() {
         )}
       </Modal>
 
+      {/* Add-load-on-this-day modal */}
+      <Modal visible={!!addLoadDate} animationType="slide" presentationStyle="pageSheet">
+        {addLoadDate && (
+          <AddLoadScreen
+            prefill={{ date: addLoadDate }}
+            onClose={() => setAddLoadDate(null)}
+            onSaved={() => { setAddLoadDate(null); refresh(filter, periodDate); }}
+          />
+        )}
+      </Modal>
+
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
 
         {/* Header */}
@@ -419,7 +431,7 @@ export default function HistoryScreen() {
             <View collapsable={false}>
               <View style={styles.periodNav}>
                 <TouchableOpacity style={styles.periodArrow} onPress={goPrevPeriod} activeOpacity={0.6}>
-                  <Ionicons name="chevron-back" size={20} color={isPro ? Colors.textSecondary : Colors.secondary} />
+                  <Ionicons name="chevron-back" size={20} color={Colors.textSecondary} />
                 </TouchableOpacity>
                 <Text style={styles.periodLabel}>{bounds?.label}</Text>
                 <TouchableOpacity style={styles.periodArrow} onPress={goNextPeriod} disabled={atCurrentPeriod} activeOpacity={0.6}>
@@ -551,7 +563,20 @@ export default function HistoryScreen() {
         {/* Load list — hidden during search */}
         {!searchActive && (
         <View style={styles.section}>
-          <Text style={styles.sectionLabel}>{loadsLabel}</Text>
+          <View style={styles.sectionLabelRow}>
+            <Text style={[styles.sectionLabel, { flexShrink: 1 }]}>{loadsLabel}</Text>
+            {selectedDay && (
+              <TouchableOpacity
+                style={styles.addDayBtn}
+                onPress={() => setAddLoadDate(selectedDay)}
+                activeOpacity={0.75}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <Ionicons name="add" size={14} color={Colors.primary} />
+                <Text style={styles.addDayBtnText}>{t('history.addLoadDay')}</Text>
+              </TouchableOpacity>
+            )}
+          </View>
 
           {timeline.length === 0 ? (
             <View style={styles.emptyCard}>
@@ -566,6 +591,16 @@ export default function HistoryScreen() {
                     ? t('history.hintAllTime')
                     : t('history.hintBrowse')}
               </Text>
+              {selectedDay && (
+                <TouchableOpacity
+                  style={styles.emptyDayCta}
+                  onPress={() => setAddLoadDate(selectedDay)}
+                  activeOpacity={0.85}
+                >
+                  <Ionicons name="add" size={16} color={Colors.onPrimary} />
+                  <Text style={styles.emptyDayCtaText}>{t('history.addLoadDay')}</Text>
+                </TouchableOpacity>
+              )}
             </View>
           ) : (
             <View style={styles.loadsCard}>
@@ -697,6 +732,19 @@ const makeStyles = (Colors: ThemeColors) => StyleSheet.create({
 
   section:      { marginBottom: 24 },
   sectionLabel: { ...sectionLabel(Colors), marginBottom: 12 },
+  sectionLabelRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
+  addDayBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 3, marginBottom: 12,
+    backgroundColor: Colors.primaryDim, borderWidth: 1, borderColor: Colors.primaryMid,
+    borderRadius: Radius.pill, paddingHorizontal: 10, paddingVertical: 4,
+  },
+  addDayBtnText: { fontFamily: FontFamily.monoSemiBold, fontSize: FontSize.caption, color: Colors.primary },
+  emptyDayCta: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+    backgroundColor: Colors.primary, borderRadius: Radius.md,
+    paddingVertical: 12, paddingHorizontal: 22, marginTop: 16,
+  },
+  emptyDayCtaText: { fontFamily: FontFamily.semiBold, fontSize: FontSize.label, color: Colors.onPrimary },
 
   emptyCard: {
     backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border,

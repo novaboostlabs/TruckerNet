@@ -586,7 +586,8 @@
     "searchNoResultsHint": "请尝试城市名称、州缩写或经纪人名称。",
     "expenseTag": "一次性支出",
     "deleteExpenseTitle": "删除支出？",
-    "deleteExpenseBody": "此一次性支出将被移除，您的合计将会更新。"
+    "deleteExpenseBody": "此一次性支出将被移除，您的合计将会更新。",
+    "addLoadDay": "在这天记录货载"
   },
   "ifta": {
     "title": "IFTA",

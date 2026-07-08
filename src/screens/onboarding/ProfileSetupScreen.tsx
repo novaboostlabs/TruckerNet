@@ -46,7 +46,8 @@ export default function ProfileSetupScreen({ onContinue, onBack, replay = false 
   const [truckNum,  setTruckNum]  = useState('');
   const [homeBaseInput, setHomeBaseInput] = useState('');
   const [homeBaseSel,   setHomeBaseSel]   = useState<AddressSuggestion | null>(null);
-  const nameRef = useRef<TextInput>(null);
+  const nameRef   = useRef<TextInput>(null);
+  const scrollRef = useRef<ScrollView>(null);
 
   function handleContinue() {
     // Name is the one field that personalizes everything downstream. Rather than
@@ -82,6 +83,7 @@ export default function ProfileSetupScreen({ onContinue, onBack, replay = false 
         keyboardVerticalOffset={0}
       >
         <ScrollView
+          ref={scrollRef}
           style={styles.scroll}
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag"
@@ -171,6 +173,10 @@ export default function ProfileSetupScreen({ onContinue, onBack, replay = false 
               }}
               placeholder={t('profile.cityPlaceholder')}
               icon="location-outline"
+              // Home base is the last field on screen — when its dropdown opens
+              // it would render below the fold, hidden under the Continue button.
+              // Scroll it into view the moment it appears.
+              onSuggestionsOpen={() => scrollRef.current?.scrollToEnd({ animated: true })}
             />
           </View>
         </ScrollView>
@@ -197,7 +203,9 @@ const makeStyles = (Colors: ThemeColors) => StyleSheet.create({
   safe:          { flex: 1, backgroundColor: Colors.background },
   flex:          { flex: 1 },
   scroll:        { flex: 1 },
-  scrollContent: { paddingHorizontal: Spacing.screenH, paddingTop: 16, paddingBottom: 12 },
+  // Generous bottom padding: the home-base dropdown (last field) needs room to
+  // scroll fully above the footer Continue button.
+  scrollContent: { paddingHorizontal: Spacing.screenH, paddingTop: 16, paddingBottom: 160 },
 
   backBtn: { marginBottom: 24, alignSelf: 'flex-start', padding: 4 },
 
