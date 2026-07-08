@@ -1104,6 +1104,17 @@ modules, app.json, permissions) still need a full `eas build`.
 
 ## 6. Work Log (newest first)
 
+### 2026-07-08 — Walkthrough viewable from sign-in + onboarding ("see how it works")
+Follow-up to the per-account onboarding fix: a new account created on a
+device that already saw the first-install walkthrough never gets to see what
+the app IS. Added subtle "See how TruckerNet works" links (play icon) on the
+sign-in screen (below "Create one") and in onboarding step 1's header row
+(first-time only; Settings replay hides it). RootNavigator's walkthrough
+replay flag generalized to `walkthroughReturn: Step | null` so the walkthrough
+returns to wherever the viewer came from. i18n ×4, parity 0/0, tsc clean,
+shipped via `eas update`. Placement decision: language screen deliberately
+skipped (fresh installs auto-play the walkthrough right after it anyway).
+
 ### 2026-07-08 — Onboarding is now per-ACCOUNT, decided by account data (new-account bug)
 User created the reviewer demo account (appconnect@) from the sign-in screen
 and was dropped straight onto an empty dashboard — no onboarding, no
