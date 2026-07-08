@@ -1104,6 +1104,42 @@ modules, app.json, permissions) still need a full `eas build`.
 
 ## 6. Work Log (newest first)
 
+### 2026-07-08 — Onboarding is now per-ACCOUNT, decided by account data (new-account bug)
+User created the reviewer demo account (appconnect@) from the sign-in screen
+and was dropped straight onto an empty dashboard — no onboarding, no
+break-even. Root cause: the sign-in transition unconditionally stamped
+`onboarding_completed:<uid>` = true for EVERY account (written when the only
+path to signup was through pre-auth onboarding; sign-out → create-new-account
+bypasses that entirely).
+
+**New model (the Uber/Rocket-Money pattern, as the user asked):**
+- **Walkthrough** (marketing carousel) stays per-DEVICE, first launch only +
+  replayable from Settings — industry standard; big apps don't re-show the
+  intro carousel for a second account on the same phone.
+- **Onboarding** (fuel/expenses/miles → break-even, goals, profile) is now
+  per-ACCOUNT, derived from the account's actual data, never a local flag:
+  new `routeSignedIn(userId)` in RootNavigator runs on BOTH cold start and
+  the sign-in transition. If core setup (weekly_fuel_cost + weekly_miles > 0)
+  exists locally → app (background sync). If not → bounded await (8s cap) of
+  the cloud pull, then re-check: restored → app; genuinely empty account →
+  onboarding, in a new `postAuthOnboarding` mode.
+- `postAuthOnboarding` reuses the same onboarding screens with first-time
+  copy, but finishing routes to the app (flag set + `pushAll`), never to the
+  signup screen (which would dead-end a signed-in user). ProfileSetup CTA
+  reads "Save" via the existing replay prop.
+- The 'loading' step now shows a centered spinner (the bounded pull wait
+  must not read as a freeze).
+- Flag writes remain (compat/heal) but are no longer trusted for routing —
+  data is. Stale-true flags from the old code self-heal on next sign-in.
+
+Flow traces verified: fresh-install signup (unchanged), existing account on
+fresh device (now properly gates on restore instead of racing it), sign-out →
+new account (the bug — now onboards), cold start (unchanged fast path),
+Replay Setup (unchanged). Pure JS — shipped via `eas update`. tsc clean.
+NOTE for demo seeding: sign out of appconnect@ and back in → it routes
+through onboarding this time (its cloud profile has no setup data); delete
+the 2 state-blank test loads while seeding.
+
 ### 2026-07-08 — pickup_state/delivery_state have been blank since Mapbox v6 (systemic, not per-load)
 User: Rate Network showed "0 loads shared" despite 2 completed, real-money
 loads. Checked the gating conditions in `maybeContributeLoadRate` (status,

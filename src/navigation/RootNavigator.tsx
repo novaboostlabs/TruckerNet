@@ -30,6 +30,18 @@ const WALKTHROUGH_SETTING = 'walkthrough_seen';
 // leaks to another (and guests, who have no id, never persist it).
 const onboardingKey = (userId: string) => `onboarding_completed:${userId}`;
 
+// Does this device hold the account's core setup (the two numbers break-even
+// cannot exist without)? This — not a local flag — is the source of truth for
+// whether an account is onboarded: the flag can go stale or leak across
+// accounts on a shared device, but real data can't be faked. Mirrors how the
+// big consumer apps route post-login (the server's account state decides
+// whether you see setup, not anything device-local).
+function hasCoreSetup(): boolean {
+  const fuel  = parseFloat(getSetting('weekly_fuel_cost') ?? '0') || 0;
+  const miles = parseFloat(getSetting('weekly_miles')     ?? '0') || 0;
+  return fuel > 0 && miles > 0;
+}
+
 // All possible app states — only moves forward, never backward (except sign-out)
 type Step =
   | 'loading'
@@ -54,7 +66,44 @@ export default function RootNavigator() {
   const [splashDone, setSplashDone] = useState(false);
   const [walkthroughReplay, setWalkthroughReplay] = useState(false);
   const [onboardingReplay, setOnboardingReplay] = useState(false);
+  // A signed-in account with no setup data (brand-new account created from the
+  // sign-in screen, or a restore that found nothing in the cloud) runs the
+  // SAME onboarding screens, but post-auth: finishing routes to the app (with
+  // a push), never to the signup screen.
+  const [postAuthOnboarding, setPostAuthOnboarding] = useState(false);
   const initialized               = useRef(false);
+
+  // ── Route a signed-in user: account state decides, not a device flag ──
+  // If the core setup exists locally → straight to the app (background sync).
+  // If not, this may be an existing account on a fresh device — pull the cloud
+  // copy first (bounded wait), THEN decide: restored data → app; genuinely
+  // empty account → onboarding. This is what kills the "new account lands on
+  // an empty dashboard with no break-even" bug: onboarding is per-ACCOUNT.
+  const routeSignedIn = useCallback(async (userId: string) => {
+    setSetting('has_real_account', 'true');
+    claimDataOwnership(userId);
+
+    if (hasCoreSetup()) {
+      setSetting(onboardingKey(userId), 'true');
+      syncAll(userId); // fire-and-forget reconcile
+      setStep('app');
+      return;
+    }
+
+    setStep('loading');
+    await Promise.race([
+      syncAll(userId),
+      new Promise<void>((resolve) => setTimeout(resolve, 8000)), // never strand on a hung pull
+    ]);
+
+    if (hasCoreSetup()) {
+      setSetting(onboardingKey(userId), 'true');
+      setStep('app');
+    } else {
+      setPostAuthOnboarding(true);
+      setStep('onboarding_fuel');
+    }
+  }, []);
 
   // ── Determine starting point ONCE when auth finishes loading ──
   useEffect(() => {
@@ -85,49 +134,29 @@ export default function RootNavigator() {
         return;
       }
 
-      // 3. Real session: mark the device, claim local data for this account
-      //    (wipes it if it belonged to a different account), then check onboarding.
-      setSetting('has_real_account', 'true');
-      claimDataOwnership(session.user.id);
-      const onboarded = getSetting(onboardingKey(session.user.id)) === 'true';
-      if (!onboarded) { setStep('onboarding_fuel'); return; }
-      // Returning user with a live session — reconcile with the cloud on every
-      // cold start (not just at the sign-in transition), so a device that was
-      // offline for a while pulls the latest and pushes its own local edits.
-      syncAll(session.user.id);
-      setStep('app');
+      // 3. Real session: same account-state routing as the sign-in transition.
+      //    (Previously this trusted a per-user local flag — which the old
+      //    sign-in path stamped 'true' for EVERY account unconditionally, so a
+      //    brand-new account created from the sign-in screen skipped onboarding
+      //    entirely and landed on an empty dashboard with no break-even.)
+      await routeSignedIn(session.user.id);
     }
 
     init();
   }, [authLoading]); // eslint-disable-line
 
-  // ── Advance to app when user signs in ──
+  // ── Advance when user signs in (or signs up) ──
   useEffect(() => {
     if (!initialized.current) return;
     if (step !== 'signin' && step !== 'signup') return;
     if (!session) return;
 
-    // Real account signed in — mark the device.
-    setSetting('has_real_account', 'true');
-
-    // Guard against cross-account contamination: if the local data belongs to a
-    // DIFFERENT account (e.g. a prior session expired without an explicit sign-out),
-    // wipe it before reconciling so it can never be pushed up into this account.
-    // A guest's unclaimed data (owner '') is preserved here so it can consolidate
-    // onto this account via the cloud-empty push in syncXOnSignIn.
-    claimDataOwnership(session.user.id);
-
-    // In the new flow onboarding runs before auth, so the per-user flag won't be
-    // set yet. Mark it now so future launches know this account is onboarded.
-    // For accounts that went through the old flow the flag is already set — this
-    // is a no-op write of the same value, which is harmless.
-    setSetting(onboardingKey(session.user.id), 'true');
-
-    // Reconcile with the cloud. Push expenses captured during pre-auth onboarding
-    // now that we have a user ID. Fire-and-forget, never blocks navigation.
-    syncAll(session.user.id);
-
-    setStep('app');
+    // Account state decides where they land:
+    //   - Pre-auth onboarding just completed (signup path) → core setup exists
+    //     locally → app, with the captured data pushed up.
+    //   - Existing account on a fresh device → pull restores the setup → app.
+    //   - Genuinely new account with nothing in the cloud → onboarding.
+    void routeSignedIn(session.user.id);
   }, [session]); // eslint-disable-line
 
   // ── Return to sign-in when session ends ──
@@ -171,8 +200,14 @@ export default function RootNavigator() {
   // the splash literally crossfades into the dashboard per spec.
   const renderStep = () => {
     if (step === 'loading') {
-      // Blank branded backdrop beneath the splash until auth resolves.
-      return <View style={{ flex: 1, backgroundColor: Colors.background }} />;
+      // Branded backdrop beneath the splash until auth resolves — and, on
+      // sign-in, while the account's cloud data is pulled before routing
+      // (a visible spinner so the bounded wait never reads as a freeze).
+      return (
+        <View style={{ flex: 1, backgroundColor: Colors.background, alignItems: 'center', justifyContent: 'center' }}>
+          <ActivityIndicator size="large" color={Colors.primary} />
+        </View>
+      );
     }
 
     if (step === 'language') {
@@ -270,17 +305,24 @@ export default function RootNavigator() {
     if (step === 'profile_setup') {
       return (
         <ProfileSetupScreen
-          replay={onboardingReplay}
+          // Both replay AND post-auth onboarding end with a signed-in user —
+          // the CTA reads "Save", never "Create My Account".
+          replay={onboardingReplay || postAuthOnboarding}
           onBack={() => setStep('onboarding_goals')}
           onContinue={() => {
-            // Replay (signed-in user reviewing setup): return to the app —
-            // never route an authenticated user to the signup screen.
-            if (onboardingReplay) {
+            // Any signed-in flavor (replay review, or a new account's post-auth
+            // onboarding): return to the app — never route an authenticated
+            // user to the signup screen.
+            if (onboardingReplay || postAuthOnboarding) {
               setOnboardingReplay(false);
-              // PUSH-ONLY: the user just edited their setup locally. A pull here
-              // would restore weekly_miles / weekly_fuel_cost / profile from the
-              // stale cloud row and revert the edits. Push sends them up instead.
-              if (session) pushAll(session.user.id);
+              setPostAuthOnboarding(false);
+              if (session) {
+                setSetting(onboardingKey(session.user.id), 'true');
+                // PUSH-ONLY: the user just entered/edited their setup locally.
+                // A pull here would restore weekly_miles / weekly_fuel_cost /
+                // profile from a stale cloud row and revert the edits.
+                pushAll(session.user.id);
+              }
               setStep('app');
             } else {
               setStep('signup');
