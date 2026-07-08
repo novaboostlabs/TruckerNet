@@ -22,9 +22,11 @@ WebBrowser.maybeCompleteAuthSession();
 
 interface Props {
   onGoToSignUp: () => void;
+  /** Opens the 4-slide walkthrough, returning here when done. */
+  onShowWalkthrough?: () => void;
 }
 
-export default function SignInScreen({ onGoToSignUp }: Props) {
+export default function SignInScreen({ onGoToSignUp, onShowWalkthrough }: Props) {
   const { colors: Colors } = useTheme();
   const styles = useMemo(() => makeStyles(Colors), [Colors]);
   const { t } = useTranslation();
@@ -243,6 +245,15 @@ export default function SignInScreen({ onGoToSignUp }: Props) {
             <Text style={styles.switchLink}>{t('auth.createOne')}</Text>
           </TouchableOpacity>
 
+          {/* Peek at the walkthrough — for anyone who landed here without the
+              first-install tour (new account on a used device, second driver) */}
+          {onShowWalkthrough && (
+            <TouchableOpacity style={styles.walkthroughRow} onPress={onShowWalkthrough} activeOpacity={0.7}>
+              <Ionicons name="play-circle-outline" size={15} color={Colors.textSecondary} />
+              <Text style={styles.walkthroughLink}>{t('walkthrough.previewLink')}</Text>
+            </TouchableOpacity>
+          )}
+
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -325,6 +336,8 @@ const makeStyles = (Colors: ThemeColors) => StyleSheet.create({
   buttonText:    { fontFamily: FontFamily.semiBold, fontSize: FontSize.body, color: Colors.onPrimary },
 
   switchRow:  { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginBottom: 20 },
+  walkthroughRow: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 6, paddingVertical: 4, marginBottom: 16 },
+  walkthroughLink: { fontFamily: FontFamily.medium, fontSize: FontSize.label, color: Colors.textSecondary },
   switchText: { fontFamily: FontFamily.regular, fontSize: FontSize.body, color: Colors.textSecondary },
   switchLink: { fontFamily: FontFamily.semiBold, fontSize: FontSize.body, color: Colors.primary },
 

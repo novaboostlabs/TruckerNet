@@ -18,9 +18,12 @@ interface Props {
   /** Signed-in review mode (Replay Setup): heading reads "Review…" so the
    *  prefilled numbers clearly mean "edit your setup", not stale data. */
   replay?: boolean;
+  /** Opens the 4-slide walkthrough and returns here — shown on first-time
+   *  onboarding only, for anyone wondering why the app is asking for costs. */
+  onShowWalkthrough?: () => void;
 }
 
-export default function OnboardingFuelScreen({ onNext, replay = false }: Props) {
+export default function OnboardingFuelScreen({ onNext, replay = false, onShowWalkthrough }: Props) {
   const { colors: Colors } = useTheme();
   const styles = useMemo(() => makeStyles(Colors), [Colors]);
   const { t } = useTranslation();
@@ -68,6 +71,17 @@ export default function OnboardingFuelScreen({ onNext, replay = false }: Props) 
 
           <View style={styles.stepRow}>
             <Text style={styles.stepLabel}>{t('onboarding.step', { current: 1, total: 4 })}</Text>
+            {onShowWalkthrough && (
+              <TouchableOpacity
+                style={styles.walkthroughRow}
+                onPress={onShowWalkthrough}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="play-circle-outline" size={14} color={Colors.textSecondary} />
+                <Text style={styles.walkthroughLink}>{t('walkthrough.previewLink')}</Text>
+              </TouchableOpacity>
+            )}
           </View>
 
           <View style={styles.iconCircle}>
@@ -143,7 +157,8 @@ const makeStyles = (Colors: ThemeColors) => StyleSheet.create({
 
   stepRow:   { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 32 },
   stepLabel: { fontFamily: FontFamily.monoSemiBold, fontSize: FontSize.caption, color: Colors.labelColor, letterSpacing: 1.4, textTransform: 'uppercase' },
-  skipLink:  { fontFamily: FontFamily.semiBold, fontSize: FontSize.label, color: Colors.textSecondary },
+  walkthroughRow:  { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  walkthroughLink: { fontFamily: FontFamily.medium, fontSize: FontSize.caption, color: Colors.textSecondary },
 
   iconCircle: {
     width: 64, height: 64, borderRadius: Radius.md,

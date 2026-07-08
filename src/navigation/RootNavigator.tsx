@@ -64,7 +64,10 @@ export default function RootNavigator() {
   const { session, loading: authLoading } = useAuth();
   const [step, setStep]           = useState<Step>('loading');
   const [splashDone, setSplashDone] = useState(false);
-  const [walkthroughReplay, setWalkthroughReplay] = useState(false);
+  // Non-null while the walkthrough is being VIEWED (not first-launch-routed):
+  // holds the step to return to when it finishes — 'app' for the Settings
+  // replay, 'signin' / 'onboarding_fuel' for the "see how it works" links.
+  const [walkthroughReturn, setWalkthroughReturn] = useState<Step | null>(null);
   const [onboardingReplay, setOnboardingReplay] = useState(false);
   // A signed-in account with no setup data (brand-new account created from the
   // sign-in screen, or a restore that found nothing in the cloud) runs the
@@ -188,7 +191,13 @@ export default function RootNavigator() {
   // ── Replay the walkthrough from inside the app (review mode) ──
   // Returns to the app when finished instead of routing to auth.
   const replayWalkthrough = useCallback(() => {
-    setWalkthroughReplay(true);
+    setWalkthroughReturn('app');
+    setStep('walkthrough');
+  }, []);
+
+  // ── Preview the walkthrough from sign-in / onboarding, then come back ──
+  const previewWalkthrough = useCallback((from: Step) => {
+    setWalkthroughReturn(from);
     setStep('walkthrough');
   }, []);
 
@@ -221,11 +230,12 @@ export default function RootNavigator() {
     }
 
     if (step === 'walkthrough') {
-      // Replay/review mode (launched from Settings): just return to the app.
-      if (walkthroughReplay) {
+      // View/review mode (Settings replay, or a "see how it works" link):
+      // just return to wherever the viewer came from.
+      if (walkthroughReturn) {
         return (
           <WalkthroughScreen
-            onDone={() => { setWalkthroughReplay(false); setStep('app'); }}
+            onDone={() => { setWalkthroughReturn(null); setStep(walkthroughReturn); }}
           />
         );
       }
@@ -242,7 +252,12 @@ export default function RootNavigator() {
     }
 
     if (step === 'signin') {
-      return <SignInScreen onGoToSignUp={() => setStep('signup')} />;
+      return (
+        <SignInScreen
+          onGoToSignUp={() => setStep('signup')}
+          onShowWalkthrough={() => previewWalkthrough('signin')}
+        />
+      );
     }
 
     if (step === 'signup') {
@@ -255,6 +270,9 @@ export default function RootNavigator() {
         <OnboardingFuelScreen
           replay={onboardingReplay}
           onNext={() => setStep('onboarding_expenses')}
+          // First-time onboarding offers a peek at the walkthrough ("why am I
+          // answering fuel questions?"); replay from Settings doesn't need it.
+          onShowWalkthrough={onboardingReplay ? undefined : () => previewWalkthrough('onboarding_fuel')}
         />
       );
     }
