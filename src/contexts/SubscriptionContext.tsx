@@ -125,7 +125,7 @@ function toPlanPrice(pkg: any): PlanPrice | null {
 }
 
 export function SubscriptionProvider({ children }: { children: React.ReactNode }) {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const [isPro,   setIsPro]   = useState(false);
   const [loading, setLoading] = useState(true);
   const [pricing, setPricing] = useState<Pricing>({ monthly: null, annual: null });
@@ -133,6 +133,9 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
   // Flips true once Purchases.configure() has run — the identity effect below
   // must never call logIn/logOut on an unconfigured SDK.
   const [rcReady, setRcReady] = useState(false);
+  // The identity we actually configured/logged in as, so the identity effect
+  // can tell "user changed" apart from "same user, first render."
+  const configuredUserId = React.useRef<string | null>(null);
 
   useEffect(() => {
     if (MOCK_MODE) {
@@ -149,6 +152,11 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
       setLoading(false);
       return;
     }
+
+    // Wait for Supabase auth to resolve before ever configuring RevenueCat, so
+    // we can configure AS the real account from the very first call — see why
+    // below.
+    if (authLoading) return;
 
     // ── REAL REVENUECAT PATH (dev / production build) ─────────────────────
     async function initRC() {
@@ -170,20 +178,28 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
           Purchases.setLogLevel(Purchases.LOG_LEVEL?.DEBUG ?? 'DEBUG');
         }
 
-        Purchases.configure({ apiKey });
+        // Configure AS the signed-in account from the start, per RevenueCat's
+        // own recommendation for apps with their own auth system. The
+        // previous version configured with no appUserID (anonymous), then
+        // called logIn(user.id) afterward as a separate step — every single
+        // cold launch briefly created (or tried to reuse) a throwaway
+        // anonymous identity before aliasing it to the real account. That's
+        // the real explanation for "16 new customers appeared in RevenueCat"
+        // (roughly one per app relaunch) AND for Pro status racing/flip-
+        // flopping (a fetch could land on that anonymous nobody's entitlements
+        // instead of the real account's). Passing appUserID directly skips
+        // the anonymous identity entirely when we already know who's signed in.
+        Purchases.configure({ apiKey, appUserID: user?.id ?? undefined });
+        configuredUserId.current = user?.id ?? null;
         setRcReady(true); // identity effect below may now logIn/logOut safely
 
-        // Deliberately NOT calling getCustomerInfo()/setIsPro here. Right after
-        // configure(), the SDK is still on its default (anonymous) identity —
-        // the identity effect below hasn't called logIn(user.id) yet. Fetching
-        // entitlements at this exact moment reads the WRONG customer, and
-        // since that fetch and the identity effect's logIn() both write isPro
-        // independently and in parallel, whichever one resolved LAST silently
-        // overwrote the other — a real race that showed up as Pro status
-        // flip-flopping on every launch until "Restore Purchases" was pressed
-        // (by then the identity effect had long since settled). The identity
-        // effect is now the sole source of truth for the INITIAL isPro value;
-        // this listener keeps it correct for everything AFTER that.
+        // Safe now: we configured AS the correct identity (or explicitly
+        // anonymous if no one's signed in), so this reads the right customer.
+        const customerInfo = await Purchases.getCustomerInfo();
+        setIsPro(customerInfo.entitlements.active[ENTITLEMENT_ID] !== undefined);
+
+        // Stay in sync whenever the entitlement changes (e.g. after purchase,
+        // restore, expiry, a dashboard grant, or a billing retry).
         Purchases.addCustomerInfoUpdateListener((info: any) => {
           setIsPro(info.entitlements.active[ENTITLEMENT_ID] !== undefined);
         });
@@ -226,13 +242,15 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
     }
 
     initRC();
-  }, []); // eslint-disable-line
+  }, [authLoading]); // eslint-disable-line
 
   // ── Tie the RevenueCat identity to the signed-in TruckerNet account ───────
-  // Without this, entitlements bind to an anonymous per-DEVICE customer, so a
-  // brand-new account created on a phone that ever purchased Pro inherited it
-  // automatically. logIn/logOut scopes entitlements to the Supabase user id:
-  //  - a new account starts free (correct);
+  // Handles the identity CHANGING after the initial configure() above — a
+  // sign-out followed by a different account signing in, all within the same
+  // app session (no restart, so configure() itself doesn't run again). Skips
+  // its own first run when the identity already matches what initRC() just
+  // configured with, so a fresh launch doesn't fire a redundant logIn() call.
+  //  - a new account starts free (correct, since configure() now uses ITS id);
   //  - the purchasing account keeps Pro across its own devices;
   //  - "Restore Purchases" still re-grants from the device's store receipt on
   //    whichever account runs it (Apple requires restore to always work —
@@ -241,13 +259,16 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
   //    Supabase uid and now actually reach that account.
   useEffect(() => {
     if (MOCK_MODE || NATIVE_MODULE_MISSING || !rcReady) return;
+    if ((user?.id ?? null) === configuredUserId.current) return; // no actual change
 
     (async () => {
       try {
         if (user?.id) {
+          configuredUserId.current = user.id;
           const { customerInfo } = await Purchases.logIn(user.id);
           setIsPro(customerInfo.entitlements.active[ENTITLEMENT_ID] !== undefined);
         } else {
+          configuredUserId.current = null;
           // logOut throws if already anonymous — only call when identified.
           const anonymous = await Purchases.isAnonymous();
           if (!anonymous) {

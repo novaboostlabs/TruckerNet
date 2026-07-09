@@ -1104,6 +1104,42 @@ modules, app.json, permissions) still need a full `eas build`.
 
 ## 6. Work Log (newest first)
 
+### 2026-07-09 — REAL root cause: RevenueCat configured anonymously, creating a new customer nearly every launch
+Prior same-day fix (removing the racing `getCustomerInfo()` call) didn't
+fully resolve it — user still saw Pro flip-flopping, Restore Purchases
+sometimes not even working, AND reported **16 new customers** appearing in
+the RevenueCat dashboard despite testing on one account. That third
+observation was the real lead.
+
+**Root cause:** `Purchases.configure({ apiKey })` was called with NO
+`appUserID` — RevenueCat's documented default behavior when you omit it is
+to generate an ANONYMOUS identity, which is only supposed to persist across
+launches if the SDK's own local persistence holds up. The app then called
+`Purchases.logIn(user.id)` as a SEPARATE step afterward to alias that
+anonymous identity to the real account. Given ~16 cold app relaunches today
+(routine given how many OTA fixes required a restart to test), and 16 new
+customers appearing — one per relaunch — the anonymous identity was
+evidently NOT being reused; every launch spun up a fresh throwaway customer
+before aliasing away from it. This is a documented anti-pattern: RevenueCat's
+own docs explicitly recommend passing `appUserID` directly into `configure()`
+when the app already has its own login system, specifically to avoid this.
+
+**Fix:** `SubscriptionContext.tsx` now waits for Supabase auth to resolve
+(`authLoading`) before ever calling `Purchases.configure()`, then passes
+`appUserID: user?.id ?? undefined` directly — configuring AS the real
+account from the very first call, never touching an anonymous identity when
+a user is already known. `getCustomerInfo()` right after configure is safe
+again (no longer racing anything, since the identity is already correct).
+The separate identity-switch effect (for sign-out → different-account-signs-
+in within one session, no app restart) now tracks `configuredUserId` in a
+ref and skips its own first run when the identity already matches what
+`initRC()` just configured with — so a normal launch no longer fires a
+redundant `logIn()` call at all.
+Note for the user: the 16 orphaned anonymous customers already in RevenueCat
+are harmless dead records (no billing impact) and won't grow further; safe
+to ignore.
+tsc clean, shipped via `eas update`.
+
 ### 2026-07-09 — Pro status flip-flopping — race condition from yesterday's RC identity fix
 User granted `pro` to the appconnect@ customer via the RevenueCat dashboard,
 but the app inconsistently showed Pro active/inactive across launches, self-
