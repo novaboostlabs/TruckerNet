@@ -16,20 +16,31 @@
 > branch and push `main`** so the user's build always reflects the latest.
 > (Decided 2026-06-19 after changes weren't appearing because `main` was stale.)
 
-_Last updated: 2026-07-09 — App is code-complete for v1.0.0. Seeding the
-reviewer demo account with real data (per `APP_STORE_LISTING.md`) surfaced a
-run of real bugs over 2026-07-04 → 07-09 that hadn't shown up in earlier
-testing — all fixed, all shipped via `eas update` (no rebuild needed). Full
-consolidated list in §5.8 "🐛 Real-device bug sweep." The most significant:
-loads/expenses silently failing to sync, brand-new accounts skipping
-onboarding, a session-persistence race that signed users out on every close,
-an invalid SecureStore key that reset the language preference every launch,
-and RevenueCat being configured anonymously (causing Pro status instability +
-throwaway customer records). One migration from this sweep still needs
-applying: `2026-07-09_loads_rate_contributed.sql` (user applying now).
-Screenshots are captured and uploaded to App Store Connect. The concrete next
-action is finishing the demo-account seeding, then App Store Connect listing
-details. See §6 Work Log for full history, newest first._
+_Last updated: 2026-07-09 — App is code-complete for v1.0.0. **START HERE IN A
+NEW CHAT.** Seeding the reviewer demo account (`appconnect@novaboostlabs.co`)
+with real data on a real device (per `APP_STORE_LISTING.md`) surfaced a run of
+9 real bugs over 2026-07-04 → 07-09 that hadn't shown up in earlier testing —
+**all fixed, all shipped via `eas update`, both required migrations applied.**
+Full consolidated list with symptom/root-cause/status in §5.8 "🐛 Real-device
+bug sweep" table. The most significant: loads/expenses silently failing to
+sync, brand-new accounts skipping onboarding, a session-persistence race that
+signed users out on every close, an invalid SecureStore key that reset the
+language preference every launch, and RevenueCat being configured anonymously
+(Pro status instability + throwaway customer records). One permanent, known,
+harmless cosmetic side effect remains: the appconnect@ account's first 3 loads
+will always show "not counted" in the Rate Network "You've shared" stat (their
+local tracking flag was reset before the fix landed; not recoverable, not
+launch-blocking, not reviewer-facing — see bug #9 in the table).
+
+**Immediate next action:** user is mid-way through seeding the
+appconnect@novaboostlabs.co reviewer demo account — continue/finish the load,
+fuel, and expense entries per `APP_STORE_LISTING.md` → "Reviewer demo account
+— setup steps + seed data" (use History → tap a calendar day → "Log load this
+day" for back-dated entries, NOT the date arrows). After seeding: grant that
+account Pro via the RevenueCat dashboard (target its Supabase user ID), then
+finish the §5.8 "Still open" checklist (App Store Connect listing details →
+remaining TestFlight QA → submit for review). See §6 Work Log for full
+history, newest first._
 
 > **Backend sync state:** Local-first, SQLite is source of truth. As of
 > 2026-07-01/02: pull now MERGES instead of replacing (local wins on conflict,
@@ -1038,50 +1049,39 @@ already) except where a migration is noted.
 - `2026-07-07_fix_weight_typo_column.sql` — written for bug #2's *first* (wrong) diagnosis, retracted and deleted once the real cause was found. Never something to apply.
 - `2026-07-09_loads_rate_contributed.sql` — real, needed for bug #9. Non-destructive `ADD COLUMN IF NOT EXISTS`. **Applied 2026-07-09.**
 
+### ✅ Recently resolved (context for a fresh session — full detail in the bug-sweep table above + Work Log)
+- Delete Account, screenshots, the production TestFlight rebuild (with OTA
+  baked in), and all 9 real-device bugs from the 07-04→07-09 sweep — including
+  both migrations that sweep required (`2026-07-09_loads_rate_contributed.sql`
+  is the only one actually needed; the other was a retracted misdiagnosis).
+  Nothing below needs revisiting.
+
 ### 🔴 Still open — in order (as of 2026-07-09)
 
-0. ~~**Delete Account: status unknown.**~~ **RESOLVED 2026-07-05** — production
-   build shipped the fix + OTA runtime, user retested on-device and confirmed
-   it's fully functional (real server-side account + auth-user deletion, not
-   just a local sign-out). See Work Log.
-1. ~~**Screenshots.**~~ **DONE** — captured and uploaded to App Store Connect.
-2. ~~**Apply the weight_Ibs migration.**~~ **SUPERSEDED 2026-07-08** — that
-   diagnosis was wrong (no such column exists); the migration was removed and
-   the real bug (a JS falsy-zero fix in `loadsSync.ts`) shipped via `eas
-   update` instead. No SQL Editor action needed. See Work Log 2026-07-08.
-2b. ~~**Apply `2026-07-09_loads_rate_contributed.sql`.**~~ **DONE 2026-07-09**
-    — syncs the community-rate-pool contribution flag so it survives a local
-    data reset instead of risking duplicate pool submissions. Confirmed
-    applied; the appconnect@ account's 3 pre-existing loads will permanently
-    show "You: 0" for themselves (cosmetic, expected — see bug #9 in the
-    "Real-device bug sweep" table above). Not launch-blocking.
-3. **[USER] Finish the App Store Connect listing:** set Support URL
-   (`truckernet.app`) + Privacy URL (`truckernet.app/privacy`); fill the privacy
-   "nutrition label" (email, location, usage analytics, crash data — no data
-   sold); confirm age rating (4+).
-4. **[USER] Create + seed the reviewer demo account, then fill in App Review
-   Information.** Full step-by-step + exact seed data (onboarding values, 14
-   loads, 8 fuel fill-ups, 2 general expenses) now lives in
-   `APP_STORE_LISTING.md` → "Reviewer demo account — setup steps + seed data".
-   Last step in that section: grant the account Pro via the RevenueCat
-   dashboard (Customers → grant `pro` entitlement) so the reviewer never hits
-   a paywall. Sign-in-required toggle must be ON (guest mode was removed).
-   Get the latest OTA update on-device first (force-quit twice) so the
-   weight_lbs fix is live before seeding — otherwise loads with no weight
-   entered still won't sync.
+1. **[IN PROGRESS] Finish seeding the reviewer demo account**
+   (`appconnect@novaboostlabs.co`) — full seed data (onboarding values, 14
+   loads, 8 fuel fill-ups, 2 general expenses) in `APP_STORE_LISTING.md` →
+   "Reviewer demo account — setup steps + seed data". Use History → tap a
+   calendar day → "Log load this day" for back-dated entries. Stay signed in
+   throughout so it actually reaches the cloud (check Settings → Cloud backup
+   shows a recent success).
+2. **[USER] Grant that account Pro** via the RevenueCat dashboard (Customers →
+   search its Supabase user ID → grant the `pro` entitlement, ~1 year
+   duration) so the reviewer never hits a paywall. Do this AFTER seeding is
+   done, not before.
+3. **[USER] Fill in App Store Connect → App Review Information** with the
+   appconnect@ email + password once seeding + the Pro grant are done.
+   Sign-in-required toggle must be ON (guest mode was removed).
+4. **[USER] Finish the App Store Connect listing:** set Support URL
+   (`truckernet.app`) + Privacy URL (`truckernet.app/privacy`); fill the
+   privacy "nutrition label" (email, location, usage analytics, crash data —
+   no data sold); confirm age rating (4+).
 5. **[USER] Finish on-device TestFlight QA** — purchase and Delete Account are
    both verified; still run the rest of `APP_STORE_LISTING.md` →
    "TestFlight QA checklist": Restore Purchases, Google + Apple sign-in, and
-   **Replay Setup persists after a full app restart** (reverted twice this
-   session — verify explicitly).
-6. ~~**Rebuild + resubmit to TestFlight**~~ **DONE** — production build shipped
-   2026-07-05 with the Delete Account fix + EAS Update/OTA runtime baked in.
-   Future JS-only fixes can ship via `eas update --channel production` instead
-   of a full rebuild. Several polish-pass + bugfix OTA updates already shipped
-   this way (load lifecycle/keyboard/onboarding/fuel-tab fixes, earned-vs-
-   pending money split, animation pass #1, the two sync bugs above) — see
-   Work Log.
-7. **[USER] Submit for review** with the seeded demo login (step 4) in the App
+   **Replay Setup persists after a full app restart** (reverted twice in an
+   earlier session — verify explicitly).
+6. **[USER] Submit for review** with the seeded demo login (step 3) in the App
    Review notes so the reviewer never sees empty states. Budget 1–3 weeks; one
    rejection round is normal.
 
