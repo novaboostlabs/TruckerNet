@@ -1032,11 +1032,11 @@ already) except where a migration is noted.
 | 6 | Signed out every time the app was closed and reopened | Stale-closure race: the routing effect could capture a `null` session in its closure even though Supabase had already resolved a valid one — a self-healing check meant to catch this only watched for the session *changing*, and did nothing if it was correct from the very first render | ✅ Fixed — self-healing check now also re-fires whenever landing on the sign-in screen, regardless of what caused it |
 | 7 | Language preference reset on every launch | The storage key was `'@truckernet_language'` — SecureStore keys can't contain `@`; every save has thrown instantly since this was built | ✅ Fixed — renamed key; also consolidated all SecureStore access into one hardened, error-visible module (`secureStorage.ts`) so this class of bug can't recur silently a third time |
 | 8 | Pro subscription flipping active/inactive between launches, Restore Purchases sometimes not working | RevenueCat was configured *anonymously* first, then logged into the real account as a separate step — every relaunch briefly created (or failed to reuse) a throwaway anonymous identity before aliasing it, racing against the real check. Also explains "16 new customers" appearing in the RevenueCat dashboard from one account | ✅ Fixed — now configures directly AS the signed-in account from the first call, per RevenueCat's own recommended pattern; no anonymous identity touched at all when a user is known |
-| 9 | Rate Network "You: 0" despite the pool showing the driver's own 3 loads | The local flag marking "already contributed to the pool" was device-only, never backed up — any local data reset (sign out/in, a cross-account check, a reinstall) silently reset it, risking the SAME load being submitted to the crowdsourced pool a second time on next edit | ✅ Fixed — flag now syncs to the cloud like every other field. **Needs migration `2026-07-09_loads_rate_contributed.sql`** |
+| 9 | Rate Network "You: 0" despite the pool showing the driver's own 3 loads | The local flag marking "already contributed to the pool" was device-only, never backed up — any local data reset (sign out/in, a cross-account check, a reinstall) silently reset it, risking the SAME load being submitted to the crowdsourced pool a second time on next edit | ✅ Fixed + **migration applied 2026-07-09**. The 3 pre-existing loads will PERMANENTLY show "You: 0" for themselves (their local flag was reset before the fix landed, and the cloud pool is deliberately anonymous — no way to retroactively match a pool entry back to its load). This is expected, not a bug: the pool's "3" was always correct; every load added from now on correctly increments "You" and stays correct across any future reset. Not reviewer-facing, not launch-blocking. |
 
 **Two migrations from this sweep, for the record:**
 - `2026-07-07_fix_weight_typo_column.sql` — written for bug #2's *first* (wrong) diagnosis, retracted and deleted once the real cause was found. Never something to apply.
-- `2026-07-09_loads_rate_contributed.sql` — real, needed for bug #9. Non-destructive `ADD COLUMN IF NOT EXISTS`.
+- `2026-07-09_loads_rate_contributed.sql` — real, needed for bug #9. Non-destructive `ADD COLUMN IF NOT EXISTS`. **Applied 2026-07-09.**
 
 ### 🔴 Still open — in order (as of 2026-07-09)
 
@@ -1049,11 +1049,12 @@ already) except where a migration is noted.
    diagnosis was wrong (no such column exists); the migration was removed and
    the real bug (a JS falsy-zero fix in `loadsSync.ts`) shipped via `eas
    update` instead. No SQL Editor action needed. See Work Log 2026-07-08.
-2b. **[USER] 🔴 Apply `supabase/migrations/2026-07-09_loads_rate_contributed.sql`
-    via the SQL Editor** — syncs the community-rate-pool contribution flag so
-    it survives a local data reset instead of risking duplicate pool
-    submissions. Non-destructive (pure `ADD COLUMN IF NOT EXISTS`). See Work
-    Log 2026-07-09.
+2b. ~~**Apply `2026-07-09_loads_rate_contributed.sql`.**~~ **DONE 2026-07-09**
+    — syncs the community-rate-pool contribution flag so it survives a local
+    data reset instead of risking duplicate pool submissions. Confirmed
+    applied; the appconnect@ account's 3 pre-existing loads will permanently
+    show "You: 0" for themselves (cosmetic, expected — see bug #9 in the
+    "Real-device bug sweep" table above). Not launch-blocking.
 3. **[USER] Finish the App Store Connect listing:** set Support URL
    (`truckernet.app`) + Privacy URL (`truckernet.app/privacy`); fill the privacy
    "nutrition label" (email, location, usage analytics, crash data — no data
