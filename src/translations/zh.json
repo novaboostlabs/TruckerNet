@@ -732,11 +732,11 @@
     "authLogEmpty": "尚未记录任何登录事件。"
   },
   "rateInsights": {
-    "communityTitle": "社区数据",
+    "communityTitle": "网络",
     "communityCount": "此线路 {{count}} 名司机",
-    "tierExact": "{{count}} 名司机跑过这条精确线路",
-    "tierCorridor": "{{count}} 名司机跑过此走廊",
-    "tierNational": "{{count}} 名司机跑过类似货运",
+    "tierExact": "此线路已记录 {{count}} 次运输",
+    "tierCorridor": "此走廊已记录 {{count}} 次运输",
+    "tierNational": "类似货运已记录 {{count}} 次",
     "estTag": "估算",
     "historyTitle": "您的历史",
     "historyOne": "上次 ${{pay}}（{{date}}）",
@@ -917,6 +917,9 @@
       "maintenance": "保养",
       "supplies": "用品",
       "other": "其他"
-    }
+    },
+    "linkSuggestion": "{{miles}} 英里 · 你最近的一次货运",
+    "linkHintOn": "此支出将减少该货运的净利润。",
+    "linkHintOff": "不勾选则改为减少本周和本月。"
   }
 }

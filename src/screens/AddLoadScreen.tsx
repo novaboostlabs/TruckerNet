@@ -340,6 +340,16 @@ export default function AddLoadScreen({ onClose, onSaved, onFirstLoad, prefill }
   const fairDest   = deliverySel ? suggestionState(deliverySel) : undefined;
   const fair = hasInputs ? getFairMarketRate(loadMi, loadType, gross, fairOrigin, fairDest) : null;
 
+  // The community pool is deliberately anonymous (no user_id), so a driver's own
+  // contributed loads are IN it and can't be filtered server-side. Subtract the
+  // count of this driver's own runs on this lane so the "Network" figure never
+  // presents the viewer's own data back to them as other drivers'. When the pool
+  // is entirely the viewer's own runs (net ≤ 0) — the norm early on — hide the
+  // Network card entirely; the "Your history" card already covers that case.
+  const ownLaneCount     = personalHistory?.count ?? 0;
+  const netCommunityCount = communityRate ? Math.max(0, communityRate.count - ownLaneCount) : 0;
+  const showCommunity    = isPro && (communityLoading || (!!communityRate && netCommunityCount > 0));
+
   const verdictColor =
     !breakEvenRPM         ? Colors.textSecondary :
     netRPM >= breakEvenRPM * 1.15 ? Colors.primary :
@@ -861,7 +871,7 @@ export default function AddLoadScreen({ onClose, onSaved, onFirstLoad, prefill }
           {/* ── Lane insights (community + personal history) ── */}
           {(pickupSel && deliverySel) && (
             <>
-              {isPro && (communityLoading || communityRate) && (
+              {showCommunity && (
                 <View style={styles.insightCard}>
                   <View style={styles.insightHeader}>
                     <Ionicons name="people-outline" size={13} color={Colors.primary} />
@@ -871,7 +881,7 @@ export default function AddLoadScreen({ onClose, onSaved, onFirstLoad, prefill }
                     <ActivityIndicator size="small" color={Colors.textTertiary} style={styles.insightLoader} />
                   ) : communityRate ? (
                     <Text style={styles.insightValue}>
-                      {t(tierKey(communityRate.tier), { count: communityRate.count })} · ${money(communityRate.lowPay)}–${money(communityRate.highPay)}
+                      {t(tierKey(communityRate.tier), { count: netCommunityCount })} · ${money(communityRate.lowPay)}–${money(communityRate.highPay)}
                     </Text>
                   ) : null}
                 </View>

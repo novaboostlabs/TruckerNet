@@ -732,11 +732,11 @@
     "authLogEmpty": "No sign-in events recorded yet."
   },
   "rateInsights": {
-    "communityTitle": "Community",
+    "communityTitle": "Network",
     "communityCount": "{{count}} drivers on this lane",
-    "tierExact": "{{count}} drivers ran this exact lane",
-    "tierCorridor": "{{count}} drivers ran this corridor",
-    "tierNational": "{{count}} drivers ran similar loads",
+    "tierExact": "{{count}} runs logged on this lane",
+    "tierCorridor": "{{count}} runs logged on this corridor",
+    "tierNational": "{{count}} runs logged for similar loads",
     "estTag": "est.",
     "historyTitle": "Your history",
     "historyOne": "${{pay}} last time ({{date}})",
@@ -917,6 +917,9 @@
       "maintenance": "Maintenance",
       "supplies": "Supplies",
       "other": "Other"
-    }
+    },
+    "linkSuggestion": "{{miles}} mi · your most recent load",
+    "linkHintOn": "This expense will reduce that load's net profit.",
+    "linkHintOff": "Leave unchecked to reduce this week & month instead."
   }
 }

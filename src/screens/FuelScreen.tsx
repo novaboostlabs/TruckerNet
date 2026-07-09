@@ -201,13 +201,12 @@ export default function FuelScreen() {
               <Text style={styles.sectionLabel}>{t('fuel.cpmTrend', { count: trendEntries.length })}</Text>
               <View style={styles.chartCard}>
                 <View style={styles.chartBars}>
-                  {trendEntries.map((e, i) => {
+                  {trendEntries.map((e) => {
                     const height = Math.max(Math.round((e.cost_per_mile / (maxCPM * 1.2)) * 80), 4);
-                    const isLatest = i === trendEntries.length - 1;
                     return (
                       <View key={e.id} style={styles.chartBarWrap}>
                         <Text style={styles.chartBarLabel}>${e.cost_per_mile.toFixed(3)}</Text>
-                        <View style={[styles.chartBar, { height, backgroundColor: isLatest ? Colors.primary : Colors.surfaceHigh }]} />
+                        <View style={[styles.chartBar, { height, backgroundColor: Colors.primary }]} />
                         <Text style={styles.chartBarDate}>{formatDate(e.date)}</Text>
                       </View>
                     );

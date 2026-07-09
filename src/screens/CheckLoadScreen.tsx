@@ -161,6 +161,15 @@ export default function CheckLoadScreen({ onClose, onLogLoad }: Props) {
     return () => { cancelled = true; ctrl.abort(); };
   }, [pickupSel, deliverySel]);
 
+  // The community pool is anonymous, so the driver's own contributed loads are
+  // in it and can't be filtered server-side. Subtract this driver's own runs on
+  // the lane so "Network" never shows the viewer their own data as others'. When
+  // the pool is entirely their own runs (net ≤ 0 — the norm early on), treat it
+  // as no community data and fall back to the model estimate.
+  const ownLaneCount      = personalHistory?.count ?? 0;
+  const netCommunityCount = communityRate ? Math.max(0, communityRate.count - ownLaneCount) : 0;
+  const hasCommunity      = !!communityRate && netCommunityCount > 0;
+
   // Break-even is fixed for the session (derived from saved expenses + fuel + miles).
   const { breakEvenRPM, fuelCPM, fixedCPM } = useMemo(() => calcBreakEven(), []);
 
@@ -438,7 +447,7 @@ export default function CheckLoadScreen({ onClose, onLogLoad }: Props) {
                   <>
                     {/* When real driver data exists it leads as the headline; the
                         seeded model is shown as a labeled estimate beneath it. */}
-                    {communityRate ? (
+                    {hasCommunity && communityRate ? (
                       <>
                         <View style={styles.fairRow}>
                           <Text style={styles.fairLabel}>
@@ -451,7 +460,7 @@ export default function CheckLoadScreen({ onClose, onLogLoad }: Props) {
                         <View style={styles.communityRow}>
                           <Ionicons name="people-outline" size={13} color={Colors.primary} />
                           <Text style={styles.communityText}>
-                            {t(tierKey(communityRate.tier), { count: communityRate.count })}
+                            {t(tierKey(communityRate.tier), { count: netCommunityCount })}
                           </Text>
                         </View>
                         <Text style={styles.estLine}>

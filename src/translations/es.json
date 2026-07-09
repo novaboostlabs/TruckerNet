@@ -732,11 +732,11 @@
     "authLogEmpty": "Aún no hay eventos de inicio de sesión registrados."
   },
   "rateInsights": {
-    "communityTitle": "Comunidad",
+    "communityTitle": "Red",
     "communityCount": "{{count}} conductores en esta ruta",
-    "tierExact": "{{count}} conductores hicieron esta ruta exacta",
-    "tierCorridor": "{{count}} conductores hicieron este corredor",
-    "tierNational": "{{count}} conductores hicieron cargas similares",
+    "tierExact": "{{count}} viajes registrados en esta ruta",
+    "tierCorridor": "{{count}} viajes registrados en este corredor",
+    "tierNational": "{{count}} viajes registrados para cargas similares",
     "estTag": "aprox.",
     "historyTitle": "Tu historial",
     "historyOne": "${{pay}} la última vez ({{date}})",
@@ -917,6 +917,9 @@
       "maintenance": "Mantenimiento",
       "supplies": "Suministros",
       "other": "Otro"
-    }
+    },
+    "linkSuggestion": "{{miles}} mi · tu carga más reciente",
+    "linkHintOn": "Este gasto reducirá la ganancia neta de esa carga.",
+    "linkHintOff": "Déjalo sin marcar para reducir esta semana y mes."
   }
 }

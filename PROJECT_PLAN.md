@@ -1056,34 +1056,49 @@ already) except where a migration is noted.
   is the only one actually needed; the other was a retracted misdiagnosis).
   Nothing below needs revisiting.
 
-### 🔴 Still open — in order (as of 2026-07-09)
+### ✅ Launch-prep checklist — ALL DONE (user confirmed 2026-07-09)
 
-1. **[IN PROGRESS] Finish seeding the reviewer demo account**
-   (`appconnect@novaboostlabs.co`) — full seed data (onboarding values, 14
-   loads, 8 fuel fill-ups, 2 general expenses) in `APP_STORE_LISTING.md` →
-   "Reviewer demo account — setup steps + seed data". Use History → tap a
-   calendar day → "Log load this day" for back-dated entries. Stay signed in
-   throughout so it actually reaches the cloud (check Settings → Cloud backup
-   shows a recent success).
-2. **[USER] Grant that account Pro** via the RevenueCat dashboard (Customers →
-   search its Supabase user ID → grant the `pro` entitlement, ~1 year
-   duration) so the reviewer never hits a paywall. Do this AFTER seeding is
-   done, not before.
-3. **[USER] Fill in App Store Connect → App Review Information** with the
-   appconnect@ email + password once seeding + the Pro grant are done.
-   Sign-in-required toggle must be ON (guest mode was removed).
-4. **[USER] Finish the App Store Connect listing:** set Support URL
-   (`truckernet.app`) + Privacy URL (`truckernet.app/privacy`); fill the
-   privacy "nutrition label" (email, location, usage analytics, crash data —
-   no data sold); confirm age rating (4+).
-5. **[USER] Finish on-device TestFlight QA** — purchase and Delete Account are
-   both verified; still run the rest of `APP_STORE_LISTING.md` →
-   "TestFlight QA checklist": Restore Purchases, Google + Apple sign-in, and
-   **Replay Setup persists after a full app restart** (reverted twice in an
-   earlier session — verify explicitly).
-6. **[USER] Submit for review** with the seeded demo login (step 3) in the App
-   Review notes so the reviewer never sees empty states. Budget 1–3 weeks; one
-   rejection round is normal.
+> The user has confirmed, multiple times across sessions, that every one of
+> these is finished. Do NOT re-list them as "open" again. If a doc pass ever
+> looks like it's reopening them, it's stale — trust this line.
+
+1. ✅ **Reviewer demo account seeded** (`appconnect@novaboostlabs.co`) — all 14
+   loads, 8 fuel fill-ups, 2 general expenses entered and synced to cloud.
+2. ✅ **Pro granted** to that account via RevenueCat.
+3. ✅ **App Store Connect → App Review Information** filled (appconnect@ login,
+   sign-in-required ON).
+4. ✅ **App Store Connect listing finished** — Support/Privacy URLs, privacy
+   nutrition label, age rating all done.
+5. ✅ **On-device TestFlight QA** done (purchase, Delete Account, Restore,
+   Google/Apple sign-in, Replay Setup persistence all verified).
+6. **[USER] Submit for review** — the ONLY remaining external step, whenever the
+   user decides the polish items below are in. Put the seeded appconnect@ login
+   in the App Review notes. Budget 1–3 weeks; one rejection round is normal.
+
+### 🟡 Post-seed polish items — reported 2026-07-09 (in-app UX, pre-submit)
+
+Found by the user while reviewing the fully-seeded app. These are the active
+work items now (submission is otherwise unblocked — user may submit before or
+after these land, their call).
+
+1. **History tab: log fuel fill-ups + one-off expenses on a calendar day** —
+   today only LOADS can be added from a tapped calendar day ("Log load this
+   day", teal marker). Extend the same flow to fuel fill-ups and one-off
+   expenses, each with its own distinct day-marker color.
+2. **Smart load-linking for one-off expenses** — when adding an expense, don't
+   show the full all-time load list. Detect the most recent load on/near the
+   expense's date and offer only that one to link (opt-in).
+3. **Fuel tab CPM bar chart: all bars teal** — currently only the most-recent
+   fill-up bar is teal, the previous 4 are gray. Make them all teal.
+4. **Fair-market display is cluttered/conflicting** — the fair-market range, the
+   community "N drivers ran this lane" line, AND the personal "last N times you
+   ran this you got $X" line all show at once in subtle/competing text. Simplify
+   to one clear hierarchy.
+5. **Community rate must exclude the viewer's OWN contributions** — with one
+   user, "3 other drivers ran this lane" is literally the user's own seeded
+   loads counted back at them. The count/label must never present the viewer's
+   own pool contributions as "other drivers." At scale too: if a driver
+   contributed 50 of 100 pool reports on a lane, don't say "100 other drivers."
 
 ### 🤖 Android — in progress alongside iOS submission
 - [x] **RevenueCat code path wired** (2026-07-04) — `SubscriptionContext.tsx`

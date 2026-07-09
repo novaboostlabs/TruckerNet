@@ -732,11 +732,11 @@
     "authLogEmpty": "ਅਜੇ ਤੱਕ ਕੋਈ ਸਾਈਨ-ਇਨ ਈਵੈਂਟ ਦਰਜ ਨਹੀਂ ਹੋਇਆ।"
   },
   "rateInsights": {
-    "communityTitle": "ਕਮਿਊਨਿਟੀ",
+    "communityTitle": "ਨੈੱਟਵਰਕ",
     "communityCount": "ਇਸ ਰੂਟ 'ਤੇ {{count}} ਡਰਾਈਵਰ",
-    "tierExact": "{{count}} ਡਰਾਈਵਰਾਂ ਨੇ ਇਹੀ ਰੂਟ ਚਲਾਇਆ",
-    "tierCorridor": "{{count}} ਡਰਾਈਵਰਾਂ ਨੇ ਇਹ ਕੋਰੀਡੋਰ ਚਲਾਇਆ",
-    "tierNational": "{{count}} ਡਰਾਈਵਰਾਂ ਨੇ ਮਿਲਦੇ-ਜੁਲਦੇ ਲੋਡ ਚਲਾਏ",
+    "tierExact": "ਇਸ ਲੇਨ ਤੇ {{count}} ਵਾਰ ਦਰਜ",
+    "tierCorridor": "ਇਸ ਕੋਰੀਡੋਰ ਤੇ {{count}} ਵਾਰ ਦਰਜ",
+    "tierNational": "ਮਿਲਦੇ-ਜੁਲਦੇ ਲੋਡਾਂ ਲਈ {{count}} ਵਾਰ ਦਰਜ",
     "estTag": "ਅੰਦਾਜ਼ਨ",
     "historyTitle": "ਤੁਹਾਡਾ ਇਤਿਹਾਸ",
     "historyOne": "ਪਿਛਲੀ ਵਾਰ ${{pay}} ({{date}})",
@@ -917,6 +917,9 @@
       "maintenance": "ਰੱਖ-ਰਖਾਅ",
       "supplies": "ਸਪਲਾਈ",
       "other": "ਹੋਰ"
-    }
+    },
+    "linkSuggestion": "{{miles}} ਮੀਲ · ਤੁਹਾਡਾ ਸਭ ਤੋਂ ਤਾਜ਼ਾ ਲੋਡ",
+    "linkHintOn": "ਇਹ ਖਰਚਾ ਉਸ ਲੋਡ ਦਾ ਸ਼ੁੱਧ ਮੁਨਾਫ਼ਾ ਘਟਾਵੇਗਾ।",
+    "linkHintOff": "ਇਸ ਹਫ਼ਤੇ ਤੇ ਮਹੀਨੇ ਨੂੰ ਘਟਾਉਣ ਲਈ ਬਿਨਾਂ ਨਿਸ਼ਾਨ ਛੱਡੋ।"
   }
 }

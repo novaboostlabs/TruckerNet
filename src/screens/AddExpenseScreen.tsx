@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
-  ScrollView, KeyboardAvoidingView, Platform, Modal, Pressable, Alert,
+  ScrollView, KeyboardAvoidingView, Platform, Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
@@ -10,7 +10,7 @@ import { FontFamily, FontSize, Spacing, Radius, ThemeColors, sectionLabel } from
 import { useTheme } from '../theme/ThemeContext';
 import { getDateLocale } from '../lib/i18n';
 import {
-  addGeneralExpense, addSingleLoadExpense, getRecentLoads, LoadSummary, localDateISO,
+  addGeneralExpense, addSingleLoadExpense, getLoadForExpenseDate, LoadSummary, localDateISO,
 } from '../db/database';
 import { useAuth } from '../contexts/AuthContext';
 import { pushLoads } from '../lib/sync/loadsSync';
@@ -34,6 +34,9 @@ const CATEGORIES: { key: string; icon: IconName }[] = [
 interface Props {
   onClose: () => void;
   onSaved: () => void;
+  // When launched from a tapped History calendar day, the expense defaults to
+  // that day rather than today.
+  initialDate?: string;
 }
 
 function cap(raw: string, max: number): string {
@@ -41,7 +44,7 @@ function cap(raw: string, max: number): string {
   return (!isNaN(n) && n > max) ? String(max) : raw;
 }
 
-export default function AddExpenseScreen({ onClose, onSaved }: Props) {
+export default function AddExpenseScreen({ onClose, onSaved, initialDate }: Props) {
   const { t } = useTranslation();
   const { colors: Colors } = useTheme();
   const styles = useMemo(() => makeStyles(Colors), [Colors]);
@@ -50,12 +53,16 @@ export default function AddExpenseScreen({ onClose, onSaved }: Props) {
   const [amount,   setAmount]   = useState('');
   const [category, setCategory] = useState('repair');
   const [note,     setNote]     = useState('');
-  const [date,     setDate]     = useState(() => localDateISO());
-  const [loadSel,  setLoadSel]  = useState<LoadSummary | null>(null);
-  const [loadPickerOpen, setLoadPickerOpen] = useState(false);
+  const [date,     setDate]     = useState(() => initialDate ?? localDateISO());
+  // Opt-in link to the load this expense belongs to. We suggest exactly one
+  // load (the most recent on/before this date) instead of a long all-time list.
+  const [linkLoad, setLinkLoad] = useState(false);
   const [saving,   setSaving]   = useState(false);
 
-  const recentLoads = useMemo(() => getRecentLoads(15), []);
+  // The single most-likely load for this expense's date. Recomputes as the date
+  // changes so the suggestion always matches the day the driver is logging for.
+  const suggestedLoad = useMemo<LoadSummary | null>(() => getLoadForExpenseDate(date), [date]);
+  const loadSel = linkLoad ? suggestedLoad : null;
   const amt = parseFloat(amount) || 0;
   const canSave = amt > 0;
 
@@ -179,23 +186,38 @@ export default function AddExpenseScreen({ onClose, onSaved }: Props) {
             </TouchableOpacity>
           </View>
 
-          {/* Attach to load (optional) */}
-          <Text style={[styles.fieldLabel, { marginTop: 22 }]}>
-            {t('addExpense.attachLabel')} <Text style={styles.optional}>({t('common.optional')})</Text>
-          </Text>
-          <TouchableOpacity style={styles.dropdown} onPress={() => setLoadPickerOpen(true)} activeOpacity={0.8}>
-            <Ionicons name="cube-outline" size={18} color={loadSel ? Colors.primary : Colors.textSecondary} />
-            <Text style={[styles.dropdownText, !loadSel && styles.dropdownPlaceholder]} numberOfLines={1}>
-              {loadSel ? `${loadSel.pickup_city} → ${loadSel.delivery_city}` : t('addExpense.attachNone')}
-            </Text>
-            {loadSel && (
-              <TouchableOpacity onPress={() => setLoadSel(null)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-                <Ionicons name="close-circle" size={18} color={Colors.textTertiary} />
+          {/* Attach to load (optional) — we suggest the one load this expense
+              most likely belongs to (most recent on/before this date) and let
+              the driver opt in with a tap, instead of scrolling an all-time list. */}
+          {suggestedLoad && (
+            <>
+              <Text style={[styles.fieldLabel, { marginTop: 22 }]}>
+                {t('addExpense.attachLabel')} <Text style={styles.optional}>({t('common.optional')})</Text>
+              </Text>
+              <TouchableOpacity
+                style={[styles.linkRow, linkLoad && styles.linkRowActive]}
+                onPress={() => setLinkLoad(v => !v)}
+                activeOpacity={0.8}
+              >
+                <Ionicons
+                  name={linkLoad ? 'checkbox' : 'square-outline'}
+                  size={22}
+                  color={linkLoad ? Colors.primary : Colors.textTertiary}
+                />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.linkRoute} numberOfLines={1}>
+                    {suggestedLoad.pickup_city} → {suggestedLoad.delivery_city}
+                  </Text>
+                  <Text style={styles.linkMeta}>
+                    {t('addExpense.linkSuggestion', { miles: Math.round(suggestedLoad.total_miles).toLocaleString() })}
+                  </Text>
+                </View>
               </TouchableOpacity>
-            )}
-            <Ionicons name="chevron-down" size={18} color={Colors.primary} />
-          </TouchableOpacity>
-          <Text style={styles.attachHint}>{t('addExpense.attachHint')}</Text>
+              <Text style={styles.attachHint}>
+                {linkLoad ? t('addExpense.linkHintOn') : t('addExpense.linkHintOff')}
+              </Text>
+            </>
+          )}
 
           {/* Save */}
           <TouchableOpacity
@@ -211,34 +233,6 @@ export default function AddExpenseScreen({ onClose, onSaved }: Props) {
           <View style={{ height: 32 }} />
         </ScrollView>
       </KeyboardAvoidingView>
-
-      {/* Load picker sheet */}
-      <Modal visible={loadPickerOpen} transparent animationType="fade" onRequestClose={() => setLoadPickerOpen(false)}>
-        <Pressable style={styles.modalBackdrop} onPress={() => setLoadPickerOpen(false)}>
-          <Pressable style={styles.modalSheet} onPress={(e) => e.stopPropagation()}>
-            <View style={styles.modalHandle} />
-            <Text style={styles.modalTitle}>{t('addExpense.attachLabel')}</Text>
-            <ScrollView style={styles.modalScroll} showsVerticalScrollIndicator={false}>
-              {recentLoads.length === 0 ? (
-                <Text style={styles.emptyLoads}>{t('addExpense.noLoads')}</Text>
-              ) : recentLoads.map((l) => (
-                <TouchableOpacity
-                  key={l.id}
-                  style={styles.loadOption}
-                  onPress={() => { setLoadSel(l); setLoadPickerOpen(false); }}
-                  activeOpacity={0.8}
-                >
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.loadOptionRoute} numberOfLines={1}>{l.pickup_city} → {l.delivery_city}</Text>
-                    <Text style={styles.loadOptionMeta}>{l.total_miles.toLocaleString()} mi</Text>
-                  </View>
-                  {loadSel?.id === l.id && <Ionicons name="checkmark" size={20} color={Colors.primary} />}
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          </Pressable>
-        </Pressable>
-      </Modal>
     </SafeAreaView>
   );
 }
@@ -296,13 +290,14 @@ const makeStyles = (Colors: ThemeColors) => StyleSheet.create({
   dateArrow: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', borderRadius: Radius.sm },
   dateText:  { fontFamily: FontFamily.monoSemiBold, fontSize: FontSize.body, color: Colors.textPrimary },
 
-  dropdown: {
+  linkRow: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
     backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border,
-    borderRadius: Radius.md, paddingHorizontal: 16, paddingVertical: 15,
+    borderRadius: Radius.md, paddingHorizontal: 16, paddingVertical: 14,
   },
-  dropdownText: { flex: 1, fontFamily: FontFamily.monoSemiBold, fontSize: FontSize.body, color: Colors.textPrimary },
-  dropdownPlaceholder: { fontFamily: FontFamily.regular, color: Colors.textTertiary },
+  linkRowActive: { borderColor: Colors.primary, backgroundColor: Colors.primaryDim },
+  linkRoute: { fontFamily: FontFamily.monoSemiBold, fontSize: FontSize.body, color: Colors.textPrimary, marginBottom: 2 },
+  linkMeta:  { fontFamily: FontFamily.regular, fontSize: FontSize.caption, color: Colors.textSecondary },
   attachHint: { fontFamily: FontFamily.regular, fontSize: FontSize.caption, color: Colors.textSecondary, marginTop: 8 },
 
   saveBtn: {
@@ -313,21 +308,4 @@ const makeStyles = (Colors: ThemeColors) => StyleSheet.create({
   saveBtnDisabled:     { backgroundColor: Colors.surfaceHigh, shadowOpacity: 0, elevation: 0 },
   saveBtnText:         { fontFamily: FontFamily.semiBold, fontSize: FontSize.body, color: Colors.onPrimary },
   saveBtnTextDisabled: { color: Colors.textTertiary },
-
-  modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
-  modalSheet: {
-    backgroundColor: Colors.surface, borderTopLeftRadius: Radius.lg, borderTopRightRadius: Radius.lg,
-    borderWidth: 1, borderColor: Colors.border,
-    paddingHorizontal: Spacing.screenH, paddingTop: 10, paddingBottom: 36,
-  },
-  modalHandle: { alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: Colors.border, marginBottom: 14 },
-  modalTitle:  { fontFamily: FontFamily.monoBold, fontSize: FontSize.subtitle, color: Colors.textPrimary, marginBottom: 12, letterSpacing: -0.4 },
-  modalScroll: { maxHeight: 360 },
-  loadOption: {
-    flexDirection: 'row', alignItems: 'center',
-    paddingVertical: 14, borderTopWidth: 1, borderTopColor: Colors.borderSubtle,
-  },
-  loadOptionRoute: { fontFamily: FontFamily.monoSemiBold, fontSize: FontSize.body, color: Colors.textPrimary, marginBottom: 2 },
-  loadOptionMeta:  { fontFamily: FontFamily.monoRegular, fontSize: FontSize.caption, color: Colors.textSecondary },
-  emptyLoads: { fontFamily: FontFamily.regular, fontSize: FontSize.label, color: Colors.textSecondary, paddingVertical: 20, textAlign: 'center' },
 });

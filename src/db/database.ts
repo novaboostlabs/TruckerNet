@@ -898,6 +898,25 @@ export function getRecentLoads(limit = 5): LoadSummary[] {
   );
 }
 
+/**
+ * The single load an expense most likely belongs to: the most recent load on or
+ * before the given date. Powers the smart "link this expense to a load?" prompt —
+ * a driver logging a scale ticket or lumper fee is almost always attaching it to
+ * the run they just finished, not some load from three weeks ago. Returns null
+ * when there's no load at/before that date (nothing sensible to suggest).
+ */
+export function getLoadForExpenseDate(date: string): LoadSummary | null {
+  return db.getFirstSync<LoadSummary>(
+    `SELECT id, pickup_city, pickup_state, delivery_city, delivery_state,
+            total_miles, gross_pay, net_pay, net_rate_per_mile, status
+     FROM loads
+     WHERE date <= ?
+     ORDER BY date DESC, created_at DESC
+     LIMIT 1`,
+    [date]
+  );
+}
+
 /** Best load this week by net pay — for the weekly summary notification. */
 export function getBestLoadThisWeek(): {
   pickup_city: string; delivery_city: string;
