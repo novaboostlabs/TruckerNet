@@ -1009,7 +1009,7 @@ Real in-app account deletion, closing the 5.1.1(v) gap flagged above.
   change is pure JS — ships via EAS Update once that's set up, or the next
   build either way.
 
-### 🔴 Still open — in order (as of 2026-07-08)
+### 🔴 Still open — in order (as of 2026-07-09)
 
 0. ~~**Delete Account: status unknown.**~~ **RESOLVED 2026-07-05** — production
    build shipped the fix + OTA runtime, user retested on-device and confirmed
@@ -1020,6 +1020,11 @@ Real in-app account deletion, closing the 5.1.1(v) gap flagged above.
    diagnosis was wrong (no such column exists); the migration was removed and
    the real bug (a JS falsy-zero fix in `loadsSync.ts`) shipped via `eas
    update` instead. No SQL Editor action needed. See Work Log 2026-07-08.
+2b. **[USER] 🔴 Apply `supabase/migrations/2026-07-09_loads_rate_contributed.sql`
+    via the SQL Editor** — syncs the community-rate-pool contribution flag so
+    it survives a local data reset instead of risking duplicate pool
+    submissions. Non-destructive (pure `ADD COLUMN IF NOT EXISTS`). See Work
+    Log 2026-07-09.
 3. **[USER] Finish the App Store Connect listing:** set Support URL
    (`truckernet.app`) + Privacy URL (`truckernet.app/privacy`); fill the privacy
    "nutrition label" (email, location, usage analytics, crash data — no data
@@ -1103,6 +1108,46 @@ modules, app.json, permissions) still need a full `eas build`.
 ---
 
 ## 6. Work Log (newest first)
+
+### 2026-07-09 — Rate Network "You: 0" vs "Pool: 3" — separate bug, NOT the same mechanism as RevenueCat
+User connected this to the RevenueCat anonymous-identity bug just fixed —
+worth checking, but verified it's a genuinely different, unrelated mechanism
+(Rate Network sharing is deliberately fully anonymous, no account linkage of
+any kind — RevenueCat customer identity can't touch it). Traced it properly
+rather than assuming the connection held.
+
+**Root cause:** `rate_contributed` (the local flag that stops a load's rate
+from being submitted to the crowdsourced pool twice) was, by a past
+session's deliberate design choice, DEVICE-LOCAL ONLY — never included in
+`pushLoads`/`pullLoads`. `mergeLoads` skips loads that already exist locally
+(local-wins, correct), but for a load that DOESN'T yet exist locally — i.e.
+restored via a pull after ANY local-DB reset (sign out/in, a cross-account
+`claimDataOwnership` wipe, a reinstall — all routine in this app, not edge
+cases) — `upsertLoadRow`'s INSERT never set `rate_contributed`, so it fell
+back to the column's default (0), even for loads that had genuinely already
+been contributed. That's exactly "Pool: 3, You: 0" — the cloud `rate_reports`
+pool still has the real 3 contributions (that table is untouched by any of
+this), but the local idempotency marker on those specific loads was reset by
+a restore cycle sometime during today's heavy sign-out/sign-in testing.
+
+**Why this matters beyond the stat display:** the reset flag doesn't just
+undercount "You've shared" — the NEXT time `maybeContributeLoadRate` runs
+against one of these loads (any re-edit, re-save, etc.), it will see "not
+yet contributed" and submit that load's data to the pool a SECOND time,
+silently duplicating a data point in the Fair Market feature's crowdsourced
+dataset. This was a live risk for every real driver who ever signs out,
+switches devices, or reinstalls — not a rare scenario.
+
+**Fix:** `rate_contributed` now syncs like every other load field — added to
+`LoadRow`, `getAllLoads()`, `upsertLoadRow()`, and both
+`pushLoads`/`pullLoads` in `loadsSync.ts`. New migration
+`2026-07-09_loads_rate_contributed.sql` adds the column on the cloud side
+(**USER must apply via SQL Editor**). Corrected the stale "intentionally not
+synced" comment in the original 2026-06-26 migration to point here.
+Note: the appconnect@ account's 3 already-affected loads will still show
+"You: 0" until re-saved (their local flag was already reset before this fix
+landed) — cosmetic only; the pool count was never wrong. Going forward this
+can't recur. tsc clean, shipped via `eas update`.
 
 ### 2026-07-09 — REAL root cause: RevenueCat configured anonymously, creating a new customer nearly every launch
 Prior same-day fix (removing the racing `getCustomerInfo()` call) didn't

@@ -1761,6 +1761,16 @@ export interface LoadRow {
   pickup_lng: number | null;
   delivery_lat: number | null;
   delivery_lng: number | null;
+  /**
+   * Idempotency marker for community rate-pool contribution (see
+   * maybeContributeLoadRate). Synced to the cloud (2026-07-09) after a real
+   * bug: it was device-local only, so a local DB wipe + cloud restore (sign
+   * out/in, cross-account claim, reinstall — all routine, not edge cases)
+   * reset it to 0 even though the load had already been contributed,
+   * silently duplicating that load's data in the crowdsourced rate pool the
+   * next time anything re-touched it. Now round-trips like every other field.
+   */
+  rate_contributed: number;
 }
 
 export interface StateMileageRow {
@@ -1780,7 +1790,7 @@ export function getAllLoads(): LoadRow[] {
             benchmark_fair_pay_min, benchmark_fair_pay_max,
             fuel_cost_for_load, fixed_cost_for_load, net_pay,
             gross_rate_per_mile, net_rate_per_mile, verdict, created_at,
-            pickup_lat, pickup_lng, delivery_lat, delivery_lng
+            pickup_lat, pickup_lng, delivery_lat, delivery_lng, rate_contributed
      FROM loads ORDER BY date DESC, created_at DESC`
   );
 }
@@ -1857,8 +1867,8 @@ function upsertLoadRow(l: LoadRow): void {
       benchmark_fair_pay_min, benchmark_fair_pay_max,
       fuel_cost_for_load, fixed_cost_for_load, net_pay,
       gross_rate_per_mile, net_rate_per_mile, verdict, created_at,
-      pickup_lat, pickup_lng, delivery_lat, delivery_lng
-    ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+      pickup_lat, pickup_lng, delivery_lat, delivery_lng, rate_contributed
+    ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
     ON CONFLICT(id) DO UPDATE SET
       date=excluded.date, pickup_address=excluded.pickup_address, pickup_city=excluded.pickup_city,
       pickup_state=excluded.pickup_state, delivery_address=excluded.delivery_address,
@@ -1873,7 +1883,8 @@ function upsertLoadRow(l: LoadRow): void {
       net_pay=excluded.net_pay, gross_rate_per_mile=excluded.gross_rate_per_mile,
       net_rate_per_mile=excluded.net_rate_per_mile, verdict=excluded.verdict, created_at=excluded.created_at,
       pickup_lat=excluded.pickup_lat, pickup_lng=excluded.pickup_lng,
-      delivery_lat=excluded.delivery_lat, delivery_lng=excluded.delivery_lng`,
+      delivery_lat=excluded.delivery_lat, delivery_lng=excluded.delivery_lng,
+      rate_contributed=excluded.rate_contributed`,
     [
       l.id, l.date, l.pickup_address, l.pickup_city, l.pickup_state,
       l.delivery_address, l.delivery_city, l.delivery_state,
@@ -1884,6 +1895,7 @@ function upsertLoadRow(l: LoadRow): void {
       l.fuel_cost_for_load, l.fixed_cost_for_load, l.net_pay,
       l.gross_rate_per_mile, l.net_rate_per_mile, l.verdict ?? null, l.created_at,
       l.pickup_lat ?? null, l.pickup_lng ?? null, l.delivery_lat ?? null, l.delivery_lng ?? null,
+      l.rate_contributed ? 1 : 0,
     ]
   );
 }

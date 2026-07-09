@@ -71,6 +71,10 @@ export async function pushLoads(userId: string): Promise<SyncResult> {
         pickup_lng:            l.pickup_lng ?? null,
         delivery_lat:          l.delivery_lat ?? null,
         delivery_lng:          l.delivery_lng ?? null,
+        // Was device-local only — see the LoadRow interface comment in
+        // database.ts for why that was a real bug (silent duplicate pool
+        // contributions after any local-DB-wipe + cloud-restore cycle).
+        rate_contributed:      !!l.rate_contributed,
       }));
 
       const { error: loadsErr } = await supabase
@@ -153,7 +157,7 @@ export async function pullLoads(userId: string): Promise<PullResult> {
         benchmark_fair_pay_min, benchmark_fair_pay_max,
         fuel_cost_for_load, fixed_cost_for_load, net_pay,
         gross_rate_per_mile, net_rate_per_mile, verdict, created_at,
-        pickup_lat, pickup_lng, delivery_lat, delivery_lng,
+        pickup_lat, pickup_lng, delivery_lat, delivery_lng, rate_contributed,
         state_mileage ( load_id, state, miles, is_manually_edited ),
         load_expenses ( id, load_id, label, category, amount, date, created_at )
       `)
@@ -199,6 +203,7 @@ export async function pullLoads(userId: string): Promise<PullResult> {
         pickup_lng:            r.pickup_lng != null ? Number(r.pickup_lng) : null,
         delivery_lat:          r.delivery_lat != null ? Number(r.delivery_lat) : null,
         delivery_lng:          r.delivery_lng != null ? Number(r.delivery_lng) : null,
+        rate_contributed:      r.rate_contributed ? 1 : 0,
       }));
 
       const stateMileage: StateMileageRow[] = rows.flatMap((r: any) =>

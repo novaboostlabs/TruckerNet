@@ -16,8 +16,9 @@
 -- Nullability mirrors the payload: fields the client may send as null are left
 -- nullable; always-present fields get NOT NULL DEFAULTs (safe for new columns).
 --
--- NOTE: the local-only `rate_contributed` flag is intentionally NOT synced — it
--- is a device-local idempotency marker for community-rate contribution.
+-- NOTE (superseded 2026-07-09): `rate_contributed` was originally left
+-- local-only here. That turned out to be a real bug — see
+-- 2026-07-09_loads_rate_contributed.sql for why it's now synced too.
 
 -- ── public.loads ──────────────────────────────────────────────────────────────
 alter table public.loads add column if not exists date                   date    not null default current_date;
