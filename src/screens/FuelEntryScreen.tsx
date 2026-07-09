@@ -12,6 +12,7 @@ import db, { getLatestOdometer, localDateISO } from '../db/database';
 import { useAuth } from '../contexts/AuthContext';
 import { pushFuel } from '../lib/sync/fuelSync';
 import { scanFuelReceipt } from '../lib/ocr';
+import { getDateLocale } from '../lib/i18n';
 import { cancelFuelReminder } from '../lib/notifications';
 import { capture } from '../lib/analytics';
 import * as haptics from '../lib/haptics';
@@ -53,11 +54,24 @@ export default function FuelEntryScreen({ onSaved, onCancel }: Props) {
   const [scanned,         setScanned]         = useState(false);
 
   const [lastOdometer, setLastOdometer] = useState(0);
+  const [fuelDate, setFuelDate] = useState(localDateISO());
 
   useEffect(() => {
     const last = getLatestOdometer();
     setLastOdometer(last);
   }, []);
+
+  function shiftFuelDate(days: number) {
+    const d = new Date(fuelDate + 'T12:00:00');
+    d.setDate(d.getDate() + days);
+    const next = localDateISO(d);
+    if (next > localDateISO()) return; // no future fill-ups
+    setFuelDate(next);
+  }
+  const isToday = fuelDate === localDateISO();
+  const fuelDateDisplay = new Date(fuelDate + 'T12:00:00').toLocaleDateString(getDateLocale(), {
+    weekday: 'short', month: 'short', day: 'numeric', year: 'numeric',
+  });
 
   // Live calculations
   const dollars   = parseFloat(dollarsSpent) || 0;
@@ -101,7 +115,7 @@ export default function FuelEntryScreen({ onSaved, onCancel }: Props) {
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           uuid(),
-          localDateISO(),
+          fuelDate,
           dollars,
           gals,
           milesDriven,
@@ -367,6 +381,31 @@ export default function FuelEntryScreen({ onSaved, onCancel }: Props) {
             </View>
           )}
 
+          {/* Date */}
+          <View style={styles.section}>
+            <Text style={styles.sectionLabel}>{t('addLoad.date')}</Text>
+            <View style={styles.dateRow}>
+              <TouchableOpacity style={styles.dateArrow} onPress={() => shiftFuelDate(-1)} activeOpacity={0.6}>
+                <Ionicons name="chevron-back" size={20} color={Colors.textSecondary} />
+              </TouchableOpacity>
+              <View style={styles.dateCenter}>
+                <Text style={styles.dateText}>{fuelDateDisplay}</Text>
+                {isToday ? (
+                  <View style={styles.dateTodayBadge}>
+                    <Text style={styles.dateTodayBadgeText}>{t('addLoad.today')}</Text>
+                  </View>
+                ) : (
+                  <TouchableOpacity onPress={() => setFuelDate(localDateISO())} activeOpacity={0.7}>
+                    <Text style={styles.dateTodayLink}>{t('addLoad.backToToday')}</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+              <TouchableOpacity style={styles.dateArrow} onPress={() => shiftFuelDate(1)} disabled={isToday} activeOpacity={0.6}>
+                <Ionicons name="chevron-forward" size={20} color={isToday ? Colors.textTertiary : Colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
+          </View>
+
           {/* Save button */}
           <TouchableOpacity
             style={[styles.saveBtn, !canSave && styles.saveBtnDisabled]}
@@ -511,6 +550,21 @@ const makeStyles = (Colors: ThemeColors) => StyleSheet.create({
   },
   saveBtnDisabled: { opacity: 0.4 },
   saveBtnText:     { fontFamily: FontFamily.monoSemiBold, fontSize: FontSize.body, color: Colors.onPrimary },
+
+  dateRow: {
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border,
+    borderRadius: Radius.md, paddingVertical: 10, paddingHorizontal: 6,
+  },
+  dateArrow:  { width: 36, height: 36, alignItems: 'center', justifyContent: 'center', borderRadius: Radius.sm },
+  dateCenter: { flex: 1, alignItems: 'center', gap: 3 },
+  dateText:   { fontFamily: FontFamily.monoSemiBold, fontSize: FontSize.body, color: Colors.textPrimary },
+  dateTodayBadge: {
+    backgroundColor: Colors.primaryDim, borderWidth: 1, borderColor: Colors.primaryMid,
+    borderRadius: Radius.pill, paddingHorizontal: 8, paddingVertical: 2,
+  },
+  dateTodayBadgeText: { fontFamily: FontFamily.monoSemiBold, fontSize: FontSize.caption, color: Colors.primary },
+  dateTodayLink:      { fontFamily: FontFamily.regular, fontSize: FontSize.caption, color: Colors.primary },
 });
 
 const makeFieldStyles = (Colors: ThemeColors) => StyleSheet.create({

@@ -1139,6 +1139,24 @@ modules, app.json, permissions) still need a full `eas build`.
 
 ## 6. Work Log (newest first)
 
+### 2026-07-09 — Fuel Entry: back-dated fill-ups (was hardcoded to today)
+
+User needed to enter the reviewer demo account's 8 back-dated fuel fill-ups
+(`APP_STORE_LISTING.md` seed data, oldest -24 days) and discovered the Fuel
+Entry form had no date field at all — the insert always used
+`localDateISO()` (today), unlike Add Load which already has a date
+navigator for exactly this reason.
+
+Added the same date-row pattern from `AddLoadScreen` to `FuelEntryScreen`:
+`fuelDate` state (defaults to today), back/forward arrows (forward capped at
+today, can't log a future fill-up), "Back to today" link when not on today.
+Reused `addLoad.date`/`addLoad.today`/`addLoad.backToToday` i18n keys rather
+than duplicating them (same cross-screen reuse pattern already used by
+LoadDetail for load types/statuses). `getLatestOdometer()`/miles-since-last
+logic is unaffected — it already just reads the most recent fill-up by date,
+so entering fill-ups oldest-first (as the seed data instructs) keeps that
+math correct. `tsc --noEmit` clean. Pure JS — ships via `eas update`.
+
 ### 2026-07-09 — Two seed-testing bugs: deadhead saves blocked + break-even instability with 5+ loads
 
 Found while continuing reviewer-account seeding (loads 4–14 of the
