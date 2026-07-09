@@ -2,13 +2,14 @@ import React, { useMemo } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Colors, FontFamily, FontSize, Radius, ThemeColors, sectionLabel } from '../theme/theme';
 import { useTheme } from '../theme/ThemeContext';
+import { MarksByDate } from './dayMarks';
 
 const DAY_HEADERS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
 
 interface Props {
   year:        number;
   month:       number; // 0-indexed (Jan = 0)
-  loadsByDate: Record<string, number>; // 'YYYY-MM-DD' → count
+  marksByDate: MarksByDate; // 'YYYY-MM-DD' → which entry types exist that day
   selectedDay: string | null;
   onSelectDay: (iso: string | null) => void;
   today:       string; // YYYY-MM-DD
@@ -19,7 +20,7 @@ function pad(n: number): string {
 }
 
 export default function MonthCalendar({
-  year, month, loadsByDate, selectedDay, onSelectDay, today,
+  year, month, marksByDate, selectedDay, onSelectDay, today,
 }: Props) {
   const { colors: Colors } = useTheme();
   const styles = useMemo(() => makeStyles(Colors), [Colors]);
@@ -54,11 +55,16 @@ export default function MonthCalendar({
           {week.map((day, di) => {
             if (!day) return <View key={di} style={styles.cell} />;
 
-            const iso      = `${year}-${pad(month + 1)}-${pad(day)}`;
-            const count    = loadsByDate[iso] ?? 0;
-            const isToday  = iso === today;
-            const isSel    = iso === selectedDay;
-            const hasLoads = count > 0;
+            const iso     = `${year}-${pad(month + 1)}-${pad(day)}`;
+            const marks   = marksByDate[iso];
+            const isToday = iso === today;
+            const isSel   = iso === selectedDay;
+            // Ordered list of dot colours for the types present this day.
+            const dots: string[] = [];
+            if (marks?.load)    dots.push(isSel ? Colors.onPrimary : Colors.primary);
+            if (marks?.fuel)    dots.push(isSel ? Colors.onPrimary : Colors.secondary);
+            if (marks?.expense) dots.push(isSel ? Colors.onPrimary : Colors.danger);
+            const hasMarks = dots.length > 0;
 
             return (
               <TouchableOpacity
@@ -78,20 +84,17 @@ export default function MonthCalendar({
                   styles.dayNum,
                   isSel     && styles.dayNumSelected,
                   isToday && !isSel && styles.dayNumToday,
-                  !hasLoads && !isToday && !isSel && styles.dayNumDim,
+                  !hasMarks && !isToday && !isSel && styles.dayNumDim,
                 ]}>
                   {day}
                 </Text>
 
-                {/* Load indicator dot */}
-                {hasLoads && (
+                {/* Per-type indicator dots (teal load / amber fuel / red expense) */}
+                {hasMarks && (
                   <View style={styles.dotRow}>
-                    <View style={[styles.dot, isSel && styles.dotSelected]} />
-                    {count > 1 && (
-                      <Text style={[styles.countLabel, isSel && styles.countLabelSelected]}>
-                        {count}
-                      </Text>
-                    )}
+                    {dots.map((color, idx) => (
+                      <View key={idx} style={[styles.dot, { backgroundColor: color }]} />
+                    ))}
                   </View>
                 )}
               </TouchableOpacity>

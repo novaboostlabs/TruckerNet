@@ -12,8 +12,9 @@ import { getDateLocale } from '../lib/i18n';
 import {
   getHistoryLoads, getHistoryTotals, getHistoryLoadsDateRange, getHistoryTotalsDateRange,
   searchHistoryLoads, getGeneralExpensesDateRange, getAllGeneralExpenses, deleteGeneralExpense,
+  getFuelEntriesDateRange, getAllFuelEntries,
   deleteLoad,
-  HistoryFilter, HistoryLoad, HistoryTotals, GeneralExpense, localDateISO,
+  HistoryFilter, HistoryLoad, HistoryTotals, GeneralExpense, FuelEntryRow, localDateISO,
 } from '../db/database';
 import { pushLoads } from '../lib/sync/loadsSync';
 import SwipeableRow from '../components/SwipeableRow';
@@ -21,8 +22,11 @@ import { useAuth } from '../contexts/AuthContext';
 import { pushGeneralExpenses } from '../lib/sync/generalExpensesSync';
 import MonthCalendar from '../components/MonthCalendar';
 import WeekCalendar  from '../components/WeekCalendar';
+import { MarksByDate } from '../components/dayMarks';
 import LoadDetailScreen from './LoadDetailScreen';
 import AddLoadScreen from './AddLoadScreen';
+import AddExpenseScreen from './AddExpenseScreen';
+import FuelEntryScreen from './FuelEntryScreen';
 import GridBackground from '../components/GridBackground';
 import AccentRule from '../components/AccentRule';
 
@@ -108,6 +112,7 @@ function loadDataForPeriod(filter: HistoryFilter, date: Date) {
       loads: getHistoryLoads('all').map(toRow),
       totals: getHistoryTotals('all'),
       expenses: getAllGeneralExpenses(),
+      fuel: getAllFuelEntries(),
     };
   }
   const { start, end } = filter === 'week' ? getWeekBounds(date) : getMonthBounds(date);
@@ -115,6 +120,7 @@ function loadDataForPeriod(filter: HistoryFilter, date: Date) {
     loads:  getHistoryLoadsDateRange(start, end).map(toRow),
     totals: getHistoryTotalsDateRange(start, end),
     expenses: getGeneralExpensesDateRange(start, end),
+    fuel: getFuelEntriesDateRange(start, end),
   };
 }
 
@@ -142,12 +148,20 @@ export default function HistoryScreen() {
     const { start, end } = getMonthBounds(new Date());
     return getGeneralExpensesDateRange(start, end);
   });
+  const [fuelEntries,   setFuelEntries]    = useState<FuelEntryRow[]>(() => {
+    const { start, end } = getMonthBounds(new Date());
+    return getFuelEntriesDateRange(start, end);
+  });
   const [selectedDay,   setSelectedDay]   = useState<string | null>(null);
   const [selectedLoadId, setSelectedLoadId] = useState<string | null>(null);
   const [selectedEdit,   setSelectedEdit]   = useState(false);
-  // Log a load directly onto the selected calendar day — no more tapping the
-  // Add Load date arrow 20 times to reach a back-dated day.
+  // Log an entry directly onto the selected calendar day — no tapping the Add
+  // Load date arrow 20 times to reach a back-dated day. A chooser picks which
+  // kind (load / fuel / expense); each opens its screen pre-set to that day.
   const [addLoadDate,    setAddLoadDate]    = useState<string | null>(null);
+  const [addFuelDate,    setAddFuelDate]    = useState<string | null>(null);
+  const [addExpenseDate, setAddExpenseDate] = useState<string | null>(null);
+  const [dayMenuOpen,    setDayMenuOpen]    = useState(false);
 
   // ── Search ────────────────────────────────────────────────────────────────────
   const [searchActive,  setSearchActive]  = useState(false);
@@ -174,6 +188,7 @@ export default function HistoryScreen() {
     setLoads(result.loads);
     setTotals(result.totals);
     setGenExpenses(result.expenses);
+    setFuelEntries(result.fuel);
   }, []);
 
   function openLoad(id: string, edit = false) {
@@ -260,12 +275,17 @@ export default function HistoryScreen() {
       })
   ), [goPrevPeriod, goNextPeriod]);
 
-  // Group loads by date for calendar dots
-  const loadsByDate = useMemo(() => {
-    const map: Record<string, number> = {};
-    for (const l of loads) map[l.rawDate] = (map[l.rawDate] ?? 0) + 1;
+  // Which entry types exist on each date — drives the multi-colour calendar dots.
+  const marksByDate = useMemo<MarksByDate>(() => {
+    const map: MarksByDate = {};
+    const mark = (d: string, k: 'load' | 'fuel' | 'expense') => {
+      (map[d] ??= {})[k] = true;
+    };
+    for (const l of loads)       mark(l.rawDate, 'load');
+    for (const f of fuelEntries) mark(f.date,    'fuel');
+    for (const e of genExpenses) mark(e.date,    'expense');
     return map;
-  }, [loads]);
+  }, [loads, fuelEntries, genExpenses]);
 
   // 7 ISO dates Mon→Sun for the current week view
   const weekDates = useMemo(() => {
@@ -288,18 +308,26 @@ export default function HistoryScreen() {
     selectedDay ? genExpenses.filter(e => e.date === selectedDay) : genExpenses
   ), [genExpenses, selectedDay]);
 
-  // Merged, date-sorted timeline of loads + one-off expenses.
+  const visibleFuel = useMemo(() => (
+    selectedDay ? fuelEntries.filter(f => f.date === selectedDay) : fuelEntries
+  ), [fuelEntries, selectedDay]);
+
+  // Merged, date-sorted timeline of loads + one-off expenses + fuel fill-ups.
+  // Fuel rows are informational: a load's net already accounts for fuel via
+  // cost-per-mile, so a fill-up is NOT subtracted again from the period net.
   type TimelineItem =
     | { kind: 'load'; date: string; key: string; load: LoadRow }
-    | { kind: 'expense'; date: string; key: string; exp: GeneralExpense };
+    | { kind: 'expense'; date: string; key: string; exp: GeneralExpense }
+    | { kind: 'fuel'; date: string; key: string; fuel: FuelEntryRow };
   const timeline = useMemo<TimelineItem[]>(() => {
     const items: TimelineItem[] = [
       ...visibleLoads.map((l): TimelineItem => ({ kind: 'load', date: l.rawDate, key: 'l_' + l.id, load: l })),
       ...visibleExpenses.map((e): TimelineItem => ({ kind: 'expense', date: e.date, key: 'e_' + e.id, exp: e })),
+      ...visibleFuel.map((f): TimelineItem => ({ kind: 'fuel', date: f.date, key: 'f_' + f.id, fuel: f })),
     ];
     items.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
     return items;
-  }, [visibleLoads, visibleExpenses]);
+  }, [visibleLoads, visibleExpenses, visibleFuel]);
 
   const visibleTotals: HistoryTotals = useMemo(() => {
     if (!selectedDay) return totals;
@@ -374,6 +402,58 @@ export default function HistoryScreen() {
         )}
       </Modal>
 
+      {/* Add-fuel-on-this-day modal */}
+      <Modal visible={!!addFuelDate} animationType="slide" presentationStyle="pageSheet">
+        {addFuelDate && (
+          <FuelEntryScreen
+            initialDate={addFuelDate}
+            onCancel={() => setAddFuelDate(null)}
+            onSaved={() => { setAddFuelDate(null); refresh(filter, periodDate); }}
+          />
+        )}
+      </Modal>
+
+      {/* Add-expense-on-this-day modal */}
+      <Modal visible={!!addExpenseDate} animationType="slide" presentationStyle="pageSheet">
+        {addExpenseDate && (
+          <AddExpenseScreen
+            initialDate={addExpenseDate}
+            onClose={() => setAddExpenseDate(null)}
+            onSaved={() => { setAddExpenseDate(null); refresh(filter, periodDate); }}
+          />
+        )}
+      </Modal>
+
+      {/* Day-entry chooser — pick which kind of entry to log on the tapped day */}
+      <Modal visible={dayMenuOpen} transparent animationType="fade" onRequestClose={() => setDayMenuOpen(false)}>
+        <TouchableOpacity style={styles.menuBackdrop} activeOpacity={1} onPress={() => setDayMenuOpen(false)}>
+          <View style={styles.menuSheet}>
+            <View style={styles.menuHandle} />
+            <Text style={styles.menuTitle}>
+              {selectedDay ? t('history.addEntryOn', { day: selectedDayLabel }) : t('history.addEntryDay')}
+            </Text>
+            {([
+              { key: 'load',    icon: 'cube-outline',  color: Colors.primary,   open: setAddLoadDate },
+              { key: 'fuel',    icon: 'water-outline', color: Colors.secondary, open: setAddFuelDate },
+              { key: 'expense', icon: 'wallet-outline', color: Colors.danger,   open: setAddExpenseDate },
+            ] as const).map(({ key, icon, color, open }) => (
+              <TouchableOpacity
+                key={key}
+                style={styles.menuRow}
+                activeOpacity={0.75}
+                onPress={() => { setDayMenuOpen(false); if (selectedDay) open(selectedDay); }}
+              >
+                <View style={[styles.menuIcon, { borderColor: color + '55', backgroundColor: color + '18' }]}>
+                  <Ionicons name={icon} size={18} color={color} />
+                </View>
+                <Text style={styles.menuRowText}>{t(`history.entryType.${key}`)}</Text>
+                <Ionicons name="chevron-forward" size={16} color={Colors.textTertiary} />
+              </TouchableOpacity>
+            ))}
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
 
         {/* Header */}
@@ -445,7 +525,7 @@ export default function HistoryScreen() {
                   <MonthCalendar
                     year={periodDate.getFullYear()}
                     month={periodDate.getMonth()}
-                    loadsByDate={loadsByDate}
+                    marksByDate={marksByDate}
                     selectedDay={selectedDay}
                     onSelectDay={setSelectedDay}
                     today={TODAY}
@@ -464,7 +544,7 @@ export default function HistoryScreen() {
                 <View style={styles.calendarCard}>
                   <WeekCalendar
                     weekDates={weekDates}
-                    loadsByDate={loadsByDate}
+                    marksByDate={marksByDate}
                     selectedDay={selectedDay}
                     onSelectDay={setSelectedDay}
                     today={TODAY}
@@ -568,12 +648,12 @@ export default function HistoryScreen() {
             {selectedDay && (
               <TouchableOpacity
                 style={styles.addDayBtn}
-                onPress={() => setAddLoadDate(selectedDay)}
+                onPress={() => setDayMenuOpen(true)}
                 activeOpacity={0.75}
                 hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
               >
                 <Ionicons name="add" size={14} color={Colors.primary} />
-                <Text style={styles.addDayBtnText}>{t('history.addLoadDay')}</Text>
+                <Text style={styles.addDayBtnText}>{t('history.addEntryDay')}</Text>
               </TouchableOpacity>
             )}
           </View>
@@ -594,11 +674,11 @@ export default function HistoryScreen() {
               {selectedDay && (
                 <TouchableOpacity
                   style={styles.emptyDayCta}
-                  onPress={() => setAddLoadDate(selectedDay)}
+                  onPress={() => setDayMenuOpen(true)}
                   activeOpacity={0.85}
                 >
                   <Ionicons name="add" size={16} color={Colors.onPrimary} />
-                  <Text style={styles.emptyDayCtaText}>{t('history.addLoadDay')}</Text>
+                  <Text style={styles.emptyDayCtaText}>{t('history.addEntryDay')}</Text>
                 </TouchableOpacity>
               )}
             </View>
@@ -640,14 +720,14 @@ export default function HistoryScreen() {
                         <Ionicons name="chevron-forward" size={14} color={Colors.textTertiary} style={{ marginLeft: 8 }} />
                       </TouchableOpacity>
                     </SwipeableRow>
-                  ) : (
+                  ) : item.kind === 'expense' ? (
                     <TouchableOpacity
                       style={styles.loadRow}
                       activeOpacity={0.7}
                       onPress={() => handleDeleteExpense(item.exp.id)}
                     >
                       <View style={styles.expIcon}>
-                        <Ionicons name={EXP_ICONS[item.exp.category] ?? 'wallet-outline'} size={16} color={Colors.secondary} />
+                        <Ionicons name={EXP_ICONS[item.exp.category] ?? 'wallet-outline'} size={16} color={Colors.danger} />
                       </View>
                       <View style={styles.loadLeft}>
                         <Text style={styles.loadRoute} numberOfLines={1}>{item.exp.label}</Text>
@@ -659,6 +739,24 @@ export default function HistoryScreen() {
                         -${Math.abs(item.exp.amount).toLocaleString()}
                       </Text>
                     </TouchableOpacity>
+                  ) : (
+                    <View style={styles.loadRow}>
+                      <View style={styles.fuelIcon}>
+                        <Ionicons name="water-outline" size={16} color={Colors.secondary} />
+                      </View>
+                      <View style={styles.loadLeft}>
+                        <Text style={styles.loadRoute} numberOfLines={1}>
+                          {t('history.fuelTag')}{item.fuel.state_purchased ? ` · ${item.fuel.state_purchased}` : ''}
+                        </Text>
+                        <Text style={styles.loadMeta}>
+                          {formatDate(item.fuel.date)} · {item.fuel.gallons.toLocaleString()} {t('fuel.form.galUnit')}
+                          {item.fuel.mpg > 0 ? ` · ${item.fuel.mpg.toFixed(1)} MPG` : ''}
+                        </Text>
+                      </View>
+                      <Text style={[styles.loadNet, { color: Colors.secondary }]}>
+                        ${Math.abs(item.fuel.dollars_spent).toLocaleString()}
+                      </Text>
+                    </View>
                   )}
                   {i < timeline.length - 1 && <View style={styles.loadDivider} />}
                 </React.Fragment>
@@ -770,7 +868,30 @@ const makeStyles = (Colors: ThemeColors) => StyleSheet.create({
   loadDivider: { height: 1, backgroundColor: Colors.borderSubtle, marginHorizontal: Spacing.cardPad },
   expIcon: {
     width: 32, height: 32, borderRadius: Radius.sm, marginRight: 12,
+    backgroundColor: Colors.danger + '18', borderWidth: 1, borderColor: Colors.danger + '30',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  fuelIcon: {
+    width: 32, height: 32, borderRadius: Radius.sm, marginRight: 12,
     backgroundColor: Colors.secondaryDim, borderWidth: 1, borderColor: Colors.secondary + '30',
     alignItems: 'center', justifyContent: 'center',
   },
+
+  menuBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
+  menuSheet: {
+    backgroundColor: Colors.surface, borderTopLeftRadius: Radius.lg, borderTopRightRadius: Radius.lg,
+    borderWidth: 1, borderColor: Colors.border,
+    paddingHorizontal: Spacing.screenH, paddingTop: 10, paddingBottom: 36,
+  },
+  menuHandle: { alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: Colors.border, marginBottom: 14 },
+  menuTitle:  { fontFamily: FontFamily.monoBold, fontSize: FontSize.subtitle, color: Colors.textPrimary, marginBottom: 12, letterSpacing: -0.4 },
+  menuRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 14,
+    paddingVertical: 14, borderTopWidth: 1, borderTopColor: Colors.borderSubtle,
+  },
+  menuIcon: {
+    width: 38, height: 38, borderRadius: Radius.sm, borderWidth: 1,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  menuRowText: { flex: 1, fontFamily: FontFamily.monoSemiBold, fontSize: FontSize.body, color: Colors.textPrimary },
 });

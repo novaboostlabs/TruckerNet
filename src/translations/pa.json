@@ -588,7 +588,15 @@
     "expenseTag": "ਇੱਕ-ਵਾਰੀ ਖਰਚਾ",
     "deleteExpenseTitle": "ਖਰਚਾ ਮਿਟਾਉਣਾ ਹੈ?",
     "deleteExpenseBody": "ਇਹ ਇੱਕ-ਵਾਰੀ ਖਰਚਾ ਹਟਾ ਦਿੱਤਾ ਜਾਵੇਗਾ ਅਤੇ ਤੁਹਾਡੇ ਕੁੱਲ ਅੱਪਡੇਟ ਹੋ ਜਾਣਗੇ।",
-    "addLoadDay": "ਇਸ ਦਿਨ ਲੋਡ ਦਰਜ ਕਰੋ"
+    "addLoadDay": "ਇਸ ਦਿਨ ਲੋਡ ਦਰਜ ਕਰੋ",
+    "addEntryDay": "ਇਸ ਦਿਨ ਲਈ ਸ਼ਾਮਲ ਕਰੋ",
+    "addEntryOn": "{{day}} ਨੂੰ ਸ਼ਾਮਲ ਕਰੋ",
+    "fuelTag": "ਈਂਧਣ ਭਰਾਈ",
+    "entryType": {
+      "load": "ਇੱਕ ਲੋਡ ਦਰਜ ਕਰੋ",
+      "fuel": "ਈਂਧਣ ਭਰਾਈ ਦਰਜ ਕਰੋ",
+      "expense": "ਇੱਕ ਵਾਰ ਦਾ ਖਰਚਾ ਦਰਜ ਕਰੋ"
+    }
   },
   "ifta": {
     "title": "IFTA",

@@ -588,7 +588,15 @@
     "expenseTag": "一次性支出",
     "deleteExpenseTitle": "删除支出？",
     "deleteExpenseBody": "此一次性支出将被移除，您的合计将会更新。",
-    "addLoadDay": "在这天记录货载"
+    "addLoadDay": "在这天记录货载",
+    "addEntryDay": "添加到这一天",
+    "addEntryOn": "添加到 {{day}}",
+    "fuelTag": "加油",
+    "entryType": {
+      "load": "记录一次货运",
+      "fuel": "记录一次加油",
+      "expense": "记录一次性支出"
+    }
   },
   "ifta": {
     "title": "IFTA",

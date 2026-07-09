@@ -36,9 +36,12 @@ const US_STATE_NAMES: [string, string][] = [
 interface Props {
   onSaved: () => void;
   onCancel: () => void;
+  // When launched from a tapped History calendar day, the fill-up defaults to
+  // that day rather than today.
+  initialDate?: string;
 }
 
-export default function FuelEntryScreen({ onSaved, onCancel }: Props) {
+export default function FuelEntryScreen({ onSaved, onCancel, initialDate }: Props) {
   const { t } = useTranslation();
   const { colors: Colors } = useTheme();
   const styles = useMemo(() => makeStyles(Colors), [Colors]);
@@ -54,7 +57,7 @@ export default function FuelEntryScreen({ onSaved, onCancel }: Props) {
   const [scanned,         setScanned]         = useState(false);
 
   const [lastOdometer, setLastOdometer] = useState(0);
-  const [fuelDate, setFuelDate] = useState(localDateISO());
+  const [fuelDate, setFuelDate] = useState(initialDate ?? localDateISO());
 
   useEffect(() => {
     const last = getLatestOdometer();

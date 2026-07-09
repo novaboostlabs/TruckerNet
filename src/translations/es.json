@@ -614,7 +614,15 @@
     "expenseTag": "Gasto puntual",
     "deleteExpenseTitle": "¿Eliminar gasto?",
     "deleteExpenseBody": "Este gasto puntual se eliminará y se actualizarán tus totales.",
-    "addLoadDay": "Registrar carga este día"
+    "addLoadDay": "Registrar carga este día",
+    "addEntryDay": "Agregar a este día",
+    "addEntryOn": "Agregar el {{day}}",
+    "fuelTag": "Carga de combustible",
+    "entryType": {
+      "load": "Registrar una carga",
+      "fuel": "Registrar combustible",
+      "expense": "Registrar un gasto puntual"
+    }
   },
   "expenses": {
     "title": "Gastos",

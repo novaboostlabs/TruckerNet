@@ -1077,28 +1077,27 @@ already) except where a migration is noted.
 
 ### 🟡 Post-seed polish items — reported 2026-07-09 (in-app UX, pre-submit)
 
-Found by the user while reviewing the fully-seeded app. These are the active
-work items now (submission is otherwise unblocked — user may submit before or
-after these land, their call).
+Found by the user while reviewing the fully-seeded app. Submission is otherwise
+unblocked — user may submit before or after these land, their call. All 5
+addressed 2026-07-09 (see Work Log for detail); ship via `eas update`.
 
-1. **History tab: log fuel fill-ups + one-off expenses on a calendar day** —
-   today only LOADS can be added from a tapped calendar day ("Log load this
-   day", teal marker). Extend the same flow to fuel fill-ups and one-off
-   expenses, each with its own distinct day-marker color.
-2. **Smart load-linking for one-off expenses** — when adding an expense, don't
-   show the full all-time load list. Detect the most recent load on/near the
-   expense's date and offer only that one to link (opt-in).
-3. **Fuel tab CPM bar chart: all bars teal** — currently only the most-recent
-   fill-up bar is teal, the previous 4 are gray. Make them all teal.
-4. **Fair-market display is cluttered/conflicting** — the fair-market range, the
-   community "N drivers ran this lane" line, AND the personal "last N times you
-   ran this you got $X" line all show at once in subtle/competing text. Simplify
-   to one clear hierarchy.
-5. **Community rate must exclude the viewer's OWN contributions** — with one
-   user, "3 other drivers ran this lane" is literally the user's own seeded
-   loads counted back at them. The count/label must never present the viewer's
-   own pool contributions as "other drivers." At scale too: if a driver
-   contributed 50 of 100 pool reports on a lane, don't say "100 other drivers."
+1. ✅ **History tab: log fuel fill-ups + one-off expenses on a calendar day** —
+   tapping a day's "+" now opens a chooser (Load / Fuel / Expense), each opening
+   its screen pre-set to that day. Calendar days show distinct dots: teal load /
+   amber fuel / red expense. Fuel + expenses now also appear as rows in the
+   History list (fuel is informational — net already accounts for it via CPM).
+2. ✅ **Smart load-linking for one-off expenses** — the all-time load picker is
+   replaced by a single opt-in suggestion: the most recent load on/before the
+   expense's date, re-derived as the date changes.
+3. ✅ **Fuel tab CPM bar chart: all bars teal** — was latest-teal/rest-gray.
+4. ✅ **Fair-market declutter** — the "Network" (community) card now hides when
+   the pool is entirely the viewer's own runs, which in the single-user case
+   leaves just the fair-market range + personal history (much cleaner). Broader
+   visual restructure not needed once the double-display was removed.
+5. ✅ **Community rate excludes the viewer's OWN contributions** — the anonymous
+   pool can't be filtered server-side, so the app subtracts the driver's own
+   lane runs from the count and hides the card when net ≤ 0. Copy changed from
+   "N drivers ran this lane" → "N runs logged on this lane" (all 4 languages).
 
 ### 🤖 Android — in progress alongside iOS submission
 - [x] **RevenueCat code path wired** (2026-07-04) — `SubscriptionContext.tsx`
@@ -1153,6 +1152,45 @@ modules, app.json, permissions) still need a full `eas build`.
 ---
 
 ## 6. Work Log (newest first)
+
+### 2026-07-09 — Post-seed polish pass: 5 in-app UX fixes + doc correction
+
+User reviewed the fully-seeded reviewer account and reported 5 items. Also
+corrected the recurring doc-staleness frustration: §5.8 kept listing finished
+launch-prep steps (seeding, Pro grant, App Store Connect listing, TestFlight QA)
+as "🔴 Still open" — the user has confirmed them done multiple times. Rewrote
+that section as ✅ done (only "Submit for review" remains) and saved a memory
+(`launch-prep-done.md`) so it stops recurring.
+
+1. **History: log fuel + expenses on a calendar day (not just loads).** Tapping
+   a day's "+" now opens a bottom-sheet chooser (Load / Fuel / Expense); each
+   opens its screen pre-set to that day (`AddLoadScreen` already took `prefill.date`;
+   added `initialDate` prop to `FuelEntryScreen` + `AddExpenseScreen`). Calendar
+   markers went from a single teal load-dot to up to three per-type dots — teal
+   load / amber fuel / red expense — via a new `MarksByDate` model shared by
+   `MonthCalendar` + `WeekCalendar` (`src/components/dayMarks.ts`). Fuel + expense
+   rows now render in the History list too; fuel is informational (net already
+   accounts for fuel via CPM, so it's NOT re-subtracted from period net). New DB
+   helper `getFuelEntriesDateRange`. History now loads/refreshes fuel per period.
+2. **Smart expense→load link.** `AddExpenseScreen` replaced its all-time load
+   picker (a scrolling modal of every load ever) with one opt-in suggestion: the
+   most recent load on/before the expense date, re-derived when the date changes
+   (`getLoadForExpenseDate`). Checkbox to link; hidden entirely when there's no
+   load to suggest.
+3. **Fuel CPM chart all teal** (`FuelScreen`) — was latest-teal/rest-gray.
+4/5. **Fair-market declutter + honest "Network" counts.** The community pool is
+   anonymous (no `user_id`), so a driver's own contributed loads are in it and
+   can't be filtered server-side — with one user, "3 drivers ran this lane" was
+   literally their own seeded loads shown back to them. Now subtracts the driver's
+   own lane-run count and hides the Network card when net ≤ 0 (CheckLoad falls
+   back to the model estimate). That also declutters the single-user case to just
+   the fair range + personal history. Relabeled tier copy "N drivers ran this
+   lane" → "N runs logged on this lane" and title "Community" → "Network", all 4
+   languages. Applied in both `AddLoadScreen` and `CheckLoadScreen`.
+
+All: `tsc --noEmit` clean, i18n parity 0/0 across en/es/pa/zh. Pure JS — ships
+via `eas update`. (Device-side verification is the user's loop — the web build
+stubs SQLite, so these DB-driven flows can't be exercised headlessly here.)
 
 ### 2026-07-09 — Fuel Entry: back-dated fill-ups (was hardcoded to today)
 

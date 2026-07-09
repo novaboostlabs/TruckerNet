@@ -2,28 +2,33 @@ import React, { useMemo } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Colors, FontFamily, FontSize, Radius, ThemeColors, sectionLabel } from '../theme/theme';
 import { useTheme } from '../theme/ThemeContext';
+import { MarksByDate } from './dayMarks';
 
 const DAY_LABELS = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'];
 
 interface Props {
   weekDates:   string[];                  // 7 ISO dates Mon → Sun
-  loadsByDate: Record<string, number>;    // ISO date → count
+  marksByDate: MarksByDate;               // ISO date → which entry types exist
   selectedDay: string | null;
   onSelectDay: (iso: string | null) => void;
   today:       string;                    // YYYY-MM-DD
 }
 
-export default function WeekCalendar({ weekDates, loadsByDate, selectedDay, onSelectDay, today }: Props) {
+export default function WeekCalendar({ weekDates, marksByDate, selectedDay, onSelectDay, today }: Props) {
   const { colors: Colors } = useTheme();
   const styles = useMemo(() => makeStyles(Colors), [Colors]);
   return (
     <View style={styles.row}>
       {weekDates.map((iso, i) => {
         const day      = parseInt(iso.split('-')[2], 10);
-        const count    = loadsByDate[iso] ?? 0;
-        const hasLoads = count > 0;
         const isToday  = iso === today;
         const isSel    = iso === selectedDay;
+        const marks    = marksByDate[iso];
+        const dots: string[] = [];
+        if (marks?.load)    dots.push(isSel ? Colors.onPrimary : Colors.primary);
+        if (marks?.fuel)    dots.push(isSel ? Colors.onPrimary : Colors.secondary);
+        if (marks?.expense) dots.push(isSel ? Colors.onPrimary : Colors.danger);
+        const hasMarks = dots.length > 0;
 
         return (
           <TouchableOpacity
@@ -47,21 +52,18 @@ export default function WeekCalendar({ weekDates, loadsByDate, selectedDay, onSe
                 styles.dayNum,
                 isSel                      && styles.dayNumSelected,
                 isToday && !isSel          && styles.dayNumToday,
-                !hasLoads && !isToday && !isSel && styles.dayNumDim,
+                !hasMarks && !isToday && !isSel && styles.dayNumDim,
               ]}>
                 {day}
               </Text>
             </View>
 
-            {/* Load indicator */}
-            {hasLoads ? (
+            {/* Per-type indicator dots (teal load / amber fuel / red expense) */}
+            {hasMarks ? (
               <View style={styles.indicatorRow}>
-                <View style={[styles.dot, isSel && styles.dotSelected]} />
-                {count > 1 && (
-                  <Text style={[styles.countText, isSel && styles.countTextSelected]}>
-                    {count}
-                  </Text>
-                )}
+                {dots.map((color, idx) => (
+                  <View key={idx} style={[styles.dot, { backgroundColor: color }]} />
+                ))}
               </View>
             ) : (
               <View style={styles.indicatorRow} />

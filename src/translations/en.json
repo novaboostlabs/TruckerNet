@@ -648,7 +648,15 @@
     "expenseTag": "One-off expense",
     "deleteExpenseTitle": "Delete expense?",
     "deleteExpenseBody": "This one-off expense will be removed and your totals updated.",
-    "addLoadDay": "Log load this day"
+    "addLoadDay": "Log load this day",
+    "addEntryDay": "Add to this day",
+    "addEntryOn": "Add on {{day}}",
+    "fuelTag": "Fuel fill-up",
+    "entryType": {
+      "load": "Log a load",
+      "fuel": "Log a fuel fill-up",
+      "expense": "Log a one-off expense"
+    }
   },
   "settings": {
     "title": "Settings",

@@ -335,6 +335,15 @@ export function getAllFuelEntries(): FuelEntryRow[] {
   );
 }
 
+/** Fuel fill-ups within a date range — for the History period timeline/calendar. */
+export function getFuelEntriesDateRange(start: string, end: string): FuelEntryRow[] {
+  return db.getAllSync<FuelEntryRow>(
+    `SELECT ${FUEL_COLUMNS} FROM fuel_entries
+     WHERE date >= ? AND date <= ? ORDER BY date DESC, rowid DESC`,
+    [start, end]
+  );
+}
+
 /** Replace all local fuel entries with the given set. Transactional so a
  *  mid-loop failure rolls back rather than leaving an empty table. */
 export function replaceFuelEntries(rows: FuelEntryRow[]): void {
