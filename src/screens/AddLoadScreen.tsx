@@ -326,6 +326,8 @@ export default function AddLoadScreen({ onClose, onSaved, onFirstLoad, prefill }
   const gross   = parseFloat(grossPay) || 0;
   const loadMi  = parseFloat(miles)    || 0;
   const hasInputs = gross > 0 && loadMi > 0;
+  // Deadhead legs are unpaid by definition — same waiver as handleSave's check.
+  const canSave = loadMi > 0 && (gross > 0 || deadhead);
 
   const fuelCost  = loadMi * fuelCPM;
   const fixedCost = loadMi * fixedCPM;
@@ -1162,17 +1164,17 @@ export default function AddLoadScreen({ onClose, onSaved, onFirstLoad, prefill }
 
           {/* ── Save ── */}
           <TouchableOpacity
-            style={[styles.saveBtn, (!hasInputs || saving) && styles.saveBtnDisabled]}
+            style={[styles.saveBtn, (!canSave || saving) && styles.saveBtnDisabled]}
             onPress={handleSave}
-            disabled={!hasInputs || saving}
+            disabled={!canSave || saving}
             activeOpacity={0.85}
           >
             {saving ? (
               <ActivityIndicator color={Colors.onPrimary} />
             ) : (
               <>
-                <Ionicons name="checkmark" size={20} color={hasInputs ? Colors.background : Colors.textTertiary} />
-                <Text style={[styles.saveBtnText, !hasInputs && styles.saveBtnTextDisabled]}>
+                <Ionicons name="checkmark" size={20} color={canSave ? Colors.background : Colors.textTertiary} />
+                <Text style={[styles.saveBtnText, !canSave && styles.saveBtnTextDisabled]}>
                   {t('addLoad.saveLoad')}
                 </Text>
               </>

@@ -1139,6 +1139,42 @@ modules, app.json, permissions) still need a full `eas build`.
 
 ## 6. Work Log (newest first)
 
+### 2026-07-09 — Two seed-testing bugs: deadhead saves blocked + break-even instability with 5+ loads
+
+Found while continuing reviewer-account seeding (loads 4–14 of the
+`APP_STORE_LISTING.md` demo data).
+
+**Bug — deadhead ($0 gross pay) loads couldn't be saved at all:**
+`AddLoadScreen.tsx`'s Save button was disabled by `!hasInputs`, and
+`hasInputs = gross > 0 && loadMi > 0` — but `handleSave()`'s own validation
+already correctly waives the gross-pay requirement when the Deadhead toggle is
+on. The button never got that memo, so it stayed greyed out with $0 gross pay
+regardless of the toggle. Added a separate `canSave = loadMi > 0 && (gross > 0
+|| deadhead)` for the button's `disabled` prop, icon color, and text style
+(three places all read `hasInputs` before); left `hasInputs` itself alone
+since it also correctly gates the fair-market calc, which legitimately needs a
+real gross pay. `tsc --noEmit` clean.
+
+**Bug — break-even rate (and therefore net pay) swings wildly once 5+
+completed loads exist:** `getMonthlyMiles()` in `database.ts` switches from
+the onboarding estimate to "real" mileage once 5+ completed loads land in a
+rolling 90-day window — but always divided the total by 3, assuming a full 90
+days of data actually elapsed. Seeded demo loads spanning only ~24 days
+(6,565 total mi ÷ 3 ≈ 2,188 mi/month) badly undercounted monthly miles vs. the
+~10,832 mi/month onboarding estimate, which inflates `fixedCPM` and craters
+every subsequent load's net pay — exactly the reported "break-even changes
+every time I add a load." Not seed-data-specific: any real driver hits this in
+their first month. Fixed to extrapolate from the actual number of days the
+data spans (earliest completed load in the window → today, floored at 7 days
+to avoid a same-day batch producing an absurd multiplier) instead of a fixed
+÷3. `tsc --noEmit` clean. Pure JS — ships via `eas update`.
+
+**Still open:** neither fix is applied to already-saved loads' stored
+`net_pay` (computed once, at save time) — only affects loads saved from here
+forward. Reviewer demo loads 1–3 (saved before this fix) may show slightly
+different net pay than loads 4+; not worth re-entering, difference is
+cosmetic for a reviewer walkthrough.
+
 ### 2026-07-09 — Rate Network "You: 0" vs "Pool: 3" — separate bug, NOT the same mechanism as RevenueCat
 User connected this to the RevenueCat anonymous-identity bug just fixed —
 worth checking, but verified it's a genuinely different, unrelated mechanism

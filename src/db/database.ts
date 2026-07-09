@@ -405,15 +405,25 @@ export function getMonthlyMiles(): number {
   })();
 
   // Upcoming loads haven't been driven — their miles can't count as actuals.
-  const rolling = db.getFirstSync<{ total_miles: number; load_count: number }>(
-    `SELECT COALESCE(SUM(total_miles), 0) as total_miles, COUNT(*) as load_count
+  const rolling = db.getFirstSync<{ total_miles: number; load_count: number; earliest_date: string }>(
+    `SELECT COALESCE(SUM(total_miles), 0) as total_miles, COUNT(*) as load_count,
+            MIN(date) as earliest_date
      FROM loads
      WHERE status = 'completed' AND date >= ?`,
     [ninetyDaysAgo],
   );
   if (rolling && rolling.load_count >= 5 && rolling.total_miles > 0) {
-    // Convert to a monthly equivalent (90 days ≈ 3 months).
-    return Math.round(rolling.total_miles / 3);
+    // Extrapolate from the actual span the data covers rather than assuming a
+    // full 90 days elapsed — a driver (or seeded demo account) with 5+ loads
+    // packed into their first few weeks would otherwise have that mileage
+    // divided by 3 as if it were a full quarter, cratering the monthly-miles
+    // figure and inflating break-even. Floor of 7 days keeps a same-day batch
+    // of loads from extrapolating to an absurd monthly figure.
+    const daysSpan = Math.max(
+      7,
+      Math.round((Date.now() - new Date(rolling.earliest_date).getTime()) / 86400000) + 1,
+    );
+    return Math.round((rolling.total_miles / daysSpan) * 30);
   }
 
   // ── Fallback: onboarding estimate (weekly_miles × 4.333) ──
