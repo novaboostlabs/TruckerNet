@@ -101,7 +101,7 @@ export default function FreeUsageMeter({ refreshKey, compact = false }: Props) {
           <Text style={styles.valueText}>
             {t('freeUsage.valueMissed', {
               count: valueMissed.lowballCount,
-              amount: `$${valueMissed.estimatedLost.toLocaleString('en-US')}`,
+              amount: `$${valueMissed.estimatedLost.toLocaleString('en-US', { maximumFractionDigits: 2 })}`,
             })}
           </Text>
         </View>

@@ -169,12 +169,12 @@ export default function PaywallScreen({ onClose, reason = 'generic' }: Props) {
         {valueMissed ? (
           <View style={styles.valueMissedCard}>
             <Text style={styles.valueMissedNumber}>
-              ${valueMissed.estimatedLost.toLocaleString('en-US')}
+              ${valueMissed.estimatedLost.toLocaleString('en-US', { maximumFractionDigits: 2 })}
             </Text>
             <Text style={styles.valueMissedLabel}>
               {t('paywall.valueMissed', {
                 count: valueMissed.lowballCount,
-                amount: `$${valueMissed.estimatedLost.toLocaleString('en-US')}`,
+                amount: `$${valueMissed.estimatedLost.toLocaleString('en-US', { maximumFractionDigits: 2 })}`,
               })}
             </Text>
           </View>

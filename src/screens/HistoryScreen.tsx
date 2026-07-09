@@ -76,6 +76,11 @@ function fmtMoney(n: number): string {
   if (Math.abs(n) >= 1000) return `$${(n / 1000).toFixed(1)}k`;
   return `$${Math.round(n).toLocaleString()}`;
 }
+// Money to the cent — never fractions of a cent (computed net/gross can carry
+// long decimals from per-mile cost math).
+function money2(n: number): string {
+  return n.toLocaleString('en-US', { maximumFractionDigits: 2 });
+}
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -623,9 +628,9 @@ export default function HistoryScreen() {
                             </View>
                             <View style={styles.loadRight}>
                               <Text style={[styles.loadNet, { color: load.positive ? Colors.primary : Colors.danger }]}>
-                                {load.positive ? '+' : '-'}${Math.abs(load.net).toLocaleString()}
+                                {load.positive ? '+' : '-'}${money2(Math.abs(load.net))}
                               </Text>
-                              <Text style={styles.loadGross}>${load.gross.toLocaleString()} {t('common.gross')}</Text>
+                              <Text style={styles.loadGross}>${money2(load.gross)} {t('common.gross')}</Text>
                             </View>
                             <Ionicons name="chevron-forward" size={14} color={Colors.textTertiary} style={{ marginLeft: 8 }} />
                           </TouchableOpacity>
@@ -713,9 +718,9 @@ export default function HistoryScreen() {
                         </View>
                         <View style={styles.loadRight}>
                           <Text style={[styles.loadNet, { color: item.load.positive ? Colors.primary : Colors.danger }]}>
-                            {item.load.positive ? '+' : '-'}${Math.abs(item.load.net).toLocaleString()}
+                            {item.load.positive ? '+' : '-'}${money2(Math.abs(item.load.net))}
                           </Text>
-                          <Text style={styles.loadGross}>${item.load.gross.toLocaleString()} {t('common.gross')}</Text>
+                          <Text style={styles.loadGross}>${money2(item.load.gross)} {t('common.gross')}</Text>
                         </View>
                         <Ionicons name="chevron-forward" size={14} color={Colors.textTertiary} style={{ marginLeft: 8 }} />
                       </TouchableOpacity>
@@ -736,7 +741,7 @@ export default function HistoryScreen() {
                         </Text>
                       </View>
                       <Text style={[styles.loadNet, { color: Colors.danger }]}>
-                        -${Math.abs(item.exp.amount).toLocaleString()}
+                        -${money2(Math.abs(item.exp.amount))}
                       </Text>
                     </TouchableOpacity>
                   ) : (
@@ -754,7 +759,7 @@ export default function HistoryScreen() {
                         </Text>
                       </View>
                       <Text style={[styles.loadNet, { color: Colors.secondary }]}>
-                        ${Math.abs(item.fuel.dollars_spent).toLocaleString()}
+                        ${money2(Math.abs(item.fuel.dollars_spent))}
                       </Text>
                     </View>
                   )}

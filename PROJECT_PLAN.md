@@ -1153,6 +1153,25 @@ modules, app.json, permissions) still need a full `eas build`.
 
 ## 6. Work Log (newest first)
 
+### 2026-07-09 — Never show fractions of a cent (money formatting)
+
+User saw amounts like `$128.532` in a few places. Root cause: JS
+`Number.toLocaleString()` defaults to `maximumFractionDigits: 3`, so any bare
+`.toLocaleString()` / `.toLocaleString('en-US')` on a computed money value
+(net/gross carry long decimals from per-mile cost math) rendered three decimals.
+All the `.toFixed(3)` usages were already correct — they're per-mile/per-gallon
+RATES (break-even, fuel CPM, RPM, $/gal), the exception the user explicitly
+allowed.
+
+Fixed every uncapped money display to `{ maximumFractionDigits: 2 }`:
+HistoryScreen list rows (new `money2()` helper — net/gross/expense/fuel amounts,
+the most-visible offender), ExpensesScreen tax figures (quarter/YTD set-aside +
+net), PaywallScreen + FreeUsageMeter "value missed", and TaxSetAsideCard's `fmt`.
+Money helpers that already pin 0 or 2 decimals (AddLoad/CheckLoad/LoadDetail/
+Dashboard/ShareLoad) were already safe and left alone. Saved a `feedback` memory
+(`money-formatting-rule.md`) so it doesn't regress. `tsc --noEmit` clean; pure
+JS — ships via `eas update`.
+
 ### 2026-07-09 — Post-seed polish pass: 5 in-app UX fixes + doc correction
 
 User reviewed the fully-seeded reviewer account and reported 5 items. Also

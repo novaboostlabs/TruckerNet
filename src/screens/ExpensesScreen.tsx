@@ -321,9 +321,9 @@ export default function ExpensesScreen() {
             {/* This-quarter hero set-aside */}
             <View style={styles.taxHero}>
               <Text style={styles.taxHeroLabel}>{t('expenses.tax.quarterLabel')}</Text>
-              <Text style={styles.taxHeroValue}>${taxData.quarterSetAside.toLocaleString('en-US')}</Text>
+              <Text style={styles.taxHeroValue}>${taxData.quarterSetAside.toLocaleString('en-US', { maximumFractionDigits: 2 })}</Text>
               <Text style={styles.taxHeroBase}>
-                {t('expenses.tax.ofNet', { net: `$${taxData.quarterNet.toLocaleString('en-US')}` })}
+                {t('expenses.tax.ofNet', { net: `$${taxData.quarterNet.toLocaleString('en-US', { maximumFractionDigits: 2 })}` })}
               </Text>
             </View>
 
@@ -331,8 +331,8 @@ export default function ExpensesScreen() {
             <View style={styles.taxYtdRow}>
               <Text style={styles.taxYtdLabel}>{t('expenses.tax.ytdLabel')}</Text>
               <Text style={styles.taxYtdValue}>
-                ${taxData.ytdSetAside.toLocaleString('en-US')}
-                <Text style={styles.taxYtdBase}> {t('expenses.tax.ofNet', { net: `$${taxData.ytdNet.toLocaleString('en-US')}` })}</Text>
+                ${taxData.ytdSetAside.toLocaleString('en-US', { maximumFractionDigits: 2 })}
+                <Text style={styles.taxYtdBase}> {t('expenses.tax.ofNet', { net: `$${taxData.ytdNet.toLocaleString('en-US', { maximumFractionDigits: 2 })}` })}</Text>
               </Text>
             </View>
 

@@ -11,7 +11,7 @@ interface Props {
 }
 
 function fmt(n: number): string {
-  return n.toLocaleString('en-US');
+  return n.toLocaleString('en-US', { maximumFractionDigits: 2 });
 }
 
 export default function TaxSetAsideCard({ data, onSettings }: Props) {
