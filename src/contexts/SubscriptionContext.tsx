@@ -173,12 +173,17 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
         Purchases.configure({ apiKey });
         setRcReady(true); // identity effect below may now logIn/logOut safely
 
-        // Fetch the current entitlement state.
-        const customerInfo = await Purchases.getCustomerInfo();
-        setIsPro(customerInfo.entitlements.active[ENTITLEMENT_ID] !== undefined);
-
-        // Stay in sync whenever the entitlement changes (e.g. after purchase,
-        // restore, expiry, or a billing retry).
+        // Deliberately NOT calling getCustomerInfo()/setIsPro here. Right after
+        // configure(), the SDK is still on its default (anonymous) identity —
+        // the identity effect below hasn't called logIn(user.id) yet. Fetching
+        // entitlements at this exact moment reads the WRONG customer, and
+        // since that fetch and the identity effect's logIn() both write isPro
+        // independently and in parallel, whichever one resolved LAST silently
+        // overwrote the other — a real race that showed up as Pro status
+        // flip-flopping on every launch until "Restore Purchases" was pressed
+        // (by then the identity effect had long since settled). The identity
+        // effect is now the sole source of truth for the INITIAL isPro value;
+        // this listener keeps it correct for everything AFTER that.
         Purchases.addCustomerInfoUpdateListener((info: any) => {
           setIsPro(info.entitlements.active[ENTITLEMENT_ID] !== undefined);
         });

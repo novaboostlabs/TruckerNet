@@ -1104,6 +1104,35 @@ modules, app.json, permissions) still need a full `eas build`.
 
 ## 6. Work Log (newest first)
 
+### 2026-07-09 — Pro status flip-flopping — race condition from yesterday's RC identity fix
+User granted `pro` to the appconnect@ customer via the RevenueCat dashboard,
+but the app inconsistently showed Pro active/inactive across launches, self-
+correcting only after manually tapping Restore Purchases. (Also asked about
+the dashboard's "auto-renew: cancel" note — that's expected/harmless for a
+dashboard grant: a fixed-duration grant displays the same way a cancelled-
+but-still-active subscription would, since it won't auto-renew by design;
+not a sign anything is wrong.)
+
+**Root cause:** yesterday's identity fix (`Purchases.logIn(user.id)` on
+sign-in) introduced an unintentional race. `initRC()` independently called
+`Purchases.getCustomerInfo()` right after `configure()` — but at that exact
+moment the SDK is still on its default ANONYMOUS identity (`logIn` hadn't
+run yet), so that fetch read the wrong customer's entitlements. Both that
+call and the identity effect's `logIn()` call set `isPro` independently and
+in parallel; whichever happened to resolve last silently overwrote the
+other, nondeterministically, on every single launch — exactly matching
+"sometimes active, sometimes not."
+
+**Fix:** removed the racing `getCustomerInfo()`/`setIsPro` call from
+`initRC()` entirely. The identity effect (which correctly calls
+`Purchases.logIn(user.id)` before checking entitlements) is now the sole
+source of truth for the INITIAL `isPro` value; `addCustomerInfoUpdateListener`
+(kept, in `initRC()`) handles everything after that (purchases, restores,
+expiry). Confirmed no screen gates on `subscription.loading` for Pro-specific
+UI — every consumer just reads `isPro` directly and re-renders naturally, so
+removing the second writer is sufficient without restructuring loading
+semantics. tsc clean, shipped via `eas update`.
+
 ### 2026-07-08 — FOUND: language never persisted — invalid SecureStore key (the "@" prefix)
 The new diagnostic (added minutes earlier for exactly this) fired on first
 reproduction — no ambiguity this time: `[write] @truckernet_language:
