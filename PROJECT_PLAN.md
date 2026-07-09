@@ -16,15 +16,20 @@
 > branch and push `main`** so the user's build always reflects the latest.
 > (Decided 2026-06-19 after changes weren't appearing because `main` was stale.)
 
-_Last updated: 2026-07-04 (later session) — App is code-complete for v1.0.0 plus
-a full UX polish pass (load lifecycle, keyboard/gesture fixes, onboarding
-validation, fuel tab, session persistence, earned-vs-pending money) shipped
-via two `eas update` OTA pushes — no rebuild needed. **Android RevenueCat code
-path is now wired** (only the actual SDK key + Play Console setup remain,
-tracked in the new §5.8 "Android" section). Screenshots are captured and
-uploaded. The concrete next action is creating + seeding the reviewer demo
-account — full seed data lives in `APP_STORE_LISTING.md`. See §6 Work Log for
-full history, newest first._
+_Last updated: 2026-07-09 — App is code-complete for v1.0.0. Seeding the
+reviewer demo account with real data (per `APP_STORE_LISTING.md`) surfaced a
+run of real bugs over 2026-07-04 → 07-09 that hadn't shown up in earlier
+testing — all fixed, all shipped via `eas update` (no rebuild needed). Full
+consolidated list in §5.8 "🐛 Real-device bug sweep." The most significant:
+loads/expenses silently failing to sync, brand-new accounts skipping
+onboarding, a session-persistence race that signed users out on every close,
+an invalid SecureStore key that reset the language preference every launch,
+and RevenueCat being configured anonymously (causing Pro status instability +
+throwaway customer records). One migration from this sweep still needs
+applying: `2026-07-09_loads_rate_contributed.sql` (user applying now).
+Screenshots are captured and uploaded to App Store Connect. The concrete next
+action is finishing the demo-account seeding, then App Store Connect listing
+details. See §6 Work Log for full history, newest first._
 
 > **Backend sync state:** Local-first, SQLite is source of truth. As of
 > 2026-07-01/02: pull now MERGES instead of replacing (local wins on conflict,
@@ -1008,6 +1013,30 @@ Real in-app account deletion, closing the 5.1.1(v) gap flagged above.
   `SUPABASE_SERVICE_ROLE_KEY` every Edge Function gets automatically). Client
   change is pure JS — ships via EAS Update once that's set up, or the next
   build either way.
+
+### 🐛 Real-device bug sweep — 2026-07-04 → 2026-07-09 (seed-data testing)
+
+Once seed data went in on a real device, real bugs surfaced fast — this is
+the consolidated list. Full root-cause writeups (with the exact evidence
+that cracked each one) are in §6 Work Log under their dates; this is the
+scannable version. All fixes shipped via `eas update` (JS-only, live
+already) except where a migration is noted.
+
+| # | Symptom | Root cause | Status |
+|---|---|---|---|
+| 1 | Cloud backup silently failing on every account | `user_expenses` push sent an `updated_at` field to a column that never existed — PostgREST rejected every write, silently | ✅ Fixed |
+| 2 | Loads not syncing to the cloud | `weight_lbs: l.weight_lbs \|\| null` — classic JS falsy-zero bug; a load with no weight entered (0, the common case) got sent as `null`, violating a `NOT NULL` column | ✅ Fixed (first mis-diagnosed as a typo'd `weight_Ibs` column — that migration was written, then retracted once real evidence disproved it) |
+| 3 | Loads showing blank state ("Los Angeles, ") + Rate Network "0 shared" | Mapbox v6 spells states out in full ("California"), not as 2-letter codes — the regex extracting state from the address label never matched. Affected fair-market accuracy, community rate matching, and profile home base too, not just display | ✅ Fixed — now reads Mapbox's structured `region_code` field directly instead of parsing display text |
+| 4 | Free tier's 15-loads/month cap bypassable | Cap counted by the load's business *date*, not when it was actually logged — back-dating a load (trivial via the new History "log on this day" feature) never consumed quota | ✅ Fixed — counts by `created_at` (log time) instead |
+| 5 | Brand-new account skipped onboarding, landed on empty dashboard | Sign-in routing unconditionally marked every account "onboarded" — a leftover assumption from when the only path to signup was through onboarding first | ✅ Fixed — onboarding status is now derived from the account's actual data (do the numbers exist?), never a device-side flag |
+| 6 | Signed out every time the app was closed and reopened | Stale-closure race: the routing effect could capture a `null` session in its closure even though Supabase had already resolved a valid one — a self-healing check meant to catch this only watched for the session *changing*, and did nothing if it was correct from the very first render | ✅ Fixed — self-healing check now also re-fires whenever landing on the sign-in screen, regardless of what caused it |
+| 7 | Language preference reset on every launch | The storage key was `'@truckernet_language'` — SecureStore keys can't contain `@`; every save has thrown instantly since this was built | ✅ Fixed — renamed key; also consolidated all SecureStore access into one hardened, error-visible module (`secureStorage.ts`) so this class of bug can't recur silently a third time |
+| 8 | Pro subscription flipping active/inactive between launches, Restore Purchases sometimes not working | RevenueCat was configured *anonymously* first, then logged into the real account as a separate step — every relaunch briefly created (or failed to reuse) a throwaway anonymous identity before aliasing it, racing against the real check. Also explains "16 new customers" appearing in the RevenueCat dashboard from one account | ✅ Fixed — now configures directly AS the signed-in account from the first call, per RevenueCat's own recommended pattern; no anonymous identity touched at all when a user is known |
+| 9 | Rate Network "You: 0" despite the pool showing the driver's own 3 loads | The local flag marking "already contributed to the pool" was device-only, never backed up — any local data reset (sign out/in, a cross-account check, a reinstall) silently reset it, risking the SAME load being submitted to the crowdsourced pool a second time on next edit | ✅ Fixed — flag now syncs to the cloud like every other field. **Needs migration `2026-07-09_loads_rate_contributed.sql`** |
+
+**Two migrations from this sweep, for the record:**
+- `2026-07-07_fix_weight_typo_column.sql` — written for bug #2's *first* (wrong) diagnosis, retracted and deleted once the real cause was found. Never something to apply.
+- `2026-07-09_loads_rate_contributed.sql` — real, needed for bug #9. Non-destructive `ADD COLUMN IF NOT EXISTS`.
 
 ### 🔴 Still open — in order (as of 2026-07-09)
 
