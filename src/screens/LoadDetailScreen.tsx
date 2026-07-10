@@ -61,7 +61,9 @@ function fmt(iso: string): string {
 }
 
 function money(n: number): string {
-  return n.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+  // Pre-round: RN/Hermes doesn't reliably apply toLocaleString's fraction-digit
+  // options, so rounding the number is what actually caps the decimals.
+  return Math.round(n).toLocaleString('en-US', { maximumFractionDigits: 0 });
 }
 
 // ── Sub-components ────────────────────────────────────────────────────────────

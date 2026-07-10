@@ -64,7 +64,10 @@ function defaultLoadTypeFromProfile(): LoadType {
 }
 
 function money(n: number, decimals = 0): string {
-  return n.toLocaleString('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+  // Pre-round: RN/Hermes doesn't reliably apply toLocaleString's fraction-digit
+  // options, so rounding the number is what actually caps the decimals.
+  const p = 10 ** decimals;
+  return (Math.round(n * p) / p).toLocaleString('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
 }
 
 

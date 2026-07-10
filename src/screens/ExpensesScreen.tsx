@@ -290,7 +290,7 @@ export default function ExpensesScreen() {
             </Text>
             {total > 0 && monthlyMiles > 0 ? (
               <Text style={styles.heroSub}>
-                ${total.toLocaleString(undefined, { maximumFractionDigits: 0 })} {t('expenses.perMo')} ÷ {monthlyMiles.toLocaleString()} mi
+                ${Math.round(total).toLocaleString('en-US')} {t('expenses.perMo')} ÷ {Math.round(monthlyMiles).toLocaleString('en-US')} mi
               </Text>
             ) : (
               <Text style={styles.heroSub}>{t('expenses.heroEmpty')}</Text>
@@ -463,7 +463,7 @@ export default function ExpensesScreen() {
             <View style={styles.totalCard}>
               <Text style={styles.totalLabel}>{t('expenses.totalMonthly')}</Text>
               <Text style={styles.totalValue}>
-                ${total.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                ${Math.round(total).toLocaleString('en-US')}
                 <Text style={styles.totalSub}>{t('expenses.perMo')}</Text>
               </Text>
             </View>

@@ -1153,6 +1153,31 @@ modules, app.json, permissions) still need a full `eas build`.
 
 ## 6. Work Log (newest first)
 
+### 2026-07-10 — Fractions-of-a-cent, round 2: the real cause was Hermes ignoring the option
+
+Yesterday's fix added `{ maximumFractionDigits: 2 }` to money formatters, but the
+Dashboard tax set-aside card STILL showed 3 decimals on device. Real root cause:
+**RN/Hermes doesn't reliably apply `toLocaleString`'s fraction-digit options** —
+the cap was a no-op on the phone even though it's correct in TS/Node. (Compounded
+for the tax card by `getTaxSetAside` returning raw, unrounded `net_pay` sums for
+the "of $X net" line.)
+
+Fix — round the NUMBER, don't just ask the formatter to:
+- `getTaxSetAside` now rounds `monthNet`/`quarterNet`/`ytdNet` to cents at the
+  source (set-aside amounts were already whole via `Math.round`).
+- Every money helper across the app now pre-rounds before formatting:
+  `money`/`fmt` in AddLoad, LoadDetail, CheckLoad, Dashboard, ExpenseReviewModal,
+  plus History's `money2` and TaxSetAsideCard's `fmt`. Whole-dollar helpers use
+  `Math.round(n)`, cent helpers use `Math.round(n*100)/100`.
+- ExpensesScreen's two `toLocaleString(undefined, {max:0})` totals + the miles
+  divisor now `Math.round(...)` first.
+- Remaining option-based calls (Expenses tax lines, Paywall/FreeUsageMeter
+  "value missed") all operate on source-rounded/integer values, so they're safe.
+
+Verified the rounding in Node (128.532→128.53, negatives, whole values).
+`tsc --noEmit` clean. Updated the `money-formatting-rule` memory with the Hermes
+gotcha. Pure JS — ships via `eas update`.
+
 ### 2026-07-09 — Never show fractions of a cent (money formatting)
 
 User saw amounts like `$128.532` in a few places. Root cause: JS

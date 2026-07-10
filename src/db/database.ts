@@ -662,11 +662,15 @@ export function getTaxSetAside(): TaxSetAside {
   const deadlineDate = new Date(deadline + 'T12:00:00');
   const nextDeadline = deadlineDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 
+  // Round every money figure to whole cents at the source — net sums carry long
+  // decimals from per-mile cost math, and RN/Hermes doesn't reliably honour
+  // toLocaleString's maximumFractionDigits, so we can't rely on the formatter.
+  const cents = (n: number) => Math.round(n * 100) / 100;
   return {
     rate,
-    monthNet,
-    quarterNet,
-    ytdNet,
+    monthNet:   cents(monthNet),
+    quarterNet: cents(quarterNet),
+    ytdNet:     cents(ytdNet),
     monthSetAside:   Math.round(monthNet   * rate),
     quarterSetAside: Math.round(quarterNet * rate),
     ytdSetAside:     Math.round(ytdNet     * rate),

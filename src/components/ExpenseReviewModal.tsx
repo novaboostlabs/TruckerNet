@@ -22,7 +22,9 @@ interface Props {
 }
 
 function money(n: number): string {
-  return n.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+  // Pre-round: RN/Hermes doesn't reliably apply toLocaleString's fraction-digit
+  // options, so rounding the number is what actually caps the decimals.
+  return (Math.round(n * 100) / 100).toLocaleString('en-US', { maximumFractionDigits: 2 });
 }
 
 export default function ExpenseReviewModal({ visible, onClose, onGoToExpenses }: Props) {

@@ -77,9 +77,10 @@ function fmtMoney(n: number): string {
   return `$${Math.round(n).toLocaleString()}`;
 }
 // Money to the cent — never fractions of a cent (computed net/gross can carry
-// long decimals from per-mile cost math).
+// long decimals from per-mile cost math). Pre-round because RN/Hermes doesn't
+// reliably honour toLocaleString's maximumFractionDigits.
 function money2(n: number): string {
-  return n.toLocaleString('en-US', { maximumFractionDigits: 2 });
+  return (Math.round(n * 100) / 100).toLocaleString('en-US', { maximumFractionDigits: 2 });
 }
 
 // ── Types ─────────────────────────────────────────────────────────────────────

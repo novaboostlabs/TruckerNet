@@ -11,7 +11,9 @@ interface Props {
 }
 
 function fmt(n: number): string {
-  return n.toLocaleString('en-US', { maximumFractionDigits: 2 });
+  // Pre-round to cents: RN/Hermes doesn't reliably apply toLocaleString's
+  // maximumFractionDigits, so rounding the number is what actually caps it.
+  return (Math.round(n * 100) / 100).toLocaleString('en-US', { maximumFractionDigits: 2 });
 }
 
 export default function TaxSetAsideCard({ data, onSettings }: Props) {
