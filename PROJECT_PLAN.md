@@ -1175,6 +1175,46 @@ modules, app.json, permissions) still need a full `eas build`.
 
 ## 6. Work Log (newest first)
 
+### 2026-07-11 — Full pre-submit QA run-through (Playwright, expo web) + 3 JS-only fixes
+
+Drove the entire app end-to-end on `expo web` at iPhone size (390×844) via
+Playwright: welcome (language/theme live-switch incl. es/zh render), 4-screen
+walkthrough, onboarding (fuel → expenses → miles → reveal), target + profile
+setup, sign-up/sign-in, Dashboard, Check Load (verdict math, fair-market Pro
+gate, Accept & Log prefill), Add Load (deduction chips, net preview math, status
+default Upcoming, deadhead toggle, date navigator, details, save + first-load
+celebration), Fuel (form validation, live $/gal), IFTA (quarter nav, sample
+teaser, export paywall trigger, disclaimer), History (calendar correctness,
+day-select, per-day Add sheet, one-off expense form), Settings (all rows,
+Terms/Privacy URLs return 200, theme switch, Rate Network), light theme
+app-wide pass. i18n key parity re-verified 0/0/0 across es/pa/zh; `tsc` clean.
+
+**Fixes landed (all JS-only, OTA-safe):**
+1. `utils/marketRates.ts` — FREQUENCY_TO_MONTHLY quarterly/semiannual/annual
+   were decimal approximations (0.3333…), so "$150 every 3 months" displayed
+   "= $49.99/mo". Now exact fractions (1/3, 1/6, 1/12) → "$50.00/mo".
+2. `screens/SettingsScreen.tsx` — App Version said "1.0.0 (Beta)". "Beta"
+   language in a store build risks App Review guideline 2.2 and reads
+   non-premium. Now "1.0.0".
+3. `db/sqlite.web.ts` — web stub lacked `withTransactionSync`, so Save Load
+   silently threw on web (dev/test surface only; iOS unaffected).
+
+**Verified-not-bugs (web-only artifacts, device unaffected — do NOT chase):**
+- Web SQLite stub is a no-op by design → onboarding reveal shows dashes, tabs
+  show empty states, nothing persists across web reloads.
+- Supabase profile 406/401 console errors on web = session not attached by the
+  web storage adapter (SecureStore is native-only). Device sync is proven by the
+  seeded reviewer account. Optional 30-sec device sanity check: edit Weekly
+  Miles in Settings, sign out/in, confirm it survives.
+- RN-web quirks: autocomplete suggestion rows/footer buttons don't respond to
+  synthetic clicks; frequency chips overflow (input min-width); stacked modals
+  (paywall over Check Load) render transparent. All native-fine.
+
+**Watch items (not blockers):** IFTA free-tier teaser uses walkthrough sample
+numbers when the account has no data (intentional, code-commented); Check Load
+shows "Worth Taking" with no break-even set but explains itself with the
+"add your expenses" hint (on device break-even always exists post-onboarding).
+
 ### 2026-07-11 — Final pre-submit lap: event-log removed, build #10 cut, OTA-only from here
 
 - **Removed the sign-in event-log diagnostic** from Settings (the always-visible

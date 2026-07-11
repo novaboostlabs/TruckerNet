@@ -7,4 +7,8 @@ export const db = {
   runSync: noop as (sql: string, params?: unknown[]) => void,
   getFirstSync: <T>(_sql: string, _params?: unknown[]): T | null => null,
   getAllSync: <T>(_sql: string, _params?: unknown[]): T[] => [],
+  // saveLoad/deleteLoad wrap their statements in a transaction; without this
+  // the web build throws mid-save and the failure is invisible (Alert is a
+  // native no-op on web).
+  withTransactionSync: (fn: () => void): void => { fn(); },
 };

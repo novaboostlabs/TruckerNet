@@ -378,9 +378,11 @@ export const FREQUENCY_TO_MONTHLY: Record<ExpenseFrequency, number> = {
   weekly:     4.333,
   biweekly:   2.167,
   monthly:    1,
-  quarterly:  0.3333,
-  semiannual: 0.1667,
-  annual:     0.08333,
+  // Exact divisors — 0.3333-style approximations made $150/quarter show as
+  // $49.99/mo instead of $50.00/mo.
+  quarterly:  1 / 3,
+  semiannual: 1 / 6,
+  annual:     1 / 12,
 };
 
 export function toMonthlyAmount(amount: number, frequency: ExpenseFrequency): number {

@@ -24,7 +24,7 @@ import { useTheme, ThemeMode } from '../theme/ThemeContext';
 
 // ── Constants ──────────────────────────────────────────────────────────────
 
-const APP_VERSION  = '1.0.0 (Beta)';
+const APP_VERSION  = '1.0.0';
 const URL_TERMS    = 'https://truckernet.app/terms';
 const URL_PRIVACY  = 'https://truckernet.app/privacy';
 
