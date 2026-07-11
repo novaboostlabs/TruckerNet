@@ -14,7 +14,6 @@ import { useAuth } from '../contexts/AuthContext';
 import { useSubscription } from '../contexts/SubscriptionContext';
 import { usePaywall } from '../contexts/PaywallContext';
 import { getWeeklyMiles, getSetting, setSetting, getIncomeGoal, setIncomeGoal, getRateContributionCount, getUserExpenses } from '../db/database';
-import { getAuthEventLogText } from '../lib/authDiagnostics';
 import { getNetworkReportCount } from '../lib/rateReports';
 import { getSyncStatus, syncAll } from '../lib/sync';
 import { setupNotifications, cancelAllNotifications } from '../lib/notifications';
@@ -536,21 +535,6 @@ export default function SettingsScreen({ onClose, onNavigateToExpenses, initialS
                     />
                   </>
                 )}
-                {/* Always available (not just on error) — shows what Supabase's
-                    auth client actually reported, so a "signed out every time"
-                    report can be pinned to a real event instead of guessed at. */}
-                <RowDivider />
-                <Row
-                  icon="list-outline"
-                  iconBg={Colors.surfaceHigh}
-                  iconColor={Colors.textSecondary}
-                  label={t('settings.authLogTitle')}
-                  sublabel={t('settings.authLogSub')}
-                  onPress={() => {
-                    const text = getAuthEventLogText();
-                    Alert.alert(t('settings.authLogTitle'), text ?? t('settings.authLogEmpty'));
-                  }}
-                />
               </View>
             </>
           )}
