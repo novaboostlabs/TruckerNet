@@ -16,30 +16,43 @@
 > branch and push `main`** so the user's build always reflects the latest.
 > (Decided 2026-06-19 after changes weren't appearing because `main` was stale.)
 
-_Last updated: 2026-07-09 — App is code-complete for v1.0.0. **START HERE IN A
-NEW CHAT.** Seeding the reviewer demo account (`appconnect@novaboostlabs.co`)
-with real data on a real device (per `APP_STORE_LISTING.md`) surfaced a run of
-9 real bugs over 2026-07-04 → 07-09 that hadn't shown up in earlier testing —
-**all fixed, all shipped via `eas update`, both required migrations applied.**
-Full consolidated list with symptom/root-cause/status in §5.8 "🐛 Real-device
-bug sweep" table. The most significant: loads/expenses silently failing to
-sync, brand-new accounts skipping onboarding, a session-persistence race that
-signed users out on every close, an invalid SecureStore key that reset the
-language preference every launch, and RevenueCat being configured anonymously
-(Pro status instability + throwaway customer records). One permanent, known,
-harmless cosmetic side effect remains: the appconnect@ account's first 3 loads
-will always show "not counted" in the Rate Network "You've shared" stat (their
-local tracking flag was reset before the fix landed; not recoverable, not
-launch-blocking, not reviewer-facing — see bug #9 in the table).
+_Last updated: 2026-07-11 — v1.0.0 is done and in the final pre-submit lap.
+**START HERE IN A NEW CHAT.** All launch-prep is finished (see §5.8 "Launch-prep
+checklist — ALL DONE"; only the final "Submit for Review" click remains). Do NOT
+re-list seeding / Pro grant / App Store Connect listing / TestFlight QA as open —
+the user has confirmed them done repeatedly; that recurring doc-staleness was a
+real frustration.
 
-**Immediate next action:** user is mid-way through seeding the
-appconnect@novaboostlabs.co reviewer demo account — continue/finish the load,
-fuel, and expense entries per `APP_STORE_LISTING.md` → "Reviewer demo account
-— setup steps + seed data" (use History → tap a calendar day → "Log load this
-day" for back-dated entries, NOT the date arrows). After seeding: grant that
-account Pro via the RevenueCat dashboard (target its Supabase user ID), then
-finish the §5.8 "Still open" checklist (App Store Connect listing details →
-remaining TestFlight QA → submit for review). See §6 Work Log for full
+**Where things stand (2026-07-11):**
+- Reviewer demo account (`appconnect@novaboostlabs.co`) fully seeded + synced, Pro
+  granted, App Review Information + listing complete.
+- A run of in-app tweaks landed 07-09 → 07-11: 5 post-seed polish items (History
+  calendar can log fuel/expenses with per-type colored markers; smart expense→load
+  link; fuel chart all-teal; fair-market declutter; honest "Network" counts), plus
+  two rounds of the money-decimals fix (never show fractions of a cent — the real
+  cause was Hermes ignoring `toLocaleString` options, so all money helpers now
+  pre-round), plus removal of the sign-in event-log diagnostic from Settings, plus
+  earlier-in-session fixes (deadhead $0 load couldn't save; break-even instability
+  once 5+ loads existed; fuel fill-ups couldn't be back-dated). All `tsc` clean,
+  i18n parity 0/0, all committed + pushed to `main`.
+- **Production build `7528effc` (build #10) is FINISHED** — channel `production`,
+  runtime `1.0.0`. Its embedded bundle contains everything through commit
+  `3d4a56c` (all the substantive fixes). The ONLY change not baked in is the
+  event-log removal (`2f4703e`), which rides OTA.
+- **The free EAS build allotment for the month is used up (10/10).** Remaining
+  changes must therefore ship via `eas update` (OTA), which is fine: OTA targets
+  runtime `1.0.0` on the `production` channel = build `7528effc`. **HARD
+  CONSTRAINT: remaining tweaks must be JS/TS/UI/text/asset only.** Anything native
+  (new native dep, or `app.json` permissions/icons/splash/plugins/version) CANNOT
+  ship via OTA and would need a build the user can't make until the allotment
+  resets — flag it immediately if a requested tweak needs native.
+
+**Immediate next action:** the user is doing one final full run-through of the app
+(in a separate chat, with Fable 5) to catch anything else. When they return with
+any last tweaks: make them (JS-only), then run ONE `eas update --channel production`
+to publish everything at once, then `eas submit --platform ios` to send build
+`7528effc` up, then attach it in App Store Connect → Submit for Review (the
+`appconnect@` demo login is already in the review notes). See §6 Work Log for full
 history, newest first._
 
 > **Backend sync state:** Local-first, SQLite is source of truth. As of
@@ -1071,9 +1084,18 @@ already) except where a migration is noted.
    nutrition label, age rating all done.
 5. ✅ **On-device TestFlight QA** done (purchase, Delete Account, Restore,
    Google/Apple sign-in, Replay Setup persistence all verified).
-6. **[USER] Submit for review** — the ONLY remaining external step, whenever the
-   user decides the polish items below are in. Put the seeded appconnect@ login
-   in the App Review notes. Budget 1–3 weeks; one rejection round is normal.
+6. **[USER] Submit for review** — the ONLY remaining external step, once the
+   final run-through is done. Sequence: (a) make any last JS-only tweaks, (b) one
+   `eas update --channel production`, (c) `eas submit --platform ios` (build
+   `7528effc`), (d) attach it in App Store Connect → Submit for Review. The
+   `appconnect@` demo login is already in the review notes. Budget 1–3 weeks; one
+   rejection round is normal.
+
+**Build/OTA state (2026-07-11):** Build #10 `7528effc` finished — the binary to
+submit. Free build allotment is used up (10/10) this month, so all remaining
+changes ship via `eas update` (OTA on runtime `1.0.0` / `production` channel = this
+build). JS/TS/UI/text/asset changes only over OTA — anything native needs a build
+that can't happen until the allotment resets.
 
 ### 🟡 Post-seed polish items — reported 2026-07-09 (in-app UX, pre-submit)
 
@@ -1152,6 +1174,30 @@ modules, app.json, permissions) still need a full `eas build`.
 ---
 
 ## 6. Work Log (newest first)
+
+### 2026-07-11 — Final pre-submit lap: event-log removed, build #10 cut, OTA-only from here
+
+- **Removed the sign-in event-log diagnostic** from Settings (the always-visible
+  "auth log" row + its unused `getAuthEventLogText` import) — a leftover debugging
+  aid from the session-loss investigation. The error-only "sign-in storage issue"
+  row is untouched. `tsc` clean. Committed `2f4703e`.
+- **Cut production build #10 (`7528effc`)** — `eas build --platform ios --profile
+  production`. Reason: the previous production binary was 2026-07-05, and ~29 JS
+  commits had landed since (all the polish + money fixes). A reviewer's FIRST
+  launch runs the embedded bundle, so we wanted the substantive fixes baked in,
+  not OTA-only. Build finished successfully; contains everything through `3d4a56c`.
+  Config was already right for this: `autoIncrement: true`, `appVersionSource:
+  remote`, production profile → `production` channel (matches OTA).
+- **Hit the free-plan build cap (10/10 this month).** Decided remaining changes
+  ship via `eas update` (OTA) — confirmed valid: build `7528effc` is runtime
+  `1.0.0` on `production`, and OTA on that channel/runtime targets exactly this
+  build. Only caveat, now a hard constraint until the allotment resets: OTA carries
+  JS/TS/UI/text/assets only, never native or `app.json`/config changes.
+- The event-log removal (`2f4703e`) is the one commit not in the build's embedded
+  bundle; it (and any final tweaks) will ride the next `eas update`. Harmless on
+  first launch (just a diagnostic row), so not a review risk.
+- User is doing a final full run-through (separate chat, Fable 5) before the last
+  `eas update` → `eas submit` → Submit for Review.
 
 ### 2026-07-10 — Fractions-of-a-cent, round 2: the real cause was Hermes ignoring the option
 
