@@ -11,6 +11,7 @@ import * as WebBrowser from 'expo-web-browser';
 import * as Linking from 'expo-linking';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
+import { setSetting } from '../../db/database';
 import { Colors, FontFamily, FontSize, Spacing, Radius, ThemeColors, sectionLabel } from '../../theme/theme';
 import { useTheme } from '../../theme/ThemeContext';
 import { capture } from '../../lib/analytics';
@@ -24,7 +25,7 @@ interface Props {
 }
 
 export default function SignUpScreen({ onGoToSignIn }: Props) {
-  const { colors: Colors } = useTheme();
+  const { colors: Colors, isDark } = useTheme();
   const styles = useMemo(() => makeStyles(Colors), [Colors]);
   const { t } = useTranslation();
   const { signUp } = useAuth();
@@ -91,6 +92,12 @@ export default function SignUpScreen({ onGoToSignIn }: Props) {
           AppleAuthentication.AppleAuthenticationScope.EMAIL,
         ],
       });
+      // Apple returns fullName ONLY on first authorization — capture it so the
+      // profile is pre-filled and we never have to ask for a name again.
+      const given  = credential.fullName?.givenName ?? '';
+      const family = credential.fullName?.familyName ?? '';
+      const full   = `${given} ${family}`.trim();
+      if (full) { try { setSetting('profile_name', full); } catch { /* non-fatal */ } }
       if (credential.identityToken) {
         const { error } = await supabase.auth.signInWithIdToken({ provider: 'apple', token: credential.identityToken });
         if (error) throw error;
@@ -157,15 +164,21 @@ export default function SignUpScreen({ onGoToSignIn }: Props) {
             </View>
           )}
 
-          {/* OAuth */}
-          <View style={styles.oauthRow}>
-            <TouchableOpacity style={[styles.oauthBtn, styles.oauthBtnApple]} onPress={handleApple} activeOpacity={0.85} disabled={!!oauthLoading}>
-              {oauthLoading === 'apple'
-                ? <ActivityIndicator color="#fff" size="small" />
-                : <><Ionicons name="logo-apple" size={20} color="#fff" /><Text style={[styles.oauthBtnText, { color: '#fff' }]}>Apple</Text></>
-              }
-            </TouchableOpacity>
-            <TouchableOpacity style={[styles.oauthBtn, styles.oauthBtnGoogle]} onPress={handleGoogle} activeOpacity={0.85} disabled={!!oauthLoading}>
+          {/* OAuth — Apple's own compliant button component (correct logo +
+              light/dark styling), stacked above Google. */}
+          <View style={styles.oauthCol}>
+            {Platform.OS === 'ios' && (
+              <AppleAuthentication.AppleAuthenticationButton
+                buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_UP}
+                buttonStyle={isDark
+                  ? AppleAuthentication.AppleAuthenticationButtonStyle.WHITE
+                  : AppleAuthentication.AppleAuthenticationButtonStyle.BLACK}
+                cornerRadius={Radius.sm}
+                style={styles.appleBtn}
+                onPress={handleApple}
+              />
+            )}
+            <TouchableOpacity style={[styles.oauthBtnFull, styles.oauthBtnGoogle]} onPress={handleGoogle} activeOpacity={0.85} disabled={!!oauthLoading}>
               {oauthLoading === 'google'
                 ? <ActivityIndicator color={Colors.textPrimary} size="small" />
                 : <><Text style={styles.googleG}>G</Text><Text style={styles.oauthBtnText}>Google</Text></>
@@ -233,7 +246,9 @@ export default function SignUpScreen({ onGoToSignIn }: Props) {
 const makeStyles = (Colors: ThemeColors) => StyleSheet.create({
   safe:   { flex: 1, backgroundColor: Colors.background },
   flex:   { flex: 1 },
-  scroll: { paddingHorizontal: Spacing.screenH, paddingTop: 24, paddingBottom: 48 },
+  // flexGrow keeps the Sign Up CTA reachable (never clipped) across aspect
+  // ratios including iPad's compatibility window.
+  scroll: { flexGrow: 1, paddingHorizontal: Spacing.screenH, paddingTop: 24, paddingBottom: 48 },
 
   header: { borderBottomWidth: 1, borderBottomColor: Colors.borderSubtle, paddingBottom: 16, marginBottom: 32 },
   headerLabel: { fontFamily: FontFamily.monoSemiBold, fontSize: 11, color: Colors.labelColor, letterSpacing: 1.8 },
@@ -249,9 +264,9 @@ const makeStyles = (Colors: ThemeColors) => StyleSheet.create({
   errorBox:  { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: Colors.dangerDim, borderWidth: 1, borderColor: Colors.danger + '40', borderRadius: Radius.md, paddingHorizontal: 14, paddingVertical: 12, marginBottom: 20 },
   errorText: { fontFamily: FontFamily.regular, fontSize: FontSize.label, color: Colors.danger, flex: 1 },
 
-  oauthRow:      { flexDirection: 'row', gap: 12, marginBottom: 24 },
-  oauthBtn:      { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: Radius.sm, paddingVertical: 14, borderWidth: 1 },
-  oauthBtnApple: { backgroundColor: '#000', borderColor: '#000' },
+  oauthCol:      { gap: 12, marginBottom: 24 },
+  appleBtn:      { width: '100%', height: 50 },
+  oauthBtnFull:  { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: Radius.sm, height: 50, borderWidth: 1 },
   oauthBtnGoogle:{ backgroundColor: Colors.surface, borderColor: Colors.border },
   oauthBtnText:  { fontFamily: FontFamily.semiBold, fontSize: FontSize.body, color: Colors.textPrimary },
   googleG:       { fontFamily: FontFamily.bold, fontSize: FontSize.body, color: Colors.textPrimary },

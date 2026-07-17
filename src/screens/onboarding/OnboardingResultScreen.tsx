@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Animated } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Animated, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
@@ -63,7 +63,8 @@ export default function OnboardingResultScreen({ onComplete, onBack }: Props) {
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
       <GridBackground />
-      <View style={styles.container}>
+      {/* Scrollable so "Start Tracking" is always reachable on any aspect ratio. */}
+      <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
 
         {/* Back button */}
         <TouchableOpacity style={styles.backBtn} onPress={onBack} activeOpacity={0.7}>
@@ -163,14 +164,14 @@ export default function OnboardingResultScreen({ onComplete, onBack }: Props) {
           <Text style={styles.buttonText}>{t('onboarding.result.startTracking')}</Text>
           <Ionicons name="arrow-forward" size={18} color={Colors.onPrimary} />
         </PressableScale>
-      </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }
 
 const makeStyles = (Colors: ThemeColors) => StyleSheet.create({
   safe:      { flex: 1, backgroundColor: Colors.background },
-  container: { flex: 1, paddingHorizontal: Spacing.screenH, paddingTop: 16, paddingBottom: 24 },
+  container: { flexGrow: 1, paddingHorizontal: Spacing.screenH, paddingTop: 16, paddingBottom: 24 },
 
   backBtn: { marginBottom: 12, alignSelf: 'flex-start', padding: 4 },
   progressRow: { flexDirection: 'row', gap: 6, marginBottom: 20 },

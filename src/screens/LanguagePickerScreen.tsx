@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import {
-  View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Modal, Pressable, Image,
+  View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Modal, Pressable, Image, ScrollView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -60,7 +60,13 @@ export default function LanguagePickerScreen({ onLanguageSelected }: Props) {
     <SafeAreaView style={styles.safe}>
       <GridBackground />
 
-      <View style={styles.container}>
+      {/* Scrollable so the CTA is always reachable — on iPad's compatibility
+          window the fixed layout previously pushed "Next" off the bottom. */}
+      <ScrollView
+        contentContainerStyle={styles.container}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
 
         {/* Freight Terminal header */}
         <View style={styles.header}>
@@ -133,7 +139,7 @@ export default function LanguagePickerScreen({ onLanguageSelected }: Props) {
         </TouchableOpacity>
 
         <Text style={styles.changeHint}>{t('welcome.changeHint')}</Text>
-      </View>
+      </ScrollView>
 
       {/* Language picker sheet */}
       <Modal
@@ -213,7 +219,10 @@ export default function LanguagePickerScreen({ onLanguageSelected }: Props) {
 
 const makeStyles = (Colors: ThemeColors) => StyleSheet.create({
   safe:      { flex: 1, backgroundColor: Colors.background },
-  container: { flex: 1, paddingHorizontal: Spacing.screenH, paddingTop: 24, paddingBottom: 24 },
+  // flexGrow (not flex) so the content fills the screen on tall devices — the
+  // flex:1 spacer still pushes the CTA to the bottom — while scrolling when the
+  // viewport is shorter than the content (e.g. iPad compatibility window).
+  container: { flexGrow: 1, paddingHorizontal: Spacing.screenH, paddingTop: 24, paddingBottom: 24 },
 
   // Freight Terminal header
   header: { borderBottomWidth: 2, borderBottomColor: Colors.borderStrong, paddingBottom: 16, marginBottom: 32 },

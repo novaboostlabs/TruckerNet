@@ -8,7 +8,7 @@ import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, FontFamily, FontSize, Spacing, Radius, SectionLabel, ThemeColors, sectionLabel } from '../../theme/theme';
 import { useTheme } from '../../theme/ThemeContext';
-import { setSetting } from '../../db/database';
+import { setSetting, getSetting } from '../../db/database';
 import { capture } from '../../lib/analytics';
 import GridBackground from '../../components/GridBackground';
 import AccentRule from '../../components/AccentRule';
@@ -41,7 +41,12 @@ export default function ProfileSetupScreen({ onContinue, onBack, replay = false 
   const styles = useMemo(() => makeStyles(Colors), [Colors]);
   const { t } = useTranslation();
 
-  const [name,      setName]      = useState('');
+  // Pre-fill from any name already captured (e.g. Sign in with Apple returns the
+  // full name on first authorization). Apple's guidelines forbid re-asking for a
+  // name it already provided, so we seed it here and never hard-require it below.
+  const [name,      setName]      = useState(() => {
+    try { return getSetting('profile_name') ?? ''; } catch { return ''; }
+  });
   const [equipment, setEquipment] = useState<EquipmentType | null>(null);
   const [truckNum,  setTruckNum]  = useState('');
   const [homeBaseInput, setHomeBaseInput] = useState('');
@@ -50,11 +55,10 @@ export default function ProfileSetupScreen({ onContinue, onBack, replay = false 
   const scrollRef = useRef<ScrollView>(null);
 
   function handleContinue() {
-    // Name is the one field that personalizes everything downstream. Rather than
-    // dead-disabling the CTA (reads as broken), keep it live and nudge focus back
-    // to the name field if it's empty.
-    if (!name.trim()) { nameRef.current?.focus(); return; }
-    setSetting('profile_name', name.trim());
+    // Name is optional — it personalizes the app but must never be required
+    // (Apple guideline 4: an app may not force users to provide a name after
+    // Sign in with Apple, which already supplies it). Save it only if given.
+    if (name.trim()) setSetting('profile_name', name.trim());
     if (equipment)   setSetting('profile_equipment_type', equipment);
     if (truckNum.trim()) setSetting('profile_truck_number', truckNum.trim());
 

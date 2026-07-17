@@ -12,6 +12,7 @@ import * as WebBrowser from 'expo-web-browser';
 import * as Linking from 'expo-linking';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
+import { setSetting } from '../../db/database';
 import { Colors, FontFamily, FontSize, Spacing, Radius, ThemeColors, sectionLabel } from '../../theme/theme';
 import { useTheme } from '../../theme/ThemeContext';
 import { capture, identify } from '../../lib/analytics';
@@ -27,7 +28,7 @@ interface Props {
 }
 
 export default function SignInScreen({ onGoToSignUp, onShowWalkthrough }: Props) {
-  const { colors: Colors } = useTheme();
+  const { colors: Colors, isDark } = useTheme();
   const styles = useMemo(() => makeStyles(Colors), [Colors]);
   const { t } = useTranslation();
   const { signIn } = useAuth();
@@ -101,6 +102,13 @@ export default function SignInScreen({ onGoToSignUp, onShowWalkthrough }: Props)
           AppleAuthentication.AppleAuthenticationScope.EMAIL,
         ],
       });
+      // Apple returns fullName ONLY on the first authorization for this Apple ID.
+      // Capture it so ProfileSetup is pre-filled and never has to ask again —
+      // Apple's design guidelines forbid re-requesting name/email after sign-in.
+      const given  = credential.fullName?.givenName ?? '';
+      const family = credential.fullName?.familyName ?? '';
+      const full   = `${given} ${family}`.trim();
+      if (full) { try { setSetting('profile_name', full); } catch { /* non-fatal */ } }
       if (credential.identityToken) {
         const { error } = await supabase.auth.signInWithIdToken({
           provider: 'apple',
@@ -151,27 +159,24 @@ export default function SignInScreen({ onGoToSignUp, onShowWalkthrough }: Props)
             </View>
           )}
 
-          {/* OAuth buttons */}
-          <View style={styles.oauthRow}>
-            {/* Apple Sign In */}
-            <TouchableOpacity
-              style={[styles.oauthBtn, styles.oauthBtnApple]}
-              onPress={handleApple}
-              activeOpacity={0.85}
-              disabled={!!oauthLoading}
-            >
-              {oauthLoading === 'apple'
-                ? <ActivityIndicator color="#fff" size="small" />
-                : <>
-                    <Ionicons name="logo-apple" size={20} color="#fff" />
-                    <Text style={[styles.oauthBtnText, { color: '#fff' }]}>Apple</Text>
-                  </>
-              }
-            </TouchableOpacity>
+          {/* OAuth buttons — Apple uses Apple's own compliant button component
+              (correct logo artwork + light/dark styling per their guidelines). */}
+          <View style={styles.oauthCol}>
+            {Platform.OS === 'ios' && (
+              <AppleAuthentication.AppleAuthenticationButton
+                buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
+                buttonStyle={isDark
+                  ? AppleAuthentication.AppleAuthenticationButtonStyle.WHITE
+                  : AppleAuthentication.AppleAuthenticationButtonStyle.BLACK}
+                cornerRadius={Radius.sm}
+                style={styles.appleBtn}
+                onPress={handleApple}
+              />
+            )}
 
             {/* Google Sign In */}
             <TouchableOpacity
-              style={[styles.oauthBtn, styles.oauthBtnGoogle]}
+              style={[styles.oauthBtnFull, styles.oauthBtnGoogle]}
               onPress={handleGoogle}
               activeOpacity={0.85}
               disabled={!!oauthLoading}
@@ -279,7 +284,10 @@ function GoogleIcon() {
 const makeStyles = (Colors: ThemeColors) => StyleSheet.create({
   safe:   { flex: 1, backgroundColor: Colors.background },
   flex:   { flex: 1 },
-  scroll: { paddingHorizontal: Spacing.screenH, paddingTop: 24, paddingBottom: 48 },
+  // flexGrow keeps the content filling the screen on tall devices while still
+  // scrolling on short/iPad-window aspect ratios, so the Sign In button below
+  // is always reachable and never clipped off the bottom edge.
+  scroll: { flexGrow: 1, paddingHorizontal: Spacing.screenH, paddingTop: 24, paddingBottom: 48 },
 
   header: { borderBottomWidth: 1, borderBottomColor: Colors.borderSubtle, paddingBottom: 16, marginBottom: 32 },
   headerLabel: { fontFamily: FontFamily.monoSemiBold, fontSize: 11, color: Colors.labelColor, letterSpacing: 1.8 },
@@ -299,13 +307,13 @@ const makeStyles = (Colors: ThemeColors) => StyleSheet.create({
   },
   errorText: { fontFamily: FontFamily.regular, fontSize: FontSize.label, color: Colors.danger, flex: 1 },
 
-  // OAuth
-  oauthRow: { flexDirection: 'row', gap: 12, marginBottom: 24 },
-  oauthBtn: {
-    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    borderRadius: Radius.sm, paddingVertical: 14, borderWidth: 1,
+  // OAuth — stacked full-width so Apple's native button gets its required width.
+  oauthCol: { gap: 12, marginBottom: 24 },
+  appleBtn: { width: '100%', height: 50 },
+  oauthBtnFull: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    borderRadius: Radius.sm, height: 50, borderWidth: 1,
   },
-  oauthBtnApple:  { backgroundColor: '#000', borderColor: '#000' },
   oauthBtnGoogle: { backgroundColor: Colors.surface, borderColor: Colors.border },
   oauthBtnText:   { fontFamily: FontFamily.semiBold, fontSize: FontSize.body, color: Colors.textPrimary },
 
