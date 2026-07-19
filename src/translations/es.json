@@ -657,7 +657,17 @@
       "quarterLabel": "APARTAR ESTE TRIMESTRE",
       "ofNet": "de {{net}} neto gravable",
       "ytdLabel": "AÑO ACTUAL",
-      "disclaimer": "Solo un estimado — no es asesoría fiscal. Verifica con un profesional."
+      "disclaimer": "Solo un estimado — no es asesoría fiscal. Verifica con un profesional.",
+      "cardEyebrow": "RESERVA DE IMPUESTOS",
+      "cardDisclaimer": "Solo estimación · no es asesoría fiscal",
+      "thisMonth": "ESTE MES",
+      "thisQuarter": "ESTE TRIMESTRE",
+      "ytd": "AÑO ACTUAL",
+      "cardOfNet": "de ${{amount}} neto",
+      "deadline_one": "Próximo pago estimado de impuestos el {{date}} · en {{count}} día",
+      "deadline_other": "Próximo pago estimado de impuestos el {{date}} · en {{count}} días",
+      "deadlineUrgent_one": "⚠ Impuestos estimados vencen el {{date}} — {{count}} día",
+      "deadlineUrgent_other": "⚠ Impuestos estimados vencen el {{date}} — {{count}} días"
     },
     "monthlyMilesHint": "Tu promedio de millas por mes — se usa para calcular el costo por milla."
   },

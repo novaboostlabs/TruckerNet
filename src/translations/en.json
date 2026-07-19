@@ -619,7 +619,17 @@
       "quarterLabel": "SET ASIDE THIS QUARTER",
       "ofNet": "of {{net}} taxable net",
       "ytdLabel": "YEAR TO DATE",
-      "disclaimer": "Estimate only — not tax advice. Verify with a tax professional."
+      "disclaimer": "Estimate only — not tax advice. Verify with a tax professional.",
+      "cardEyebrow": "TAX SET-ASIDE",
+      "cardDisclaimer": "Estimate only · not tax advice",
+      "thisMonth": "THIS MONTH",
+      "thisQuarter": "THIS QUARTER",
+      "ytd": "YTD",
+      "cardOfNet": "of ${{amount}} net",
+      "deadline_one": "Next estimated tax payment due {{date}} · {{count}} day away",
+      "deadline_other": "Next estimated tax payment due {{date}} · {{count}} days away",
+      "deadlineUrgent_one": "⚠ Estimated taxes due {{date}} — {{count}} day",
+      "deadlineUrgent_other": "⚠ Estimated taxes due {{date}} — {{count}} days"
     },
     "monthlyMilesHint": "Your average miles per month — used to calculate cost per mile."
   },

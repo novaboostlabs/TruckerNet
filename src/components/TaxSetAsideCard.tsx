@@ -1,8 +1,10 @@
 import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { FontFamily, FontSize, Radius, Spacing, ThemeColors, sectionLabel } from '../theme/theme';
 import { useTheme } from '../theme/ThemeContext';
+import { getDateLocale } from '../lib/i18n';
 import { TaxSetAside } from '../db/database';
 
 interface Props {
@@ -19,6 +21,7 @@ function fmt(n: number): string {
 export default function TaxSetAsideCard({ data, onSettings }: Props) {
   const { colors: Colors } = useTheme();
   const styles = useMemo(() => makeStyles(Colors), [Colors]);
+  const { t } = useTranslation();
 
   const pct = Math.round(data.rate * 100);
 
@@ -28,13 +31,19 @@ export default function TaxSetAsideCard({ data, onSettings }: Props) {
   ));
   const urgency = daysLeft <= 14;
 
+  // Format the deadline in the ACTIVE language (was hardcoded en-US, so it read
+  // "Jun 16" even in Spanish). Formatting here (not in the DB) avoids an import
+  // cycle between i18n and the database module.
+  const deadlineLabel = new Date(data.nextDeadlineDate + 'T12:00:00')
+    .toLocaleDateString(getDateLocale(), { month: 'short', day: 'numeric' });
+
   return (
     <View style={styles.card}>
       {/* Header */}
       <View style={styles.headerRow}>
         <View style={styles.headerLeft}>
-          <Text style={styles.eyebrow}>TAX SET-ASIDE</Text>
-          <Text style={styles.disclaimer}>Estimate only · not tax advice</Text>
+          <Text style={styles.eyebrow}>{t('expenses.tax.cardEyebrow')}</Text>
+          <Text style={styles.disclaimer}>{t('expenses.tax.cardDisclaimer')}</Text>
         </View>
         <TouchableOpacity style={styles.rateBtn} onPress={onSettings} activeOpacity={0.8}>
           <Text style={styles.rateBtnText}>{pct}%</Text>
@@ -45,21 +54,21 @@ export default function TaxSetAsideCard({ data, onSettings }: Props) {
       {/* Three set-aside figures */}
       <View style={styles.metricsRow}>
         <View style={styles.metric}>
-          <Text style={styles.metricLabel}>THIS MONTH</Text>
+          <Text style={styles.metricLabel}>{t('expenses.tax.thisMonth')}</Text>
           <Text style={[styles.metricValue, { color: Colors.secondary }]}>${fmt(data.monthSetAside)}</Text>
-          <Text style={styles.metricBase}>of ${fmt(data.monthNet)} net</Text>
+          <Text style={styles.metricBase}>{t('expenses.tax.cardOfNet', { amount: fmt(data.monthNet) })}</Text>
         </View>
         <View style={styles.divider} />
         <View style={styles.metric}>
-          <Text style={styles.metricLabel}>THIS QUARTER</Text>
+          <Text style={styles.metricLabel}>{t('expenses.tax.thisQuarter')}</Text>
           <Text style={[styles.metricValue, { color: Colors.secondary }]}>${fmt(data.quarterSetAside)}</Text>
-          <Text style={styles.metricBase}>of ${fmt(data.quarterNet)} net</Text>
+          <Text style={styles.metricBase}>{t('expenses.tax.cardOfNet', { amount: fmt(data.quarterNet) })}</Text>
         </View>
         <View style={styles.divider} />
         <View style={styles.metric}>
-          <Text style={styles.metricLabel}>YTD</Text>
+          <Text style={styles.metricLabel}>{t('expenses.tax.ytd')}</Text>
           <Text style={[styles.metricValue, { color: Colors.secondary }]}>${fmt(data.ytdSetAside)}</Text>
-          <Text style={styles.metricBase}>of ${fmt(data.ytdNet)} net</Text>
+          <Text style={styles.metricBase}>{t('expenses.tax.cardOfNet', { amount: fmt(data.ytdNet) })}</Text>
         </View>
       </View>
 
@@ -72,8 +81,8 @@ export default function TaxSetAsideCard({ data, onSettings }: Props) {
         />
         <Text style={[styles.deadlineText, urgency && styles.deadlineTextUrgent]}>
           {urgency
-            ? `⚠ Estimated taxes due ${data.nextDeadline} — ${daysLeft} days`
-            : `Next estimated tax payment due ${data.nextDeadline} · ${daysLeft} days away`}
+            ? t('expenses.tax.deadlineUrgent', { date: deadlineLabel, count: daysLeft })
+            : t('expenses.tax.deadline', { date: deadlineLabel, count: daysLeft })}
         </Text>
       </View>
     </View>

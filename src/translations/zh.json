@@ -657,7 +657,17 @@
       "quarterLabel": "本季度预留",
       "ofNet": "应税净额 {{net}} 中",
       "ytdLabel": "年初至今",
-      "disclaimer": "仅为估算 — 非税务建议。请与税务专业人士核实。"
+      "disclaimer": "仅为估算 — 非税务建议。请与税务专业人士核实。",
+      "cardEyebrow": "税款预留",
+      "cardDisclaimer": "仅为估算 · 非税务建议",
+      "thisMonth": "本月",
+      "thisQuarter": "本季度",
+      "ytd": "年初至今",
+      "cardOfNet": "净收入 ${{amount}} 中",
+      "deadline_one": "下次预估税款于 {{date}} 到期 · 还有 {{count}} 天",
+      "deadline_other": "下次预估税款于 {{date}} 到期 · 还有 {{count}} 天",
+      "deadlineUrgent_one": "⚠ 预估税款 {{date}} 到期 — {{count}} 天",
+      "deadlineUrgent_other": "⚠ 预估税款 {{date}} 到期 — {{count}} 天"
     },
     "monthlyMilesHint": "你每月的平均英里数——用于计算每英里成本。"
   },

@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 import { clearAllUserData } from '../db/database';
+import { pushAll } from '../lib/sync';
 import { identify, reset } from '../lib/analytics';
 import { recordAuthEvent } from '../lib/authDiagnostics';
 
@@ -64,6 +65,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   async function signOut() {
+    // Flush any unsynced local edits (income goal, tax rate, weekly miles,
+    // expenses…) UP to the cloud before wiping local data. Settings edits save
+    // locally and don't push on their own, so without this a change made since
+    // the last sync is lost on sign-out — the "income goal didn't persist"
+    // bug. Bounded + non-fatal: an offline/slow push must never block sign-out.
+    const uid = user?.id;
+    if (uid) {
+      try {
+        await Promise.race([
+          pushAll(uid),
+          new Promise<void>((resolve) => setTimeout(resolve, 4000)),
+        ]);
+      } catch { /* offline / push failed — proceed; local clear still happens */ }
+    }
     // Clear local data before ending the session so the next account on this
     // device starts with a clean slate — prevents cross-account data leaks.
     clearAllUserData();
