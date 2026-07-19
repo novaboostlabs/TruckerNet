@@ -70,7 +70,8 @@
     "remaining_other": "Te quedan {{count}} de {{total}} cargas este mes",
     "limitReached": "Límite mensual alcanzado — mejora para ilimitado",
     "upgrade": "Mejorar",
-    "valueMissed": "Pro habría marcado {{count}} carga{{count, plural, one{} other{s}}} por debajo del mercado — ~{{amount}} dejado sobre la mesa este mes"
+    "valueMissed_one": "Pro habría marcado {{count}} carga por debajo del mercado — ~{{amount}} dejado sobre la mesa este mes",
+    "valueMissed_other": "Pro habría marcado {{count}} cargas por debajo del mercado — ~{{amount}} dejado sobre la mesa este mes"
   },
   "profile": {
     "heading": "Casi listo",
@@ -567,7 +568,7 @@
     "exportPDF": "Exportar PDF",
     "share": "Compartir",
     "noData": "Sin datos para {{quarter}} {{year}}",
-    "noDataHint": "Registra cargas y recargas para generar tu reporte IFTA automáticamente.",
+    "noDataHint": "Registra tus primeras cargas y llenados para empezar a armar tu informe IFTA.",
     "state": "ESTADO",
     "miles": "MILLAS",
     "gallons": "GALONES",
@@ -582,9 +583,11 @@
     "exportFailedTitle": "Error al exportar",
     "exportFailedMsg": "No se pudo abrir el menú de compartir.",
     "lockedTitle": "Desbloquea el reporte IFTA completo",
-    "lockedSub": "Ve los {{count}} estados + exportación CSV, listo para tu contador",
     "lockedCta": "Hazte Pro",
-    "lockedEmptyBody": "Tus millas y galones por estado se calculan solos con las cargas y llenados que registras — listos para tu contador al fin del trimestre."
+    "lockedEmptyBody": "Tus millas y galones por estado se calculan solos con las cargas y llenados que registras — listos para tu contador al fin del trimestre.",
+    "lockedBenefit1": "Millas por estado de cada carga, automáticamente",
+    "lockedBenefit2": "Galones por estado desde tus llenados",
+    "lockedBenefit3": "CSV y PDF listos para tu contador"
   },
   "history": {
     "title": "Historial",
@@ -849,7 +852,8 @@
     "restoredBody": "Tu suscripción Driver Pro está activa.",
     "alreadyPro": "Ya tienes Driver Pro — ¡gracias!",
     "fairMarketLock": "Hazte Pro para ver lo que deberían pagarte",
-    "valueMissed": "En {{count}} carga{{count, plural, one{} other{s}}} este mes, podrías haber dejado {{amount}} sobre la mesa. Los conductores Pro ven los precios de mercado antes de aceptar."
+    "valueMissed_one": "En {{count}} carga este mes, podrías haber dejado {{amount}} sobre la mesa. Los conductores Pro ven los precios de mercado antes de aceptar.",
+    "valueMissed_other": "En {{count}} cargas este mes, podrías haber dejado {{amount}} sobre la mesa. Los conductores Pro ven los precios de mercado antes de aceptar."
   },
   "analytics": {
     "eyebrow": "ANÁLISIS",

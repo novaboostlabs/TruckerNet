@@ -66,11 +66,12 @@
   },
   "freeUsage": {
     "plan": "FREE PLAN",
-    "remaining": "{{count}} of {{total}} load left this month",
+    "remaining": "{{count}} of {{total}} loads left this month",
     "remaining_other": "{{count}} of {{total}} loads left this month",
     "limitReached": "Monthly limit reached — upgrade for unlimited",
     "upgrade": "Upgrade",
-    "valueMissed": "Pro would have flagged {{count}} lowball load{{count, plural, one{} other{s}}} — ~{{amount}} left on the table this month"
+    "valueMissed_one": "Pro would have flagged {{count}} lowball load — ~{{amount}} left on the table this month",
+    "valueMissed_other": "Pro would have flagged {{count}} lowball loads — ~{{amount}} left on the table this month"
   },
   "profile": {
     "heading": "Almost there",
@@ -568,7 +569,7 @@
     "exportPDF": "Export PDF",
     "share": "Share",
     "noData": "No data for {{quarter}} {{year}}",
-    "noDataHint": "Log loads and fuel entries to auto-build your IFTA report.",
+    "noDataHint": "Log your first few loads and fuel entries to start building your IFTA report.",
     "state": "STATE",
     "miles": "MILES",
     "gallons": "GALLONS",
@@ -582,9 +583,11 @@
     "exportFailedTitle": "Export failed",
     "exportFailedMsg": "Could not open the share sheet.",
     "lockedTitle": "Unlock full IFTA report",
-    "lockedSub": "See all {{count}} states + CSV export, ready for your accountant",
     "lockedCta": "Upgrade to Pro",
-    "lockedEmptyBody": "Your per-state miles and gallons build themselves from the loads and fill-ups you log — ready to hand your accountant at quarter's end."
+    "lockedEmptyBody": "Your per-state miles and gallons build themselves from the loads and fill-ups you log — ready to hand your accountant at quarter's end.",
+    "lockedBenefit1": "Per-state mileage from every load, automatically",
+    "lockedBenefit2": "Gallons tracked by state from your fill-ups",
+    "lockedBenefit3": "Filing-ready CSV & PDF for your accountant"
   },
   "expenses": {
     "title": "Expenses",
@@ -849,7 +852,8 @@
     "restoredBody": "Your Driver Pro subscription is active.",
     "alreadyPro": "You're on Driver Pro — thank you!",
     "fairMarketLock": "Upgrade to Pro to see what you should be getting paid",
-    "valueMissed": "On {{count}} load{{count, plural, one{} other{s}}} this month, you may have left {{amount}} on the table. Pro drivers see fair market rates before accepting."
+    "valueMissed_one": "On {{count}} load this month, you may have left {{amount}} on the table. Pro drivers see fair market rates before accepting.",
+    "valueMissed_other": "On {{count}} loads this month, you may have left {{amount}} on the table. Pro drivers see fair market rates before accepting."
   },
   "analytics": {
     "eyebrow": "ANALYTICS",

@@ -17,10 +17,6 @@ import { capture } from '../lib/analytics';
 import GridBackground from '../components/GridBackground';
 import AccentRule from '../components/AccentRule';
 
-// Free users see the first couple of states as a real-data teaser; the rest of
-// the per-state breakdown (what they actually file) is blurred behind the gate.
-const FREE_VISIBLE_ROWS = 2;
-
 type Quarter = 1 | 2 | 3 | 4;
 const QUARTER_LABELS = ['Q1', 'Q2', 'Q3', 'Q4'] as const;
 
@@ -189,18 +185,13 @@ export default function IFTAScreen() {
 
   const hasData      = rows.length > 0;
 
-  // Free + no data: a clean locked upsell (no fake sample numbers — those read
-  // as wrong data). Free + data: their REAL first rows tease, rest blurred.
-  const lockedEmpty  = !isPro && !hasData;
+  // IFTA is a Pro feature. Free users ALWAYS see a clean benefits/upsell card —
+  // never any per-state rows or summary numbers (real OR sample). Showing fake
+  // sample figures read as wrong data; showing a partial real teaser is clutter.
+  const showLocked   = !isPro;
 
   const totalMiles   = rows.reduce((s, r) => s + r.miles,   0);
   const totalGallons = rows.reduce((s, r) => s + r.gallons, 0);
-
-  // Free tier: the breakdown is a teaser. First rows show; the rest + totals +
-  // export sit behind the upgrade gate.
-  const gated        = !isPro && rows.length > 0;
-  const visibleRows  = gated ? rows.slice(0, FREE_VISIBLE_ROWS) : rows;
-  const hiddenRows   = gated ? rows.slice(FREE_VISIBLE_ROWS)    : [];
 
   async function exportCSV() {
     const csv = generateCSV(rows, year, quarter);
@@ -231,8 +222,9 @@ export default function IFTAScreen() {
   }
 
   function handleExport() {
-    capture('ifta_export_tapped', { quarter, year, is_pro: !gated });
-    if (gated) { presentPaywall('export'); return; }
+    capture('ifta_export_tapped', { quarter, year, is_pro: isPro });
+    // Export is only rendered for Pro, but guard anyway (paywall on free tap).
+    if (!isPro) { presentPaywall('export'); return; }
     if (!hasData) {
       Alert.alert(t('ifta.exportNoDataTitle'), t('ifta.exportNoDataMsg', { quarter: `Q${quarter}`, year }));
       return;
@@ -275,13 +267,17 @@ export default function IFTAScreen() {
             <Text style={styles.title}>{t('ifta.title')}</Text>
             <AccentRule style={{ marginTop: 8 }} />
           </View>
-          <TouchableOpacity style={styles.exportBtn} onPress={handleExport} activeOpacity={0.8}>
-            <Ionicons name="share-outline" size={15} color={Colors.textSecondary} />
-            <Text style={styles.exportText}>{t('ifta.export')}</Text>
-          </TouchableOpacity>
+          {/* Export is Pro-only; free users see just the unlock card below. */}
+          {!showLocked && (
+            <TouchableOpacity style={styles.exportBtn} onPress={handleExport} activeOpacity={0.8}>
+              <Ionicons name="share-outline" size={15} color={Colors.textSecondary} />
+              <Text style={styles.exportText}>{t('ifta.export')}</Text>
+            </TouchableOpacity>
+          )}
         </View>
 
-        {/* Year + Quarter selector */}
+        {/* Year + Quarter selector — hidden for free users (nothing to browse) */}
+        {!showLocked && (
         <View style={styles.selectorBlock}>
           <View style={styles.yearRow}>
             <TouchableOpacity
@@ -319,10 +315,11 @@ export default function IFTAScreen() {
             ))}
           </View>
         </View>
+        )}
 
-        {lockedEmpty ? (
-          /* Free user, nothing logged this quarter: a clean locked upsell —
-             no fake sample numbers (they read as wrong data). */
+        {showLocked ? (
+          /* Free user: a clean benefits/upsell card — no per-state rows, no
+             summary numbers, no fake data. Just what Pro unlocks + Upgrade. */
           <TouchableOpacity
             style={styles.lockedEmptyCard}
             activeOpacity={0.85}
@@ -333,11 +330,21 @@ export default function IFTAScreen() {
             </View>
             <Text style={styles.gateTitle}>{t('ifta.lockedTitle')}</Text>
             <Text style={styles.gateSub}>{t('ifta.lockedEmptyBody')}</Text>
+
+            <View style={styles.benefitList}>
+              {[t('ifta.lockedBenefit1'), t('ifta.lockedBenefit2'), t('ifta.lockedBenefit3')].map((b, i) => (
+                <View key={i} style={styles.benefitRow}>
+                  <Ionicons name="checkmark-circle" size={16} color={Colors.primary} />
+                  <Text style={styles.benefitText}>{b}</Text>
+                </View>
+              ))}
+            </View>
+
             <View style={styles.gateCta}>
               <Text style={styles.gateCtaText}>{t('ifta.lockedCta')}</Text>
             </View>
           </TouchableOpacity>
-        ) : (isPro && !hasData) ? (
+        ) : !hasData ? (
           <View style={styles.emptyCard}>
             <View style={styles.emptyIcon}>
               <Ionicons name="document-text-outline" size={26} color={Colors.textSecondary} />
@@ -369,7 +376,7 @@ export default function IFTAScreen() {
                 <Text style={[styles.tableHeader, { flex: 2, textAlign: 'right' }]}>{t('ifta.gallons')}</Text>
               </View>
 
-              {visibleRows.map((row, i) => (
+              {rows.map((row, i) => (
                 <React.Fragment key={row.state}>
                   <View style={styles.tableRow}>
                     <Text style={[styles.stateCode, { flex: 1 }]}>{row.state}</Text>
@@ -380,76 +387,29 @@ export default function IFTAScreen() {
                       {row.gallons.toFixed(1)}
                     </Text>
                   </View>
-                  {i < visibleRows.length - 1 && <View style={styles.rowDivider} />}
+                  {i < rows.length - 1 && <View style={styles.rowDivider} />}
                 </React.Fragment>
               ))}
 
-              {gated ? (
-                /* Blurred teaser: remaining states + the filing totals sit
-                   behind an upgrade overlay so free users feel the value. */
-                <View>
-                  <View style={styles.rowDivider} />
-                  <View style={styles.gatedContent} pointerEvents="none">
-                    {hiddenRows.map((row, i) => (
-                      <React.Fragment key={row.state}>
-                        <View style={styles.tableRow}>
-                          <Text style={[styles.stateCode, { flex: 1 }]}>{row.state}</Text>
-                          <Text style={[styles.tableCellText, { flex: 2, textAlign: 'right' }]}>
-                            {Math.round(row.miles).toLocaleString()}
-                          </Text>
-                          <Text style={[styles.tableCellText, { flex: 2, textAlign: 'right' }]}>
-                            {row.gallons.toFixed(1)}
-                          </Text>
-                        </View>
-                        {i < hiddenRows.length - 1 && <View style={styles.rowDivider} />}
-                      </React.Fragment>
-                    ))}
-                    <View style={styles.totalsRow}>
-                      <Text style={[styles.totalsLabel, { flex: 1 }]}>{t('ifta.total')}</Text>
-                      <Text style={[styles.totalsValue, { flex: 2, textAlign: 'right' }]}>
-                        {Math.round(totalMiles).toLocaleString()}
-                      </Text>
-                      <Text style={[styles.totalsValue, { flex: 2, textAlign: 'right' }]}>
-                        {totalGallons.toFixed(1)}
-                      </Text>
-                    </View>
-                  </View>
-
-                  <TouchableOpacity
-                    style={styles.gateOverlay}
-                    activeOpacity={0.85}
-                    onPress={() => presentPaywall('ifta')}
-                  >
-                    <View style={styles.gateLockCircle}>
-                      <Ionicons name="lock-closed" size={18} color={Colors.secondary} />
-                    </View>
-                    <Text style={styles.gateTitle}>{t('ifta.lockedTitle')}</Text>
-                    <Text style={styles.gateSub}>
-                      {t('ifta.lockedSub', { count: rows.length })}
-                    </Text>
-                    <View style={styles.gateCta}>
-                      <Text style={styles.gateCtaText}>{t('ifta.lockedCta')}</Text>
-                    </View>
-                  </TouchableOpacity>
-                </View>
-              ) : (
-                <View style={styles.totalsRow}>
-                  <Text style={[styles.totalsLabel, { flex: 1 }]}>{t('ifta.total')}</Text>
-                  <Text style={[styles.totalsValue, { flex: 2, textAlign: 'right' }]}>
-                    {Math.round(totalMiles).toLocaleString()}
-                  </Text>
-                  <Text style={[styles.totalsValue, { flex: 2, textAlign: 'right' }]}>
-                    {totalGallons.toFixed(1)}
-                  </Text>
-                </View>
-              )}
+              <View style={styles.totalsRow}>
+                <Text style={[styles.totalsLabel, { flex: 1 }]}>{t('ifta.total')}</Text>
+                <Text style={[styles.totalsValue, { flex: 2, textAlign: 'right' }]}>
+                  {Math.round(totalMiles).toLocaleString()}
+                </Text>
+                <Text style={[styles.totalsValue, { flex: 2, textAlign: 'right' }]}>
+                  {totalGallons.toFixed(1)}
+                </Text>
+              </View>
             </View>
           </>
         )}
 
-        <Text style={styles.disclaimer}>
-          {t('ifta.disclaimer')}
-        </Text>
+        {/* Disclaimer only where there are actual figures (Pro). */}
+        {!showLocked && (
+          <Text style={styles.disclaimer}>
+            {t('ifta.disclaimer')}
+          </Text>
+        )}
 
       </ScrollView>
     </SafeAreaView>
@@ -520,9 +480,12 @@ const makeStyles = (Colors: ThemeColors) => StyleSheet.create({
   emptyCard: { backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border, borderRadius: Radius.md, paddingVertical: 44, paddingHorizontal: Spacing.cardPad, alignItems: 'center', marginBottom: 20 },
   lockedEmptyCard: {
     backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border,
-    borderRadius: Radius.md, paddingVertical: 40, paddingHorizontal: Spacing.cardPad,
+    borderRadius: Radius.md, paddingVertical: 36, paddingHorizontal: Spacing.cardPad,
     alignItems: 'center', marginBottom: 20,
   },
+  benefitList: { alignSelf: 'stretch', gap: 12, marginTop: 22, marginBottom: 4 },
+  benefitRow:  { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  benefitText: { flex: 1, fontFamily: FontFamily.regular, fontSize: FontSize.label, color: Colors.textSecondary, lineHeight: 19 },
   emptyIcon: { width: 52, height: 52, borderRadius: Radius.pill, backgroundColor: Colors.surfaceHigh, borderWidth: 1, borderColor: Colors.border, alignItems: 'center', justifyContent: 'center', marginBottom: 16 },
   emptyTitle: { fontFamily: FontFamily.monoSemiBold, fontSize: FontSize.body, color: Colors.textPrimary, marginBottom: 6 },
   emptySub:   { fontFamily: FontFamily.regular, fontSize: FontSize.label, color: Colors.textSecondary, textAlign: 'center', lineHeight: 20, maxWidth: 260 },

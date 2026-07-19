@@ -70,7 +70,8 @@
     "remaining_other": "本月还剩 {{count}}/{{total}} 单",
     "limitReached": "已达本月上限 — 升级享无限",
     "upgrade": "升级",
-    "valueMissed": "Pro 可能会标记 {{count}} 笔低价货运 — 本月约 {{amount}} 待留"
+    "valueMissed_one": "Pro 可能会标记 {{count}} 笔低价货运 — 本月约 {{amount}} 待留",
+    "valueMissed_other": "Pro 可能会标记 {{count}} 笔低价货运 — 本月约 {{amount}} 待留"
   },
   "profile": {
     "heading": "就快完成了",
@@ -605,7 +606,7 @@
     "exportPDF": "导出PDF",
     "share": "分享",
     "noData": "{{year}}年{{quarter}}暂无数据",
-    "noDataHint": "记录订单和加油信息，系统将自动生成您的IFTA报告。",
+    "noDataHint": "记录你的前几笔货载和加油，即可开始生成 IFTA 报告。",
     "disclaimer": "数据为基于记录的估算。提交IFTA申报前请核实所有数据。",
     "export": "导出",
     "state": "州",
@@ -620,9 +621,11 @@
     "exportFailedTitle": "导出失败",
     "exportFailedMsg": "无法打开分享菜单。",
     "lockedTitle": "解锁完整 IFTA 报告",
-    "lockedSub": "查看全部 {{count}} 个州 + CSV 导出，随时交给会计",
     "lockedCta": "升级到 Pro",
-    "lockedEmptyBody": "每州的英里数和加仑数会根据您记录的货载和加油自动生成 — 季度末直接交给您的会计。"
+    "lockedEmptyBody": "每州的英里数和加仑数会根据您记录的货载和加油自动生成 — 季度末直接交给您的会计。",
+    "lockedBenefit1": "每趟货载自动统计各州里程",
+    "lockedBenefit2": "根据加油记录统计各州加仑数",
+    "lockedBenefit3": "为会计准备好的 CSV 和 PDF"
   },
   "expenses": {
     "title": "费用",
@@ -849,7 +852,8 @@
     "restoredBody": "你的 Driver Pro 订阅已激活。",
     "alreadyPro": "你已是 Driver Pro——谢谢！",
     "fairMarketLock": "升级到 Pro，看看你应该拿多少钱",
-    "valueMissed": "本月 {{count}} 笔货运中，你可能多留了 {{amount}} 在谈判桌上。Pro 用户在接单前就能看到市场行情。"
+    "valueMissed_one": "本月 {{count}} 笔货运中，你可能多留了 {{amount}} 在谈判桌上。Pro 用户在接单前就能看到市场行情。",
+    "valueMissed_other": "本月 {{count}} 笔货运中，你可能多留了 {{amount}} 在谈判桌上。Pro 用户在接单前就能看到市场行情。"
   },
   "analytics": {
     "eyebrow": "数据分析",
