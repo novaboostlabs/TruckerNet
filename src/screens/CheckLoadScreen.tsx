@@ -17,7 +17,7 @@ import FairMarketLock from '../components/FairMarketLock';
 import GridBackground from '../components/GridBackground';
 import AccentRule from '../components/AccentRule';
 import { useSubscription } from '../contexts/SubscriptionContext';
-import { usePaywall } from '../contexts/PaywallContext';
+import { usePaywall, PaywallHost } from '../contexts/PaywallContext';
 import { getRouteMiles, AddressSuggestion, suggestionState } from '../lib/mapbox';
 import { AddLoadPrefill } from './AddLoadScreen';
 import { getCommunityRate, CommunityRate, CommunityTier } from '../lib/rateReports';
@@ -259,7 +259,9 @@ export default function CheckLoadScreen({ onClose, onLogLoad }: Props) {
           </TouchableOpacity>
         </View>
 
-        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" showsVerticalScrollIndicator={false}>
+        {/* No keyboardDismissMode="on-drag": dismissing on scroll blurred the
+            address field and closed the suggestion dropdown mid-look. */}
+        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
 
           {/* Load pay */}
           <Text style={styles.fieldLabel}>{t('checkLoad.loadPay')}</Text>
@@ -361,8 +363,9 @@ export default function CheckLoadScreen({ onClose, onLogLoad }: Props) {
             <Switch
               value={backhaul}
               onValueChange={setBackhaul}
-              trackColor={{ false: Colors.surfaceHigh, true: Colors.primaryMid }}
-              thumbColor={backhaul ? Colors.primary : Colors.textTertiary}
+              trackColor={{ false: Colors.border, true: Colors.primaryMid }}
+              thumbColor={backhaul ? Colors.primary : '#FFFFFF'}
+              ios_backgroundColor={Colors.border}
             />
           </View>
 
@@ -563,6 +566,10 @@ export default function CheckLoadScreen({ onClose, onLogLoad }: Props) {
           </Pressable>
         </Pressable>
       </Modal>
+
+      {/* This screen lives inside a pageSheet Modal — host the paywall here so
+          iOS can present it (a root-level modal can't stack on this sheet). */}
+      <PaywallHost />
     </SafeAreaView>
   );
 }

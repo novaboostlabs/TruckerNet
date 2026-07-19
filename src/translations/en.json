@@ -154,7 +154,7 @@
       "title": "What's your weekly fuel spend?",
       "subtitle": "Your best guess is fine — you can update this anytime.",
       "label": "WEEKLY FUEL COST",
-      "placeholder": "e.g. 600",
+      "placeholder": "600",
       "hint": "Think about your last few fill-ups",
       "perWeek": "/ week",
       "estMonthly": "ESTIMATED MONTHLY FUEL",
@@ -223,7 +223,7 @@
       "title": "How many miles per week?",
       "subtitle": "We'll calculate your monthly miles from this.",
       "label": "WEEKLY MILES",
-      "placeholder": "e.g. 2500",
+      "placeholder": "2,500",
       "hint": "Average over a typical week",
       "perWeek": "mi / week",
       "estMonthly": "ESTIMATED MONTHLY MILES",
@@ -583,8 +583,8 @@
     "exportFailedMsg": "Could not open the share sheet.",
     "lockedTitle": "Unlock full IFTA report",
     "lockedSub": "See all {{count}} states + CSV export, ready for your accountant",
-    "lockedSubSample": "Automatic per-state miles + CSV export, ready for your accountant",
-    "lockedCta": "Upgrade to Pro"
+    "lockedCta": "Upgrade to Pro",
+    "lockedEmptyBody": "Your per-state miles and gallons build themselves from the loads and fill-ups you log — ready to hand your accountant at quarter's end."
   },
   "expenses": {
     "title": "Expenses",
@@ -755,7 +755,8 @@
   },
   "shareCard": {
     "share": "Share",
-    "tagline": "Know your real number."
+    "tagline": "Know your real number.",
+    "hidePay": "Hide pay amounts"
   },
   "loadDetail": {
     "eyebrow": "LOAD DETAILS",

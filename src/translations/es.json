@@ -154,7 +154,7 @@
       "title": "¿Cuánto gastas en gasolina por semana?",
       "subtitle": "Una estimación está bien — puedes actualizarlo en cualquier momento.",
       "label": "GASTO SEMANAL EN GASOLINA",
-      "placeholder": "ej. 600",
+      "placeholder": "600",
       "hint": "Piensa en tus últimas recargas",
       "perWeek": "/ semana",
       "estMonthly": "COMBUSTIBLE MENSUAL ESTIMADO",
@@ -223,7 +223,7 @@
       "title": "¿Cuántas millas por semana?",
       "subtitle": "Calcularemos tus millas mensuales a partir de esto.",
       "label": "MILLAS SEMANALES",
-      "placeholder": "ej. 2500",
+      "placeholder": "2,500",
       "hint": "Promedio de una semana típica",
       "perWeek": "mi / semana",
       "estMonthly": "MILLAS MENSUALES ESTIMADAS",
@@ -583,8 +583,8 @@
     "exportFailedMsg": "No se pudo abrir el menú de compartir.",
     "lockedTitle": "Desbloquea el reporte IFTA completo",
     "lockedSub": "Ve los {{count}} estados + exportación CSV, listo para tu contador",
-    "lockedSubSample": "Millas por estado automáticas + exportación CSV, listo para tu contador",
-    "lockedCta": "Hazte Pro"
+    "lockedCta": "Hazte Pro",
+    "lockedEmptyBody": "Tus millas y galones por estado se calculan solos con las cargas y llenados que registras — listos para tu contador al fin del trimestre."
   },
   "history": {
     "title": "Historial",
@@ -755,7 +755,8 @@
   },
   "shareCard": {
     "share": "Compartir",
-    "tagline": "Conoce tu número real."
+    "tagline": "Conoce tu número real.",
+    "hidePay": "Ocultar los montos"
   },
   "loadDetail": {
     "eyebrow": "DETALLES DE LA CARGA",

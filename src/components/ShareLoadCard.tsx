@@ -1,5 +1,5 @@
 import React, { useMemo, useRef, useState } from 'react';
-import { View, Text, StyleSheet, Modal, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, Modal, TouchableOpacity, ActivityIndicator, Switch } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Svg, { Defs, Pattern, Rect, Line } from 'react-native-svg';
 import { captureRef } from 'react-native-view-shot';
@@ -60,6 +60,12 @@ export default function ShareLoadCard({ visible, onClose, data }: Props) {
   const { t } = useTranslation();
   const cardRef = useRef<View>(null);
   const [sharing, setSharing] = useState(false);
+  // Privacy mode: mask the dollar amounts (route/verdict/branding stay) so a
+  // driver can share the load without broadcasting their rates. Fixed-width
+  // masks so the real magnitude can't be inferred from the digits.
+  const [hidePay, setHidePay] = useState(false);
+  const MASK_MONEY = '$•,•••';
+  const MASK_RPM   = '$•.••';
 
   const verdictColor =
     data.verdict === 'green' ? CARD.teal :
@@ -76,7 +82,7 @@ export default function ShareLoadCard({ visible, onClose, data }: Props) {
       const uri = await captureRef(cardRef, { format: 'png', quality: 1, result: 'tmpfile' });
       if (await Sharing.isAvailableAsync()) {
         await Sharing.shareAsync(uri, { mimeType: 'image/png' });
-        track('load_card_shared', { verdict: data.verdict, net_pay: data.netPay });
+        track('load_card_shared', { verdict: data.verdict, net_pay: data.netPay, hide_pay: hidePay });
       }
     } catch { /* user dismissed the sheet or capture failed — nothing to do */ }
     finally { setSharing(false); }
@@ -120,17 +126,17 @@ export default function ShareLoadCard({ visible, onClose, data }: Props) {
             {/* Net pay hero */}
             <Text style={cardStyles.netLabel}>{t('dashboard.netPay').toUpperCase()}</Text>
             <Text style={[cardStyles.netValue, { color: verdictColor }]}>
-              {money(data.netPay)}
+              {hidePay ? MASK_MONEY : money(data.netPay)}
             </Text>
             <Text style={cardStyles.grossLine}>
-              {t('dashboard.ofGross', { amount: money(data.grossPay) })}
+              {t('dashboard.ofGross', { amount: hidePay ? MASK_MONEY : money(data.grossPay) })}
             </Text>
 
             {/* Stats row */}
             <View style={cardStyles.statsRow}>
               <View>
                 <Text style={cardStyles.statLabel}>$/MI</Text>
-                <Text style={cardStyles.statValue}>${data.netRPM.toFixed(2)}</Text>
+                <Text style={cardStyles.statValue}>{hidePay ? MASK_RPM : `$${data.netRPM.toFixed(2)}`}</Text>
               </View>
               {verdictLabel && (
                 <View style={[cardStyles.verdictPill, { backgroundColor: verdictColor + '20', borderColor: verdictColor + '60' }]}>
@@ -149,6 +155,18 @@ export default function ShareLoadCard({ visible, onClose, data }: Props) {
 
         {/* ── Actions ── */}
         <View style={styles.actions}>
+          {/* Privacy toggle — mask the dollar amounts before sharing */}
+          <View style={styles.privacyRow}>
+            <Ionicons name="eye-off-outline" size={16} color="#CCCCCC" />
+            <Text style={styles.privacyLabel}>{t('shareCard.hidePay')}</Text>
+            <Switch
+              value={hidePay}
+              onValueChange={setHidePay}
+              trackColor={{ false: '#3A3A3A', true: CARD.teal + '66' }}
+              thumbColor={hidePay ? CARD.teal : '#FFFFFF'}
+              ios_backgroundColor="#3A3A3A"
+            />
+          </View>
           <TouchableOpacity style={styles.shareBtn} onPress={handleShare} activeOpacity={0.85} disabled={sharing}>
             {sharing
               ? <ActivityIndicator size="small" color={Colors.onPrimary} />
@@ -204,6 +222,11 @@ const makeStyles = (Colors: ThemeColors) => StyleSheet.create({
     alignItems: 'center', justifyContent: 'center', padding: 24,
   },
   actions: { width: CARD_W, marginTop: 18 },
+  privacyRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    paddingHorizontal: 4, marginBottom: 12,
+  },
+  privacyLabel: { flex: 1, fontFamily: FontFamily.medium, fontSize: FontSize.label, color: '#CCCCCC' },
   shareBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
     backgroundColor: Colors.primary, borderRadius: Radius.md, paddingVertical: 15,

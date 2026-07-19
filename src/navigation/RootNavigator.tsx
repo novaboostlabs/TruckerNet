@@ -75,6 +75,10 @@ export default function RootNavigator() {
   // SAME onboarding screens, but post-auth: finishing routes to the app (with
   // a push), never to the signup screen.
   const [postAuthOnboarding, setPostAuthOnboarding] = useState(false);
+  // First-run flow finishes onboarding BEFORE auth; profile setup now comes
+  // AFTER account creation (so Apple/Google can supply the name and we never
+  // ask for it). This flags "detour to profile_setup right after auth."
+  const profileAfterAuth          = useRef(false);
   const initialized               = useRef(false);
 
   // ── Route a signed-in user: account state decides, not a device flag ──
@@ -90,7 +94,15 @@ export default function RootNavigator() {
     if (hasCoreSetup()) {
       setSetting(onboardingKey(userId), 'true');
       syncAll(userId); // fire-and-forget reconcile
-      setStep('app');
+      if (profileAfterAuth.current) {
+        // Fresh signup straight out of pre-auth onboarding: collect the profile
+        // now that Apple/Google can pre-fill the name. CTA reads "Save".
+        profileAfterAuth.current = false;
+        setPostAuthOnboarding(true);
+        setStep('profile_setup');
+      } else {
+        setStep('app');
+      }
       return;
     }
 
@@ -278,7 +290,16 @@ export default function RootNavigator() {
     }
 
     if (step === 'signup') {
-      return <SignUpScreen onGoToSignIn={() => setStep('signin')} />;
+      return (
+        <SignUpScreen
+          onGoToSignIn={() => {
+            // Existing accounts sign in and keep their cloud profile — never
+            // detour them through profile setup.
+            profileAfterAuth.current = false;
+            setStep('signin');
+          }}
+        />
+      );
     }
 
     if (step === 'onboarding_fuel') {
@@ -331,7 +352,18 @@ export default function RootNavigator() {
     if (step === 'onboarding_goals') {
       return (
         <OnboardingGoalsScreen
-          onNext={() => setStep('profile_setup')}
+          onNext={() => {
+            // Signed-in flavors (replay, post-auth onboarding) go straight to
+            // profile. First-run pre-auth flow creates the ACCOUNT first, then
+            // detours to profile — so Apple/Google supply the name and the app
+            // never asks for it (App Review guideline 4).
+            if (onboardingReplay || postAuthOnboarding || session) {
+              setStep('profile_setup');
+            } else {
+              profileAfterAuth.current = true;
+              setStep('signup');
+            }
+          }}
           onBack={() => setStep('onboarding_result')}
         />
       );
@@ -340,15 +372,14 @@ export default function RootNavigator() {
     if (step === 'profile_setup') {
       return (
         <ProfileSetupScreen
-          // Both replay AND post-auth onboarding end with a signed-in user —
-          // the CTA reads "Save", never "Create My Account".
-          replay={onboardingReplay || postAuthOnboarding}
+          // Profile setup now always runs signed-in (post-auth detour, replay,
+          // or post-auth onboarding) — the CTA reads "Save".
+          replay={onboardingReplay || postAuthOnboarding || !!session}
           onBack={() => setStep('onboarding_goals')}
           onContinue={() => {
-            // Any signed-in flavor (replay review, or a new account's post-auth
-            // onboarding): return to the app — never route an authenticated
-            // user to the signup screen.
-            if (onboardingReplay || postAuthOnboarding) {
+            // Any signed-in flavor: return to the app — never route an
+            // authenticated user to the signup screen.
+            if (onboardingReplay || postAuthOnboarding || session) {
               setOnboardingReplay(false);
               setPostAuthOnboarding(false);
               if (session) {
@@ -360,6 +391,7 @@ export default function RootNavigator() {
               }
               setStep('app');
             } else {
+              // Defensive fallback — shouldn't happen in the new order.
               setStep('signup');
             }
           }}

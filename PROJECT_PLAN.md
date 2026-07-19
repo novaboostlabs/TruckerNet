@@ -1175,6 +1175,54 @@ modules, app.json, permissions) still need a full `eas build`.
 
 ## 6. Work Log (newest first)
 
+### 2026-07-19 — Rejection-response round 2: paywall-in-modal root cause + pre-build-11 polish batch
+
+**THE BIG ONE — 2.1(b) root cause found in code:** every "Upgrade to Pro" button
+inside a pageSheet modal (Settings, Check Load, Add Load — incl. the state-mileage
+gate and FreeUsageMeter) silently did nothing on iOS: the paywall `<Modal>` lived at
+the app root, and iOS cannot present a root modal while another sheet is up. IFTA's
+button worked because IFTA is a tab. This — not RevenueCat — is what the reviewer
+hit ("Upgrade to Driver Pro… did not produce intended action"). Fix: `PaywallHost`
+pattern in PaywallContext — modal screens mount a host that presents the paywall as
+a NESTED modal; root modal is the fallback for tab screens. User-reproduced on
+device pre-fix; needs device re-test post-build.
+
+**Post-save freeze fixed:** first-load celebration presented during the Add Load
+sheet's dismissal could orphan an invisible touch-eating overlay (user hit this on
+an iPhone 12 — "app frozen after saving"). Now queued via the Modal's `onDismiss`
+(iOS) instead of a 400ms guess.
+
+**Flow reorder (App Review guideline 4 follow-through):** Create Account now comes
+BEFORE profile setup. New signups detour to profile post-auth (`profileAfterAuth`
+ref → routeSignedIn), name pre-fills from Apple (stored credential) or Google
+(user_metadata) and stays optional. Existing sign-ins never see profile setup.
+
+**Autocomplete reliability (device bug):** suggestion-row taps intermittently
+"did nothing" — row now claims the touch at capture phase (`onStartShouldSet
+ResponderCapture` + `onResponderGrant`) so pick() runs at touch-down; removed
+`keyboardDismissMode="on-drag"` from CheckLoad/AddLoad/ProfileSetup (scrolling
+dismissed keyboard → blurred field → closed dropdown); ProfileSetup home-base
+dropdown now scrolls to the measured field Y (was scrollToEnd racing the keyboard
+→ page jumped to top); blur grace 150→300ms.
+
+**Cloud-backup "could not be coerced":** every SQLite param array now sanitized in
+one choke point (sqlite.native.ts wrapper: undefined→null) — kills the whole
+Hermes coercion-error class.
+
+**Visual/UX batch:** onboarding fuel/miles placeholders "600" / "2,500" (hero-size
+font truncated "e.g. …" on device); SignUp Google button now uses the shared color
+SVG logo (was plain text "G"); backhaul + deadhead switches brightened (border
+track + white thumb — surfaceHigh track read as disabled); share card gains a
+"Hide pay amounts" privacy toggle (masks net/gross/$-per-mile with fixed-width
+dots); IFTA free-empty state redesigned — fake TX/TN sample rows REMOVED, clean
+lock + "Unlock full IFTA report" + Upgrade CTA (free users WITH data keep the
+real-rows blur teaser).
+
+All verified on expo-web where possible (placeholders, flow reorder both branches,
+Google logo, IFTA locked state, profile-name-optional); tsc clean; i18n parity
+0/0/0. Device-only items for the build-11 TestFlight pass: paywall from Settings/
+CheckLoad/AddLoad, celebration timing, Apple button, suggestion taps, switches.
+
 ### 2026-07-11 — Full pre-submit QA run-through (Playwright, expo web) + 3 JS-only fixes
 
 Drove the entire app end-to-end on `expo web` at iPhone size (390×844) via

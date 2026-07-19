@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState, useMemo, useRef } from 'react';
 import {
-  View, Text, StyleSheet, TouchableOpacity, ScrollView, StatusBar, Modal, Animated, Pressable, Alert,
+  View, Text, StyleSheet, TouchableOpacity, ScrollView, StatusBar, Modal, Animated, Pressable, Alert, Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -145,6 +145,8 @@ export default function DashboardScreen() {
   const [staleAlerts,    setStaleAlerts]    = useState<StaleCategoryAlert[]>(() => getStaleCategoryAlerts());
   const [addLoadPrefill, setAddLoadPrefill] = useState<AddLoadPrefill | undefined>();
   const [firstLoadNet,  setFirstLoadNet]  = useState<number | null>(null);
+  // First-load celebration queued until the Add Load sheet fully dismisses.
+  const pendingFirstNet = useRef<number | null>(null);
 
   // Speed-dial FAB
   const [fabOpen, setFabOpen] = useState(false);
@@ -257,14 +259,36 @@ export default function DashboardScreen() {
         />
       </Modal>
 
-      <Modal visible={showAddLoad} animationType="slide" presentationStyle="pageSheet">
+      <Modal
+        visible={showAddLoad}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onDismiss={() => {
+          // iOS: fires once the sheet is FULLY dismissed — the only safe moment
+          // to present the celebration modal. Presenting mid-dismissal (the old
+          // fixed 400ms guess) could orphan an invisible overlay that swallowed
+          // every touch ("app frozen" on slower devices).
+          if (pendingFirstNet.current !== null) {
+            setFirstLoadNet(pendingFirstNet.current);
+            pendingFirstNet.current = null;
+          }
+        }}
+      >
         <AddLoadScreen
           onClose={() => setShowAddLoad(false)}
           onSaved={() => { setShowAddLoad(false); refresh(); }}
           onFirstLoad={(net) => {
-            // Let the Add Load sheet finish its dismiss animation before the
-            // celebration appears, so iOS doesn't swallow the second modal.
-            setTimeout(() => setFirstLoadNet(net), 400);
+            pendingFirstNet.current = net;
+            // Android has no onDismiss — its modals tear down synchronously, so
+            // a short delay is safe there.
+            if (Platform.OS !== 'ios') {
+              setTimeout(() => {
+                if (pendingFirstNet.current !== null) {
+                  setFirstLoadNet(pendingFirstNet.current);
+                  pendingFirstNet.current = null;
+                }
+              }, 400);
+            }
           }}
           prefill={addLoadPrefill}
         />

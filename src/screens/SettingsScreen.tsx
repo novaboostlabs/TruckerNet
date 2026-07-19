@@ -12,7 +12,7 @@ import {
 import { AppFlowContext } from '../contexts/AppFlowContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useSubscription } from '../contexts/SubscriptionContext';
-import { usePaywall } from '../contexts/PaywallContext';
+import { usePaywall, PaywallHost } from '../contexts/PaywallContext';
 import { getWeeklyMiles, getSetting, setSetting, getIncomeGoal, setIncomeGoal, getRateContributionCount, getUserExpenses } from '../db/database';
 import { getNetworkReportCount } from '../lib/rateReports';
 import { getSyncStatus, syncAll } from '../lib/sync';
@@ -935,6 +935,10 @@ export default function SettingsScreen({ onClose, onNavigateToExpenses, initialS
           <View style={{ height: 48 }} />
         </ScrollView>
       </KeyboardAvoidingView>
+
+      {/* This screen lives inside a pageSheet Modal — host the paywall here so
+          iOS can present it (a root-level modal can't stack on this sheet). */}
+      <PaywallHost />
     </SafeAreaView>
   );
 }

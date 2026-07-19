@@ -154,7 +154,7 @@
       "title": "您每周燃油费用是多少？",
       "subtitle": "大概估计即可 — 随时可以更新。",
       "label": "每周燃油费用",
-      "placeholder": "例如 600",
+      "placeholder": "600",
       "hint": "想想您最近几次加油的费用",
       "perWeek": "/ 周",
       "estMonthly": "预计每月燃油",
@@ -223,7 +223,7 @@
       "title": "您每周行驶多少英里？",
       "subtitle": "我们将据此计算您的月度里程。",
       "label": "每周英里数",
-      "placeholder": "例如 2500",
+      "placeholder": "2,500",
       "hint": "典型一周的平均里程",
       "perWeek": "英里 / 周",
       "estMonthly": "预计每月里程",
@@ -621,8 +621,8 @@
     "exportFailedMsg": "无法打开分享菜单。",
     "lockedTitle": "解锁完整 IFTA 报告",
     "lockedSub": "查看全部 {{count}} 个州 + CSV 导出，随时交给会计",
-    "lockedSubSample": "自动记录各州里程 + CSV 导出，随时交给会计",
-    "lockedCta": "升级到 Pro"
+    "lockedCta": "升级到 Pro",
+    "lockedEmptyBody": "每州的英里数和加仑数会根据您记录的货载和加油自动生成 — 季度末直接交给您的会计。"
   },
   "expenses": {
     "title": "费用",
@@ -755,7 +755,8 @@
   },
   "shareCard": {
     "share": "分享",
-    "tagline": "看清你的真实收入。"
+    "tagline": "看清你的真实收入。",
+    "hidePay": "隐藏金额"
   },
   "loadDetail": {
     "eyebrow": "订单详情",

@@ -21,17 +21,6 @@ import AccentRule from '../components/AccentRule';
 // the per-state breakdown (what they actually file) is blurred behind the gate.
 const FREE_VISIBLE_ROWS = 2;
 
-// Placeholder breakdown shown (blurred, behind the gate) to a FREE user who has
-// no IFTA data yet — so the tab always advertises itself as a premium feature,
-// the same way the dashboard Analytics section always shows its locked teaser.
-const SAMPLE_ROWS: IFTARow[] = [
-  { state: 'TX', miles: 1840, gallons: 283.1 },
-  { state: 'TN', miles: 620,  gallons: 95.4 },
-  { state: 'MO', miles: 560,  gallons: 86.2 },
-  { state: 'OK', miles: 410,  gallons: 63.1 },
-  { state: 'IL', miles: 380,  gallons: 58.5 },
-];
-
 type Quarter = 1 | 2 | 3 | 4;
 const QUARTER_LABELS = ['Q1', 'Q2', 'Q3', 'Q4'] as const;
 
@@ -200,20 +189,18 @@ export default function IFTAScreen() {
 
   const hasData      = rows.length > 0;
 
-  // Free users ALWAYS see IFTA as a locked premium feature (like the dashboard
-  // Analytics gate): tease their real states when they have data, or a sample
-  // breakdown when they don't — so the tab never looks empty/free.
-  const usingSample  = !isPro && !hasData;
-  const displayRows  = usingSample ? SAMPLE_ROWS : rows;
+  // Free + no data: a clean locked upsell (no fake sample numbers — those read
+  // as wrong data). Free + data: their REAL first rows tease, rest blurred.
+  const lockedEmpty  = !isPro && !hasData;
 
-  const totalMiles   = displayRows.reduce((s, r) => s + r.miles,   0);
-  const totalGallons = displayRows.reduce((s, r) => s + r.gallons, 0);
+  const totalMiles   = rows.reduce((s, r) => s + r.miles,   0);
+  const totalGallons = rows.reduce((s, r) => s + r.gallons, 0);
 
   // Free tier: the breakdown is a teaser. First rows show; the rest + totals +
   // export sit behind the upgrade gate.
-  const gated        = !isPro && displayRows.length > 0;
-  const visibleRows  = gated ? displayRows.slice(0, FREE_VISIBLE_ROWS) : displayRows;
-  const hiddenRows   = gated ? displayRows.slice(FREE_VISIBLE_ROWS)    : [];
+  const gated        = !isPro && rows.length > 0;
+  const visibleRows  = gated ? rows.slice(0, FREE_VISIBLE_ROWS) : rows;
+  const hiddenRows   = gated ? rows.slice(FREE_VISIBLE_ROWS)    : [];
 
   async function exportCSV() {
     const csv = generateCSV(rows, year, quarter);
@@ -333,7 +320,24 @@ export default function IFTAScreen() {
           </View>
         </View>
 
-        {(isPro && !hasData) ? (
+        {lockedEmpty ? (
+          /* Free user, nothing logged this quarter: a clean locked upsell —
+             no fake sample numbers (they read as wrong data). */
+          <TouchableOpacity
+            style={styles.lockedEmptyCard}
+            activeOpacity={0.85}
+            onPress={() => presentPaywall('ifta')}
+          >
+            <View style={styles.gateLockCircle}>
+              <Ionicons name="lock-closed" size={18} color={Colors.secondary} />
+            </View>
+            <Text style={styles.gateTitle}>{t('ifta.lockedTitle')}</Text>
+            <Text style={styles.gateSub}>{t('ifta.lockedEmptyBody')}</Text>
+            <View style={styles.gateCta}>
+              <Text style={styles.gateCtaText}>{t('ifta.lockedCta')}</Text>
+            </View>
+          </TouchableOpacity>
+        ) : (isPro && !hasData) ? (
           <View style={styles.emptyCard}>
             <View style={styles.emptyIcon}>
               <Ionicons name="document-text-outline" size={26} color={Colors.textSecondary} />
@@ -421,9 +425,7 @@ export default function IFTAScreen() {
                     </View>
                     <Text style={styles.gateTitle}>{t('ifta.lockedTitle')}</Text>
                     <Text style={styles.gateSub}>
-                      {usingSample
-                        ? t('ifta.lockedSubSample')
-                        : t('ifta.lockedSub', { count: displayRows.length })}
+                      {t('ifta.lockedSub', { count: rows.length })}
                     </Text>
                     <View style={styles.gateCta}>
                       <Text style={styles.gateCtaText}>{t('ifta.lockedCta')}</Text>
@@ -516,6 +518,11 @@ const makeStyles = (Colors: ThemeColors) => StyleSheet.create({
   gateCtaText: { fontFamily: FontFamily.monoBold, fontSize: FontSize.label, color: Colors.onPrimary },
 
   emptyCard: { backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border, borderRadius: Radius.md, paddingVertical: 44, paddingHorizontal: Spacing.cardPad, alignItems: 'center', marginBottom: 20 },
+  lockedEmptyCard: {
+    backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border,
+    borderRadius: Radius.md, paddingVertical: 40, paddingHorizontal: Spacing.cardPad,
+    alignItems: 'center', marginBottom: 20,
+  },
   emptyIcon: { width: 52, height: 52, borderRadius: Radius.pill, backgroundColor: Colors.surfaceHigh, borderWidth: 1, borderColor: Colors.border, alignItems: 'center', justifyContent: 'center', marginBottom: 16 },
   emptyTitle: { fontFamily: FontFamily.monoSemiBold, fontSize: FontSize.body, color: Colors.textPrimary, marginBottom: 6 },
   emptySub:   { fontFamily: FontFamily.regular, fontSize: FontSize.label, color: Colors.textSecondary, textAlign: 'center', lineHeight: 20, maxWidth: 260 },

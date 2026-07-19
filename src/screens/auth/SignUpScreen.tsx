@@ -17,6 +17,7 @@ import { useTheme } from '../../theme/ThemeContext';
 import { capture } from '../../lib/analytics';
 import GridBackground from '../../components/GridBackground';
 import AccentRule from '../../components/AccentRule';
+import GoogleIcon from '../../components/GoogleIcon';
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -181,7 +182,7 @@ export default function SignUpScreen({ onGoToSignIn }: Props) {
             <TouchableOpacity style={[styles.oauthBtnFull, styles.oauthBtnGoogle]} onPress={handleGoogle} activeOpacity={0.85} disabled={!!oauthLoading}>
               {oauthLoading === 'google'
                 ? <ActivityIndicator color={Colors.textPrimary} size="small" />
-                : <><Text style={styles.googleG}>G</Text><Text style={styles.oauthBtnText}>Google</Text></>
+                : <><GoogleIcon /><Text style={styles.oauthBtnText}>Google</Text></>
               }
             </TouchableOpacity>
           </View>

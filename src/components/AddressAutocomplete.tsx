@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState, useMemo } from 'react';
 import {
-  View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, Keyboard,
+  View, Text, TextInput, StyleSheet, ActivityIndicator, Keyboard,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, FontFamily, FontSize, Radius, ThemeColors, sectionLabel } from '../theme/theme';
@@ -85,7 +85,9 @@ export default function AddressAutocomplete({
   }
 
   function handleBlur() {
-    blurTimer.current = setTimeout(() => setFocused(false), 150);
+    // Generous grace so a tap on a suggestion row always wins the race against
+    // the field blurring — 150ms was too tight on slower devices.
+    blurTimer.current = setTimeout(() => setFocused(false), 300);
   }
 
   const showList = focused && suggestions.length > 0 && value.trim() !== selectedText.current;
@@ -122,13 +124,20 @@ export default function AddressAutocomplete({
       {showList && (
         <View style={styles.dropdown}>
           {suggestions.map((s) => (
-            // onPressIn fires on touch-DOWN, before keyboard-dismissal layout
-            // shifts can cancel the gesture. onPress (touch-UP) is unreliable
-            // here because the dropdown can unmount before the finger lifts.
-            <TouchableOpacity key={s.id} style={styles.option} onPressIn={() => pick(s)} activeOpacity={0.7}>
+            // Capture-phase responder: pick() runs the instant the finger
+            // touches DOWN, before the ScrollView / keyboard-tap logic can
+            // claim or cancel the gesture. TouchableOpacity onPressIn was
+            // intermittently swallowed on device (tap read as a micro-drag →
+            // dropdown closed with nothing selected).
+            <View
+              key={s.id}
+              style={styles.option}
+              onStartShouldSetResponderCapture={() => true}
+              onResponderGrant={() => pick(s)}
+            >
               <Ionicons name="location-outline" size={16} color={Colors.textSecondary} style={styles.optionIcon} />
               <Text style={styles.optionText} numberOfLines={2}>{s.label}</Text>
-            </TouchableOpacity>
+            </View>
           ))}
         </View>
       )}

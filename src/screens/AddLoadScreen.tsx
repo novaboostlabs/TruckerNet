@@ -18,7 +18,7 @@ import {
 } from '../db/database';
 import { useAuth } from '../contexts/AuthContext';
 import { useSubscription } from '../contexts/SubscriptionContext';
-import { usePaywall } from '../contexts/PaywallContext';
+import { usePaywall, PaywallHost } from '../contexts/PaywallContext';
 import { canLogLoadFree } from '../lib/gating';
 import * as haptics from '../lib/haptics';
 import FreeUsageMeter from '../components/FreeUsageMeter';
@@ -661,7 +661,9 @@ export default function AddLoadScreen({ onClose, onSaved, onFirstLoad, prefill }
           </TouchableOpacity>
         </View>
 
-        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" showsVerticalScrollIndicator={false}>
+        {/* See CheckLoadScreen: no on-drag keyboard dismiss — it closed the
+            address dropdown the moment the user scrolled to look at it. */}
+        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
 
           {/* ── Free-tier usage (renders nothing for Pro) ── */}
           <FreeUsageMeter compact />
@@ -1035,8 +1037,9 @@ export default function AddLoadScreen({ onClose, onSaved, onFirstLoad, prefill }
             <Switch
               value={backhaul}
               onValueChange={setBackhaul}
-              trackColor={{ false: Colors.surfaceHigh, true: Colors.primaryMid }}
-              thumbColor={backhaul ? Colors.primary : Colors.textTertiary}
+              trackColor={{ false: Colors.border, true: Colors.primaryMid }}
+              thumbColor={backhaul ? Colors.primary : '#FFFFFF'}
+              ios_backgroundColor={Colors.border}
             />
           </View>
 
@@ -1049,8 +1052,9 @@ export default function AddLoadScreen({ onClose, onSaved, onFirstLoad, prefill }
             <Switch
               value={deadhead}
               onValueChange={setDeadhead}
-              trackColor={{ false: Colors.surfaceHigh, true: Colors.primaryMid }}
-              thumbColor={deadhead ? Colors.primary : Colors.textTertiary}
+              trackColor={{ false: Colors.border, true: Colors.primaryMid }}
+              thumbColor={deadhead ? Colors.primary : '#FFFFFF'}
+              ios_backgroundColor={Colors.border}
             />
           </View>
 
@@ -1225,6 +1229,9 @@ export default function AddLoadScreen({ onClose, onSaved, onFirstLoad, prefill }
         </Pressable>
       </Modal>
 
+      {/* This screen lives inside a pageSheet Modal — host the paywall here so
+          iOS can present it (a root-level modal can't stack on this sheet). */}
+      <PaywallHost />
     </SafeAreaView>
   );
 }

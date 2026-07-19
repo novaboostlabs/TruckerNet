@@ -9,6 +9,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Colors, FontFamily, FontSize, Spacing, Radius, SectionLabel, ThemeColors, sectionLabel } from '../../theme/theme';
 import { useTheme } from '../../theme/ThemeContext';
 import { setSetting, getSetting } from '../../db/database';
+import { useAuth } from '../../contexts/AuthContext';
 import { capture } from '../../lib/analytics';
 import GridBackground from '../../components/GridBackground';
 import AccentRule from '../../components/AccentRule';
@@ -41,11 +42,18 @@ export default function ProfileSetupScreen({ onContinue, onBack, replay = false 
   const styles = useMemo(() => makeStyles(Colors), [Colors]);
   const { t } = useTranslation();
 
-  // Pre-fill from any name already captured (e.g. Sign in with Apple returns the
-  // full name on first authorization). Apple's guidelines forbid re-asking for a
-  // name it already provided, so we seed it here and never hard-require it below.
+  const { user } = useAuth();
+  // Pre-fill from any name the auth provider already supplied — Sign in with
+  // Apple stores it locally on first authorization, Google exposes it via the
+  // Supabase user metadata. Apple's guidelines forbid re-asking for a name it
+  // already provided, so we seed it here and never hard-require it below.
   const [name,      setName]      = useState(() => {
-    try { return getSetting('profile_name') ?? ''; } catch { return ''; }
+    try {
+      const stored = (getSetting('profile_name') ?? '').trim();
+      if (stored) return stored;
+    } catch { /* fall through to auth metadata */ }
+    const meta = (user?.user_metadata ?? {}) as { full_name?: string; name?: string };
+    return (meta.full_name ?? meta.name ?? '').trim();
   });
   const [equipment, setEquipment] = useState<EquipmentType | null>(null);
   const [truckNum,  setTruckNum]  = useState('');
@@ -53,6 +61,8 @@ export default function ProfileSetupScreen({ onContinue, onBack, replay = false 
   const [homeBaseSel,   setHomeBaseSel]   = useState<AddressSuggestion | null>(null);
   const nameRef   = useRef<TextInput>(null);
   const scrollRef = useRef<ScrollView>(null);
+  // Measured Y of the home-base field, for revealing its dropdown precisely.
+  const homeBaseY = useRef(0);
 
   function handleContinue() {
     // Name is optional — it personalizes the app but must never be required
@@ -90,7 +100,7 @@ export default function ProfileSetupScreen({ onContinue, onBack, replay = false 
           ref={scrollRef}
           style={styles.scroll}
           contentContainerStyle={styles.scrollContent}
-          keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag"
+          keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
           {/* Back */}
@@ -162,7 +172,10 @@ export default function ProfileSetupScreen({ onContinue, onBack, replay = false 
           </View>
 
           {/* Home base */}
-          <View style={styles.fieldBlock}>
+          <View
+            style={styles.fieldBlock}
+            onLayout={(e) => { homeBaseY.current = e.nativeEvent.layout.y; }}
+          >
             <Text style={styles.fieldLabel}>
               {t('profile.homeBaseLabel')}{' '}
               <Text style={styles.optional}>({t('common.optional')})</Text>
@@ -179,8 +192,12 @@ export default function ProfileSetupScreen({ onContinue, onBack, replay = false 
               icon="location-outline"
               // Home base is the last field on screen — when its dropdown opens
               // it would render below the fold, hidden under the Continue button.
-              // Scroll it into view the moment it appears.
-              onSuggestionsOpen={() => scrollRef.current?.scrollToEnd({ animated: true })}
+              // Scroll the FIELD to the top of the viewport (measured position,
+              // never scrollToEnd — that raced the keyboard animation and threw
+              // the page around).
+              onSuggestionsOpen={() =>
+                scrollRef.current?.scrollTo({ y: Math.max(homeBaseY.current - 12, 0), animated: true })
+              }
             />
           </View>
         </ScrollView>
