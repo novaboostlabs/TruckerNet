@@ -18,6 +18,12 @@ const FIELD_MAP: { key: string; col: string }[] = [
   { key: 'profile_equipment_type', col: 'equipment_type' },
   { key: 'profile_truck_number',   col: 'truck_number' },
   { key: 'profile_home_base',      col: 'home_base' },
+  // Income goal + tax rate were wiped on sign-out but never synced, so they
+  // were silently LOST on every sign-out/sign-in (user-reported). Stored as
+  // text — same shape as the local settings store.
+  { key: 'income_goal_amount',     col: 'income_goal_amount' },
+  { key: 'income_goal_period',     col: 'income_goal_period' },
+  { key: 'tax_rate',               col: 'tax_rate' },
 ];
 
 /**
@@ -52,20 +58,22 @@ export async function pullProfile(userId: string): Promise<PullResult> {
   try {
     const { data, error } = await supabase
       .from('profiles')
-      .select('name, equipment_type, truck_number, home_base')
+      .select(FIELD_MAP.map((f) => f.col).join(', '))
       .eq('id', userId)
       .single();
     if (error || !data) return { error: error?.message ?? null, found: false };
+    // The dynamic column list defeats supabase-js's select-string typing.
+    const row = data as unknown as Record<string, unknown>;
 
     // LOCAL WINS: only fill a profile field the device doesn't already have, so a
     // stale cloud row can't revert a name/equipment/etc. the driver just edited.
     for (const { key, col } of FIELD_MAP) {
-      const v = (data as any)[col];
+      const v = row[col];
       if (typeof v === 'string' && v.trim() && !(getSetting(key) ?? '').trim()) {
         setSetting(key, v.trim());
       }
     }
-    return { error: null, found: !!(data.name && String(data.name).trim()) };
+    return { error: null, found: !!(row.name && String(row.name).trim()) };
   } catch (e: any) {
     return { error: e?.message ?? 'Unknown profile pull error', found: false };
   }
