@@ -36,7 +36,7 @@ import { PaywallProvider } from './src/contexts/PaywallContext';
 import RootNavigator from './src/navigation/RootNavigator';
 import { Colors } from './src/theme/theme';
 import { ThemeProvider, useTheme } from './src/theme/ThemeContext';
-import { initI18n, getSavedLanguage, SupportedLanguage } from './src/lib/i18n';
+import i18n, { initI18n, getSavedLanguage, SupportedLanguage } from './src/lib/i18n';
 import { posthog } from './src/lib/analytics';
 import * as Sentry from '@sentry/react-native';
 
@@ -111,6 +111,25 @@ function App() {
       }
     }
     init();
+  }, []);
+
+  // Language self-heal: the FIRST keychain read on a cold boot can transiently
+  // return null (iOS AFTER_FIRST_UNLOCK timing), so the app can briefly init in
+  // the default language, then only reflect the real choice after a re-render
+  // (the reported "English, then Spanish after switching tabs" bug). Re-read a
+  // couple of times shortly after mount and correct i18n if it drifted.
+  useEffect(() => {
+    let cancelled = false;
+    async function reassert() {
+      const lang = await getSavedLanguage();
+      if (cancelled || !lang) return;
+      if (i18n.language?.split('-')[0] !== lang) {
+        await i18n.changeLanguage(lang);
+      }
+    }
+    const t1 = setTimeout(reassert, 500);
+    const t2 = setTimeout(reassert, 1800);
+    return () => { cancelled = true; clearTimeout(t1); clearTimeout(t2); };
   }, []);
 
   // Global failsafe: never let the loading gate block forever. If any init path

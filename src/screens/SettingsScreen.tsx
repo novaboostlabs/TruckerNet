@@ -18,6 +18,7 @@ import { getNetworkReportCount } from '../lib/rateReports';
 import { getSyncStatus, syncAll } from '../lib/sync';
 import { setupNotifications, cancelAllNotifications } from '../lib/notifications';
 import { capture } from '../lib/analytics';
+import { saveLanguage, SupportedLanguage } from '../lib/i18n';
 import * as haptics from '../lib/haptics';
 import GridBackground from '../components/GridBackground';
 import { useTheme, ThemeMode } from '../theme/ThemeContext';
@@ -307,7 +308,9 @@ export default function SettingsScreen({ onClose, onNavigateToExpenses, initialS
 
   function handleLanguageChange(code: string) {
     i18n.changeLanguage(code);
-    setSetting('language', code);
+    // saveLanguage writes BOTH SecureStore + SQLite, so the choice actually
+    // survives a cold restart (the old setSetting-only write did not).
+    void saveLanguage(code as SupportedLanguage);
   }
 
   // Sign out
