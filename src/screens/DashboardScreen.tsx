@@ -15,6 +15,8 @@ import {
   getWeekPendingPnL, getMonthPendingPnL, PendingPnL,
   getWeeklyNetTrend, getCostBreakdown, WeekTrendPoint, CostBreakdown,
   getSetting, deleteLoad,
+  getUnloggedMilesInsight, shouldShowUnloggedMilesNudge, dismissUnloggedMilesNudge,
+  UnloggedMilesInsight,
 } from '../db/database';
 import GoalProgressCard from '../components/GoalProgressCard';
 import AnalyticsSection from '../components/AnalyticsSection';
@@ -23,6 +25,7 @@ import FirstLoadCelebration from '../components/FirstLoadCelebration';
 import GridBackground from '../components/GridBackground';
 import AccentRule from '../components/AccentRule';
 import ExpenseReviewBanner from '../components/ExpenseReviewBanner';
+import UnloggedMilesBanner from '../components/UnloggedMilesBanner';
 import ExpenseReviewModal from '../components/ExpenseReviewModal';
 import TaxSetAsideCard from '../components/TaxSetAsideCard';
 import { useSubscription } from '../contexts/SubscriptionContext';
@@ -144,6 +147,8 @@ export default function DashboardScreen() {
   const [daysSinceReview, setDaysSinceReview] = useState(() => daysSinceExpenseReview());
   const [staleAlerts,    setStaleAlerts]    = useState<StaleCategoryAlert[]>(() => getStaleCategoryAlerts());
   const [addLoadPrefill, setAddLoadPrefill] = useState<AddLoadPrefill | undefined>();
+  // Odometer says the truck moved further than the logged loads account for.
+  const [unlogged, setUnlogged] = useState<UnloggedMilesInsight | null>(null);
   const [firstLoadNet,  setFirstLoadNet]  = useState<number | null>(null);
   // First-load celebration queued until the Add Load sheet fully dismisses.
   const pendingFirstNet = useRef<number | null>(null);
@@ -175,6 +180,9 @@ export default function DashboardScreen() {
     setExpensesStale(expensesAreStale());
     setDaysSinceReview(daysSinceExpenseReview());
     setStaleAlerts(getStaleCategoryAlerts());
+    // Recomputed on every refresh so logging a load shrinks the gap immediately.
+    const gap = getUnloggedMilesInsight();
+    setUnlogged(gap && shouldShowUnloggedMilesNudge(gap.gapMiles) ? gap : null);
   }, []);
 
   // Refresh on mount AND every time the tab regains focus (e.g. returning from
@@ -512,6 +520,16 @@ export default function DashboardScreen() {
             alerts={staleAlerts}
             daysSince={daysSinceReview}
             onPress={() => setShowReview(true)}
+          />
+        )}
+
+        {/* Sits directly under break-even because that's the number unlogged
+            miles distort — the driver sees the caveat next to the figure. */}
+        {unlogged && (
+          <UnloggedMilesBanner
+            insight={unlogged}
+            onLogLoad={() => openAddLoad()}
+            onDismiss={() => { dismissUnloggedMilesNudge(unlogged.gapMiles); setUnlogged(null); }}
           />
         )}
 

@@ -540,6 +540,93 @@ export function getMonthlyMiles(): number {
   return getMonthlyMilesDetail().monthlyMiles;
 }
 
+// ── Unlogged-miles insight ────────────────────────────────────────────────
+// Only the odometer knows how far the truck actually moved. Comparing it to the
+// miles the driver LOGGED surfaces the gap — miles earning nothing in their
+// records, silently distorting break-even, profit-per-load and IFTA.
+
+/** Gap only counts as "unlogged" past BOTH thresholds — some gap is normal
+ *  (bobtail, personal miles, unlogged deadhead), so don't nag over noise. */
+const UNLOGGED_MIN_MILES = 500;
+const UNLOGGED_MIN_PCT   = 0.20;
+
+export interface UnloggedMilesInsight {
+  odometerMiles: number;  // miles the truck actually moved (odometer span)
+  loggedMiles:   number;  // miles on completed loads in the SAME date range
+  gapMiles:      number;
+  gapPct:        number;  // 0–1
+  fromDate:      string;
+  toDate:        string;
+}
+
+/**
+ * Detect meaningful unlogged mileage, or null when there's nothing worth saying.
+ *
+ * Both sides are measured over the SAME date range (the odometer span) —
+ * comparing different windows would produce a meaningless "gap".
+ */
+export function getUnloggedMilesInsight(): UnloggedMilesInsight | null {
+  const windowStart = (() => {
+    const d = new Date();
+    d.setDate(d.getDate() - MILES_WINDOW_DAYS);
+    return localDateISO(d);
+  })();
+
+  const odo = db.getFirstSync<{ n: number; lo: number; hi: number; first_date: string; last_date: string }>(
+    `SELECT COUNT(*) as n, MIN(odometer_reading) as lo, MAX(odometer_reading) as hi,
+            MIN(date) as first_date, MAX(date) as last_date
+     FROM fuel_entries
+     WHERE odometer_reading > 0 AND date >= ?`,
+    [windowStart],
+  );
+  if (!odo || odo.n < 2 || !odo.first_date || !odo.last_date || odo.hi <= odo.lo) return null;
+
+  const spanDays      = daysBetweenISO(odo.first_date, odo.last_date);
+  const odometerMiles = odo.hi - odo.lo;
+  // Same guards as the miles engine: too short to judge, or a mistyped reading.
+  if (spanDays < MILES_MIN_SPAN_DAYS) return null;
+  if (odometerMiles / spanDays > MILES_MAX_PER_DAY) return null;
+
+  const logged = db.getFirstSync<{ miles: number }>(
+    `SELECT COALESCE(SUM(total_miles), 0) as miles
+     FROM loads
+     WHERE status = 'completed' AND date >= ? AND date <= ?`,
+    [odo.first_date, odo.last_date],
+  );
+  const loggedMiles = logged?.miles ?? 0;
+
+  const gapMiles = odometerMiles - loggedMiles;
+  const gapPct   = gapMiles / odometerMiles;
+  if (gapMiles < UNLOGGED_MIN_MILES || gapPct < UNLOGGED_MIN_PCT) return null;
+
+  return {
+    odometerMiles: Math.round(odometerMiles),
+    loggedMiles:   Math.round(loggedMiles),
+    gapMiles:      Math.round(gapMiles),
+    gapPct,
+    fromDate:      odo.first_date,
+    toDate:        odo.last_date,
+  };
+}
+
+/**
+ * Dismissal is gap-aware: hiding the nudge silences it for THAT gap size, but a
+ * materially bigger gap later earns one more mention. Prevents both nagging and
+ * permanently silencing a worsening problem.
+ */
+const UNLOGGED_DISMISS_KEY = 'unlogged_miles_dismissed_at_gap';
+const UNLOGGED_RENAG_MILES = 1000;
+
+export function dismissUnloggedMilesNudge(gapMiles: number): void {
+  setSetting(UNLOGGED_DISMISS_KEY, String(Math.round(gapMiles)));
+}
+
+export function shouldShowUnloggedMilesNudge(gapMiles: number): boolean {
+  const dismissedAt = parseFloat(getSetting(UNLOGGED_DISMISS_KEY) ?? '');
+  if (!dismissedAt || isNaN(dismissedAt)) return true;
+  return gapMiles >= dismissedAt + UNLOGGED_RENAG_MILES;
+}
+
 export function getWeeklyMiles(): number {
   const row = db.getFirstSync<{ value: string }>('SELECT value FROM settings WHERE key = "weekly_miles"');
   return parseFloat(row?.value ?? '0') || 0;

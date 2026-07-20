@@ -312,7 +312,11 @@
     "startLoad": "开始运输",
     "goalPendingLine": "+{{amount}} 在途 → 送达后 {{pct}}%",
     "weekPendingLine": "+{{amount}} 来自在途货载",
-    "milesSource_odometer": "来自里程表"
+    "milesSource_odometer": "来自里程表",
+    "unloggedTitle": "已行驶 {{miles}} 英里但未记录",
+    "unloggedSub": "里程表显示 {{odometer}} 英里 — 你已记录 {{logged}} 英里的货载。",
+    "unloggedWhy": "未记录的里程会让你的保本点、每单利润和 IFTA 报告不准确。",
+    "unloggedCta": "记录一单货载"
   },
   "checkLoad": {
     "title": "查看订单",

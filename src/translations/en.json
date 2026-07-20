@@ -312,7 +312,11 @@
     "startLoad": "Start Load",
     "goalPendingLine": "+{{amount}} rolling now → {{pct}}% once delivered",
     "weekPendingLine": "+{{amount}} on loads still rolling",
-    "milesSource_odometer": "from your odometer"
+    "milesSource_odometer": "from your odometer",
+    "unloggedTitle": "{{miles}} mi driven but not logged",
+    "unloggedSub": "Your odometer shows {{odometer}} mi — you've logged {{logged}} mi of loads.",
+    "unloggedWhy": "Unlogged miles make your break-even, profit per load and IFTA report inaccurate.",
+    "unloggedCta": "Log a load"
   },
   "checkLoad": {
     "title": "Check Load",

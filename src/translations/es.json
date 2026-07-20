@@ -312,7 +312,11 @@
     "startLoad": "Iniciar Carga",
     "goalPendingLine": "+{{amount}} en ruta → {{pct}}% al entregar",
     "weekPendingLine": "+{{amount}} en cargas aún en ruta",
-    "milesSource_odometer": "según tu odómetro"
+    "milesSource_odometer": "según tu odómetro",
+    "unloggedTitle": "{{miles}} mi recorridas sin registrar",
+    "unloggedSub": "Tu odómetro marca {{odometer}} mi — has registrado {{logged}} mi en cargas.",
+    "unloggedWhy": "Las millas sin registrar hacen que tu punto de equilibrio, ganancia por carga e informe IFTA sean inexactos.",
+    "unloggedCta": "Registrar una carga"
   },
   "checkLoad": {
     "title": "Revisar Carga",

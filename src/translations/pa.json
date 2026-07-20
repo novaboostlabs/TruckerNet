@@ -312,7 +312,11 @@
     "startLoad": "ਲੋਡ ਸ਼ੁਰੂ ਕਰੋ",
     "goalPendingLine": "+{{amount}} ਅਜੇ ਰਸਤੇ ਵਿੱਚ → ਡਿਲੀਵਰ ਹੋਣ ’ਤੇ {{pct}}%",
     "weekPendingLine": "+{{amount}} ਅਜੇ ਚੱਲ ਰਹੇ ਲੋਡਾਂ ’ਤੇ",
-    "milesSource_odometer": "ਤੁਹਾਡੇ ਓਡੋਮੀਟਰ ਤੋਂ"
+    "milesSource_odometer": "ਤੁਹਾਡੇ ਓਡੋਮੀਟਰ ਤੋਂ",
+    "unloggedTitle": "{{miles}} ਮੀਲ ਚਲਾਏ ਪਰ ਦਰਜ ਨਹੀਂ ਕੀਤੇ",
+    "unloggedSub": "ਤੁਹਾਡਾ ਓਡੋਮੀਟਰ {{odometer}} ਮੀਲ ਦਿਖਾਉਂਦਾ ਹੈ — ਤੁਸੀਂ {{logged}} ਮੀਲ ਦੇ ਲੋਡ ਦਰਜ ਕੀਤੇ ਹਨ।",
+    "unloggedWhy": "ਦਰਜ ਨਾ ਕੀਤੇ ਮੀਲ ਤੁਹਾਡੇ ਬ੍ਰੇਕ-ਈਵਨ, ਪ੍ਰਤੀ ਲੋਡ ਮੁਨਾਫ਼ੇ ਅਤੇ IFTA ਰਿਪੋਰਟ ਨੂੰ ਗਲਤ ਕਰਦੇ ਹਨ।",
+    "unloggedCta": "ਲੋਡ ਦਰਜ ਕਰੋ"
   },
   "checkLoad": {
     "title": "ਲੋਡ ਜਾਂਚੋ",

@@ -1206,9 +1206,34 @@ old → 3,214 mi/mo / BE $2.71; new loads-only → 7,988 / $1.41; new with fuel
 logged → 10,316 / $1.21. Burst case (5 loads in 6 days): old 17,143 mi/mo →
 new correctly falls back to the estimate. tsc clean; i18n parity 0/0/0.
 
-OPEN (deferred, not built): the "you drove 9,400 mi but only logged 3,200"
-nudge when odometer and loads disagree — strong data-quality/retention feature
-and it also flags incomplete IFTA. Revisit post-approval.
+### 2026-07-20 — Unlogged-miles nudge SHIPPED (was deferred)
+
+`getUnloggedMilesInsight()` compares odometer-span miles against completed-load
+miles over the SAME date range (comparing different windows would make the
+"gap" meaningless). Surfaces as `UnloggedMilesBanner` on the Dashboard directly
+under the break-even row — deliberately there, because that's the number
+unlogged miles distort, so the caveat sits beside the figure it affects. CTA
+opens Add Load; dismiss is gap-aware (`shouldShowUnloggedMilesNudge`): hiding
+it silences THAT gap size, but a gap 1,000+ mi larger later earns one more
+mention, so it can neither nag nor permanently hide a worsening problem.
+
+Thresholds: gap ≥500 mi AND ≥20% of odometer miles (some gap is normal —
+bobtail, personal, unlogged deadhead — so don't nag over noise). Reuses the
+miles engine's guards (≥21-day span, ≤1,200 mi/day typo rejection).
+
+Placement decision: Dashboard card, NOT a post-save modal. The app already has
+a first-load celebration + expense-review modal; another interrupt on save
+would be fatigue. The banner persists until acted on, which a toast wouldn't.
+
+Verified across scenarios: under-logger (6,200 mi, 66%) shows; diligent driver
+w/ deadhead (500 mi, 5%) silent; 14-day coverage silent; odometer typo silent;
+re-nag fires only past +1,000 mi. tsc clean; i18n parity 0/0/0.
+
+CLARIFIED (was a misread worth recording): the 21-day gate is NOT a minimum
+before break-even works. Break-even is live from day 0 on the driver's stated
+estimate; the gate only decides when REAL data starts earning weight (21d →
+~35%, 60d → 100%). It protects the estimate from being replaced by an
+unrepresentative sample, e.g. 5 loads in 6 days extrapolating to 17k mi/mo.
 
 ### 2026-07-20 — Fixed CPM contradicted itself: Dashboard $2.18 vs Expenses $0.646
 
