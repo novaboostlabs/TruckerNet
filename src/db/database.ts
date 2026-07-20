@@ -393,24 +393,16 @@ export function getTotalMonthlyExpenses(): number {
   return row?.total ?? 0;
 }
 
-/**
- * Monthly mileage used for the break-even calculation.
- *
- * Priority order — gets more accurate automatically as the driver logs:
- *   1. Actual miles from completed loads in the last 90 days (if ≥ 5 loads).
- *      Rolling 90-day window so a slow month doesn't tank the estimate.
- *   2. Onboarding estimate (weekly_miles × 4.333) — until there's enough real
- *      data. A partial current-month sum is intentionally NOT used (see below).
- *
- * The 90-day window is intentional: one slow month shouldn't crater the
- * break-even; the rolling average is more representative of real operating pace.
- */
 // ── Monthly-miles tuning constants ────────────────────────────────────────
+// (Full model rationale on getMonthlyMilesDetail below. The 90-day window is
+// intentional: one slow month shouldn't crater break-even.)
 const MILES_WINDOW_DAYS   = 90;   // how far back we look for real data
-const MILES_MIN_SPAN_DAYS = 21;   // real data must COVER this much time to count
-const MILES_FULL_CONF_DAYS = 60;  // coverage at/above this → full confidence
+const MILES_MIN_SPAN_DAYS = 3;    // below this a "pace" is noise, not a signal
+const MILES_FULL_CONF_DAYS = 30;  // a full month observed → full time-trust
 const MILES_LOADS_CONF_CAP = 0.8; // loads can't see unlogged miles → never 100%
 const MILES_MAX_PER_DAY    = 1200; // typo guard (no truck sustains this)
+const MILES_ODO_FULL_FILLS  = 5;  // fuel entries for full density confidence
+const MILES_LOADS_FULL_COUNT = 6; // completed loads for full density confidence
 
 export interface MonthlyMilesDetail {
   /** Final figure the break-even divides by (blended). */
@@ -436,7 +428,7 @@ const clamp01 = (n: number) => Math.max(0, Math.min(1, n));
 /**
  * Monthly miles for the break-even denominator, from the best signal available.
  *
- * Signals, best first:
+ * Signals:
  *   1. ODOMETER span across fuel entries — ground truth. This is the only source
  *      that counts miles the driver DIDN'T log (unlogged loads, deadhead,
  *      bobtail), so it can't be fooled by incomplete load logging. That matters:
@@ -446,12 +438,22 @@ const clamp01 = (n: number) => Math.max(0, Math.min(1, n));
  *      confidence is capped below the odometer's.
  *   3. STATED ESTIMATE (weekly_miles × 4.333) — always available, never learns.
  *
- * Two deliberate design choices:
- *   • Gate on TIME COVERAGE (≥21 days), not a load COUNT. Five loads says nothing
- *     about the period they cover — five in one week is not a month of data.
- *   • BLEND rather than switch: monthly = c·real + (1−c)·estimate, where c grows
- *     with coverage. A hard switch made the number jump ~3× the moment a 5th load
- *     was logged; blending eases real data in as it earns trust.
+ * Confidence model (replaced the old hard ≥21-day gate, 2026-07-20):
+ *   c = timeFactor × densityFactor  (× 0.8 cap for loads)
+ *
+ *   • timeFactor = spanDays / 30. This isn't arbitrary — blending with this
+ *     weight is algebraically identical to: "count the miles we actually
+ *     OBSERVED, and fill the unobserved remainder of the month with the
+ *     driver's stated pace." Real data counts from day one, weighted by how
+ *     much of a month it truly covers — so a 6-day burst extrapolating to
+ *     17k mi/mo only ever gets ~20% of the say. No gate, no cliff.
+ *   • densityFactor = observations / target (5 fills / 6 loads). A pace built
+ *     on 2 data points 25 days apart shouldn't count as a month of evidence;
+ *     time covered AND observations backing it must both be there.
+ *   • The two signals compete on earned confidence — whichever is higher wins
+ *     (they can't be averaged: loads are a subset of odometer miles, so
+ *     combining them would double-count). The old fixed odometer-first
+ *     priority let 2 fuel-ups outrank 8 well-spread loads.
  *
  * Rates are measured over the period the data actually spans (first→last
  * observation), i.e. the driver's pace *while working* — so a stretch of
@@ -487,13 +489,14 @@ export function getMonthlyMilesDetail(): MonthlyMilesDetail {
       best = {
         monthly: (miles / spanDays) * 30,
         source:  'odometer',
-        conf:    clamp01(spanDays / MILES_FULL_CONF_DAYS),
+        conf:    clamp01(spanDays / MILES_FULL_CONF_DAYS)
+               * clamp01((odo.n - 1) / (MILES_ODO_FULL_FILLS - 1)),
       };
     }
   }
 
-  // ── Signal 2: completed loads (only when there's no usable odometer span) ──
-  if (!best) {
+  // ── Signal 2: completed loads — competes with the odometer on confidence ──
+  {
     // Upcoming loads haven't been driven — their miles can't count as actuals.
     const rolling = db.getFirstSync<{ total_miles: number; load_count: number; first_date: string; last_date: string }>(
       `SELECT COALESCE(SUM(total_miles), 0) as total_miles, COUNT(*) as load_count,
@@ -502,14 +505,15 @@ export function getMonthlyMilesDetail(): MonthlyMilesDetail {
        WHERE status = 'completed' AND date >= ?`,
       [windowStart],
     );
-    if (rolling && rolling.load_count >= 5 && rolling.total_miles > 0 && rolling.first_date) {
+    if (rolling && rolling.load_count >= 2 && rolling.total_miles > 0 && rolling.first_date) {
       const spanDays = daysBetweenISO(rolling.first_date, rolling.last_date);
       if (spanDays >= MILES_MIN_SPAN_DAYS && rolling.total_miles / spanDays <= MILES_MAX_PER_DAY) {
-        best = {
-          monthly: (rolling.total_miles / spanDays) * 30,
-          source:  'loads_90d',
-          conf:    clamp01(spanDays / MILES_FULL_CONF_DAYS) * MILES_LOADS_CONF_CAP,
-        };
+        const conf = clamp01(spanDays / MILES_FULL_CONF_DAYS)
+                   * clamp01(rolling.load_count / MILES_LOADS_FULL_COUNT)
+                   * MILES_LOADS_CONF_CAP;
+        if (!best || conf > best.conf) {
+          best = { monthly: (rolling.total_miles / spanDays) * 30, source: 'loads_90d', conf };
+        }
       }
     }
   }
@@ -549,6 +553,10 @@ export function getMonthlyMiles(): number {
  *  (bobtail, personal miles, unlogged deadhead), so don't nag over noise. */
 const UNLOGGED_MIN_MILES = 500;
 const UNLOGGED_MIN_PCT   = 0.20;
+/** Deliberately stricter than the miles engine's span floor: telling a driver
+ *  "you're under-logging" on a few days of data would be a false-positive
+ *  machine. The nudge stays quiet until three weeks of odometer coverage. */
+const UNLOGGED_MIN_SPAN_DAYS = 21;
 
 export interface UnloggedMilesInsight {
   odometerMiles: number;  // miles the truck actually moved (odometer span)
@@ -583,8 +591,8 @@ export function getUnloggedMilesInsight(): UnloggedMilesInsight | null {
 
   const spanDays      = daysBetweenISO(odo.first_date, odo.last_date);
   const odometerMiles = odo.hi - odo.lo;
-  // Same guards as the miles engine: too short to judge, or a mistyped reading.
-  if (spanDays < MILES_MIN_SPAN_DAYS) return null;
+  // Stricter span guard than the miles engine (see UNLOGGED_MIN_SPAN_DAYS).
+  if (spanDays < UNLOGGED_MIN_SPAN_DAYS) return null;
   if (odometerMiles / spanDays > MILES_MAX_PER_DAY) return null;
 
   const logged = db.getFirstSync<{ miles: number }>(

@@ -1182,6 +1182,38 @@ modules, app.json, permissions) still need a full `eas build`.
 
 ## 6. Work Log (newest first)
 
+### 2026-07-20 (later) — 21-day gate REPLACED by continuous confidence (user: "21 days is way too long")
+
+User verdict on the entry below: the direction (time coverage over load count)
+was right, but a hard 21-day gate before real data counts AT ALL is far too
+slow — and 14 would be too. Requirement: adaptive, uses real data almost
+immediately, yet still can't be fooled by a burst week.
+
+New model — no gate, no cliff, real data counts from day one:
+`c = timeFactor × densityFactor` (× 0.8 cap for loads)
+- **timeFactor = spanDays/30.** Not arbitrary: blending at this weight is
+  algebraically identical to "count the miles we actually OBSERVED + fill the
+  unobserved rest of the month at the driver's stated pace." That one identity
+  solves both failure modes at once — real data matters immediately, and a
+  6-day burst extrapolating to 17k mi/mo only ever gets ~20% of the say.
+- **densityFactor** = observations/target (5 fuel fills / 6 loads) — 2 points
+  25 days apart can't masquerade as a month of evidence. This is the "loads
+  logged PLUS days" idea: both dimensions must be earned.
+- Full time-trust at 30 days observed (was 60). `MILES_MIN_SPAN_DAYS` 21 → 3
+  (only a noise floor now; a 3-day span self-limits to ~10% weight anyway).
+- **Signals now COMPETE on earned confidence** instead of fixed odometer-first
+  priority — 2 fuel-ups 5 days apart no longer outrank 8 well-spread loads.
+  They're never averaged (loads ⊂ odometer miles → double-count).
+- Loads signal min count 5 → 2 (density factor handles trust smoothly).
+- The unlogged-miles NUDGE keeps its own 21-day guard (new
+  `UNLOGGED_MIN_SPAN_DAYS`) — accusing a driver of under-logging on days of
+  data is a false-positive machine; different job, different bar.
+
+Simulated (scratchpad/miles-sim2.js, 17 scenarios + continuity sweep): burst
+contained at 9,797 vs 17,143 naive; 10k real pace reaches 37% weight by day 14,
+80% by day 30; typo/1-day-span guards hold; number glides (max step 142 mi,
+zero jumps). tsc clean. No UI copy referenced the old gate — no i18n changes.
+
 ### 2026-07-20 — Monthly-miles algorithm rebuilt: odometer-first + coverage gate + blend
 
 Follow-up to the Fixed CPM fix below. The denominator itself was the deeper
