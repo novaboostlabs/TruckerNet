@@ -1176,6 +1176,33 @@ modules, app.json, permissions) still need a full `eas build`.
 
 ## 6. Work Log (newest first)
 
+### 2026-07-19 — Pre-build-11 sweep: Google button label + dashboard/Expenses Fixed CPM mismatch
+
+**Google sign-in/sign-up buttons said just "Google":** unlike the Apple button
+(which uses Apple's own compliant button component and correctly renders
+"Sign in with Apple"/"Sign up with Apple"), the Google button is a custom
+`TouchableOpacity` + `GoogleIcon` that just showed the icon plus the bare word
+"Google" — looked unofficial next to the Apple button. Now reads "Sign in with
+Google" (`SignInScreen.tsx`) / "Sign up with Google" (`SignUpScreen.tsx`) via
+new i18n keys `auth.signInWithGoogle` / `auth.signUpWithGoogle`. i18n en/es/pa/zh,
+parity kept.
+
+**Fixed CPM disagreed between Dashboard and Expenses tab** (user-reported on
+`thegearspike@gmail.com`: dashboard break-even strip showed fixed CPM $2.59/mi,
+Expenses tab showed $0.646/mi — a ~4x gap). Root cause: both compute
+`fixedCPM = totalMonthlyFixedExpenses / monthlyMiles`, and the numerator agreed,
+but the **denominator diverged**. Dashboard's `calcBreakEven()` → `getMonthlyMiles()`
+(`database.ts`) prefers actual completed-load mileage (rolling 90-day window,
+5+ loads) over the onboarding `weekly_miles` estimate. `ExpensesScreen` never
+called that function — it always seeded its miles field from the raw onboarding
+`weekly_miles × 4.333`, ignoring real load data entirely. Once actual mileage
+diverged from the original onboarding guess, the two screens permanently
+disagreed. Fix: `ExpensesScreen` now seeds `monthlyMilesInput` from the same
+`getMonthlyMiles()` the dashboard uses, so both agree unless the user manually
+overrides the field. `tsc` clean. Both fixes shipped as one commit (`639e294`),
+still OTA-eligible (JS/TS-only) — will ride the next `eas update` alongside
+whatever else comes out of this sweep, ahead of cutting build #11.
+
 ### 2026-07-19 — Income goal lost on sign-out (never pushed) + Tax Set-Aside card in English
 
 Income goal (+ tax rate, weekly miles) were saved locally in Settings but never
