@@ -147,7 +147,9 @@
     "or": "o",
     "guestMode": "Explora la app sin una cuenta →",
     "googleFailed": "Error al iniciar sesión con Google. Inténtalo de nuevo.",
-    "appleFailed": "Error al iniciar sesión con Apple. Inténtalo de nuevo."
+    "appleFailed": "Error al iniciar sesión con Apple. Inténtalo de nuevo.",
+    "signInWithGoogle": "Iniciar sesión con Google",
+    "signUpWithGoogle": "Crear cuenta con Google"
   },
   "onboarding": {
     "step": "Paso {{current}} de {{total}}",

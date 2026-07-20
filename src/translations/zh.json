@@ -147,7 +147,9 @@
     "or": "或",
     "guestMode": "无需账户即可体验应用 →",
     "googleFailed": "Google 登录失败。请重试。",
-    "appleFailed": "Apple 登录失败。请重试。"
+    "appleFailed": "Apple 登录失败。请重试。",
+    "signInWithGoogle": "使用 Google 登录",
+    "signUpWithGoogle": "使用 Google 注册"
   },
   "onboarding": {
     "step": "第 {{current}} 步，共 {{total}} 步",

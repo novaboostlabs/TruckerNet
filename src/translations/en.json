@@ -147,7 +147,9 @@
     "or": "or",
     "guestMode": "Explore the app without an account →",
     "googleFailed": "Google sign-in failed. Please try again.",
-    "appleFailed": "Apple sign-in failed. Please try again."
+    "appleFailed": "Apple sign-in failed. Please try again.",
+    "signInWithGoogle": "Sign in with Google",
+    "signUpWithGoogle": "Sign up with Google"
   },
   "onboarding": {
     "step": "Step {{current}} of {{total}}",

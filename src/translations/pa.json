@@ -147,7 +147,9 @@
     "or": "ਜਾਂ",
     "guestMode": "ਬਿਨਾਂ ਖਾਤੇ ਦੇ ਐਪ ਦੇਖੋ →",
     "googleFailed": "Google ਨਾਲ ਸਾਈਨ ਇਨ ਅਸਫਲ। ਕਿਰਪਾ ਕਰਕੇ ਦੁਬਾਰਾ ਕੋਸ਼ਿਸ਼ ਕਰੋ।",
-    "appleFailed": "Apple ਨਾਲ ਸਾਈਨ ਇਨ ਅਸਫਲ। ਕਿਰਪਾ ਕਰਕੇ ਦੁਬਾਰਾ ਕੋਸ਼ਿਸ਼ ਕਰੋ।"
+    "appleFailed": "Apple ਨਾਲ ਸਾਈਨ ਇਨ ਅਸਫਲ। ਕਿਰਪਾ ਕਰਕੇ ਦੁਬਾਰਾ ਕੋਸ਼ਿਸ਼ ਕਰੋ।",
+    "signInWithGoogle": "Google ਨਾਲ ਸਾਈਨ ਇਨ ਕਰੋ",
+    "signUpWithGoogle": "Google ਨਾਲ ਖਾਤਾ ਬਣਾਓ"
   },
   "onboarding": {
     "step": "ਕਦਮ {{current}} / {{total}}",
