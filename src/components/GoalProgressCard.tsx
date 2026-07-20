@@ -27,6 +27,17 @@ function daysLeftInPeriod(period: 'weekly' | 'monthly'): number {
   return dow === 0 ? 0 : 7 - dow;
 }
 
+/** Elapsed / total days in the current period (today counts as elapsed). */
+function periodShape(period: 'weekly' | 'monthly'): { elapsed: number; total: number } {
+  const now = new Date();
+  if (period === 'monthly') {
+    const total = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+    return { elapsed: now.getDate(), total };
+  }
+  const dow = now.getDay(); // 0 = Sun → last day of the Mon-anchored week
+  return { elapsed: dow === 0 ? 7 : dow, total: 7 };
+}
+
 export default function GoalProgressCard({ net, goal, period, variant = 'compact', pending = 0, pendingLoads = 0 }: Props) {
   const { colors: Colors } = useTheme();
   const styles = useMemo(() => makeStyles(Colors), [Colors]);
@@ -70,6 +81,23 @@ export default function GoalProgressCard({ net, goal, period, variant = 'compact
         ? t('dashboard.goalLastDay')
         : t('dashboard.goalDaysLeft', { count: days });
 
+  // ── Pace: is the driver ahead of or behind where the goal says they should
+  // be TODAY? A raw fill bar can't answer that — 60% full reads as good news
+  // even on day 28 of the month. Earned money only (pending shown separately).
+  // Skipped on day 1 of a period (one day of data projects nonsense) and once
+  // the goal is reached (nothing left to pace against).
+  const { elapsed, total } = periodShape(period);
+  const expectedByNow = goal * (elapsed / total);
+  const paceDelta     = net - expectedByNow;
+  const perDayNeeded  = days > 0 ? remaining / days : remaining;
+  const showPace      = !reached && !fresh && elapsed >= 2 && goal > 0;
+  const ahead         = paceDelta >= 0;
+  const paceText = !showPace ? null
+    : ahead
+      ? t('dashboard.goalPaceAhead',  { amount: fmt(paceDelta) })
+      : t('dashboard.goalPaceBehind', { amount: fmt(-paceDelta), perDay: fmt(perDayNeeded) });
+  const paceColor = ahead ? Colors.primary : Colors.secondary;
+
   // ── Hero variant: big net number, goal as the dashboard's primary card ──
   if (variant === 'hero') {
     return (
@@ -93,12 +121,16 @@ export default function GoalProgressCard({ net, goal, period, variant = 'compact
           {!reached && ` · ${t('dashboard.goalToGo', { amount: fmt(remaining) })}`}
         </Text>
 
-        {/* Progress bar — earned solid; pending as a translucent extension */}
+        {/* Progress bar — earned solid; pending as a translucent extension;
+            the tick marks where the goal says the driver should be TODAY */}
         <View style={[styles.track, styles.heroTrack]}>
           {hasPending && (
             <View style={[styles.pendingFill, styles.heroPendingFill, { width: `${projectedPct}%` as any, backgroundColor: Colors.primary + '38' }]} />
           )}
           <View style={[styles.fill, styles.heroFill, { width: `${pct}%` as any, backgroundColor: barColor }]} />
+          {showPace && (
+            <View style={[styles.paceTick, { left: `${Math.min(99, (expectedByNow / goal) * 100)}%` as any, backgroundColor: Colors.textSecondary }]} />
+          )}
         </View>
 
         {hasPending && (
@@ -114,7 +146,10 @@ export default function GoalProgressCard({ net, goal, period, variant = 'compact
           </View>
         )}
 
-        <Text style={styles.heroDays}>{subtext}</Text>
+        <Text style={styles.heroDays}>
+          {subtext}
+          {paceText && <Text style={{ color: paceColor }}>{'  ·  '}{paceText}</Text>}
+        </Text>
       </View>
     );
   }
@@ -128,12 +163,16 @@ export default function GoalProgressCard({ net, goal, period, variant = 'compact
         </Text>
       </View>
 
-      {/* Progress bar — earned solid; pending as a translucent extension */}
+      {/* Progress bar — earned solid; pending as a translucent extension;
+          the tick marks where the goal says the driver should be TODAY */}
       <View style={styles.track}>
         {hasPending && (
           <View style={[styles.pendingFill, { width: `${projectedPct}%` as any, backgroundColor: Colors.primary + '38' }]} />
         )}
         <View style={[styles.fill, { width: `${pct}%` as any, backgroundColor: barColor }]} />
+        {showPace && (
+          <View style={[styles.paceTick, { left: `${Math.min(99, (expectedByNow / goal) * 100)}%` as any, backgroundColor: Colors.textSecondary }]} />
+        )}
       </View>
 
       <View style={styles.footerRow}>
@@ -143,6 +182,10 @@ export default function GoalProgressCard({ net, goal, period, variant = 'compact
         </Text>
         <Text style={styles.days}>{subtext}</Text>
       </View>
+
+      {paceText && (
+        <Text style={[styles.paceLine, { color: paceColor }]}>{paceText}</Text>
+      )}
     </View>
   );
 }
@@ -204,6 +247,14 @@ const makeStyles = (Colors: ThemeColors) => StyleSheet.create({
   pendingFill: {
     position: 'absolute', left: 0, top: 0, bottom: 0,
     borderRadius: 3,
+  },
+  // Where the goal says the driver should be today
+  paceTick: {
+    position: 'absolute', top: 0, bottom: 0, width: 2, opacity: 0.65,
+  },
+  paceLine: {
+    fontFamily: FontFamily.monoRegular, fontSize: FontSize.caption,
+    marginTop: 6,
   },
   heroPendingFill: { borderRadius: 4 },
   pendingRow: { flexDirection: 'row', alignItems: 'center', gap: 7, marginBottom: 10 },

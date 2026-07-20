@@ -196,6 +196,11 @@ export default function SettingsScreen({ onClose, onNavigateToExpenses, initialS
 
   // Tax rate inline edit
   const [taxRateInput,   setTaxRateInput]   = useState('');
+  const [autoTax,        setAutoTaxLocal]   = useState(() => getSetting('tax_rate_mode') === 'auto');
+  const toggleAutoTax = useCallback((v: boolean) => {
+    setAutoTaxLocal(v);
+    setSetting('tax_rate_mode', v ? 'auto' : 'manual');
+  }, []);
   const [editingTaxRate, setEditingTaxRate] = useState(false);
   const [taxRate,        setTaxRateLocal]   = useState<number>(() => {
     const v = parseFloat(getSetting('tax_rate') ?? '25');
@@ -633,6 +638,21 @@ export default function SettingsScreen({ onClose, onNavigateToExpenses, initialS
           {/* ── Tax Set-Aside Rate ── */}
           <SectionHeader label={t('settings.taxSection')} />
           <View style={styles.card}>
+            <Row
+              icon="sparkles-outline"
+              label={t('settings.taxAuto')}
+              sublabel={t('settings.taxAutoSub')}
+              chevron={false}
+              rightElement={
+                <Switch
+                  value={autoTax}
+                  onValueChange={toggleAutoTax}
+                  trackColor={{ false: Colors.surfaceHigh, true: Colors.primaryMid }}
+                  thumbColor={autoTax ? Colors.primary : Colors.textTertiary}
+                />
+              }
+            />
+            <RowDivider />
             <TouchableOpacity
               style={styles.row}
               onPress={startEditTaxRate}
@@ -644,7 +664,9 @@ export default function SettingsScreen({ onClose, onNavigateToExpenses, initialS
               </View>
               <View style={styles.rowContent}>
                 <Text style={styles.rowLabel}>{t('settings.taxRate')}</Text>
-                <Text style={styles.rowSublabel}>{t('settings.taxRateSub')}</Text>
+                <Text style={styles.rowSublabel}>
+                  {autoTax ? t('settings.taxRateManualSub') : t('settings.taxRateSub')}
+                </Text>
               </View>
               {editingTaxRate ? (
                 <View style={styles.milesEditRow}>

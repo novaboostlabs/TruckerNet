@@ -15,6 +15,7 @@ import { getDateLocale } from '../lib/i18n';
 import {
   calcBreakEven, saveLoad, getPersonalLaneHistory, LaneHistory, LoadExpenseInsert,
   getIncomeGoal, getWeekPnL, getMonthPnL, getSetting, setSetting, getLoadCount, localDateISO,
+  getPersonalFuelStats,
 } from '../db/database';
 import { useAuth } from '../contexts/AuthContext';
 import { useSubscription } from '../contexts/SubscriptionContext';
@@ -361,14 +362,22 @@ export default function AddLoadScreen({ onClose, onSaved, onFirstLoad, prefill }
   const stateMilesTotal = stateMiles.reduce((s, r) => s + (parseFloat(r.miles) || 0), 0);
   const stateMilesDiff  = loadMi > 0 ? Math.abs(Math.round(stateMilesTotal) - Math.round(loadMi)) : 0;
 
+  // Driver's own fuel history — real prices they paid + real avg fill size —
+  // personalizes the optimizer below. Read once per screen mount.
+  const personalFuel = useMemo(() => {
+    const s = getPersonalFuelStats();
+    return { priceByState: s.priceByState, fillGallons: s.avgFillGallons };
+  }, []);
+
   // Tax-adjusted fuel-stop plan for the on-route states (null for 1-state routes).
   const fuelPlan = useMemo(
     () => planFuelStops(
       stateMiles
         .map(r => ({ state: r.state, miles: parseFloat(r.miles) || 0 }))
-        .filter(r => r.state.length === 2 && r.miles > 0)
+        .filter(r => r.state.length === 2 && r.miles > 0),
+      personalFuel,
     ),
-    [stateMiles]
+    [stateMiles, personalFuel]
   );
 
   function updateStateRow(idx: number, field: 'state' | 'miles', value: string) {

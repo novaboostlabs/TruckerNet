@@ -56,9 +56,11 @@ const FILL_GALLONS = 120;
 export interface FuelStopOption {
   state:          string;  // 2-letter
   miles:          number;  // route miles in this state
-  pumpPrice:      number;  // $/gal, state average (seeded)
+  pumpPrice:      number;  // $/gal — driver's own recent price when available, else state average
   taxPerGallon:   number;  // $/gal state diesel tax (seeded)
   effectivePrice: number;  // pumpPrice − taxPerGallon
+  /** True when pumpPrice is a price this driver actually paid recently. */
+  yourPrice:      boolean;
 }
 
 export interface FuelStopPlan {
@@ -72,25 +74,42 @@ export interface FuelStopPlan {
   flipped:       boolean;
   /** Effective $/gal saved: naive.effectivePrice − best.effectivePrice. */
   savingsPerGallon: number;
-  /** savingsPerGallon × a typical ~120-gal fill (estimate for display). */
+  /** savingsPerGallon × the driver's real avg fill (falls back to ~120 gal). */
   estSavingsPerFill: number;
+  /** Gallons used for the savings estimate (driver's average, or the default). */
+  fillGallons:   number;
+  /** True when at least one option uses a price the driver actually paid. */
+  usedYourPrices: boolean;
   dataAsOf:      string;
+}
+
+/** Driver's own fuel history, when available — overrides the seeded tables. */
+export interface PersonalFuelProfile {
+  /** Most recent real price paid, by 2-letter state. */
+  priceByState?:  Record<string, number>;
+  /** Real average fill size in gallons. */
+  fillGallons?:   number | null;
 }
 
 /**
  * Rank the states on a route by tax-adjusted diesel price.
  * `stateMiles` is the per-state breakdown already computed for IFTA.
- * Returns null when fewer than two plannable states have seeded data —
+ * `personal` personalizes the math: a price the driver actually paid in a
+ * state recently beats the seeded national average, and their real average
+ * fill size replaces the generic 120-gal assumption in the savings estimate.
+ * Returns null when fewer than two plannable states have data —
  * a one-state route has no fueling decision to optimize.
  */
 export function planFuelStops(
-  stateMiles: { state: string; miles: number }[]
+  stateMiles: { state: string; miles: number }[],
+  personal?: PersonalFuelProfile,
 ): FuelStopPlan | null {
   const options: FuelStopOption[] = stateMiles
     .filter(s => s.miles >= MIN_PLANNABLE_MILES)
     .map(s => {
       const st = s.state.toUpperCase();
-      const pumpPrice = STATE_DIESEL_PRICE[st];
+      const ownPrice  = personal?.priceByState?.[st];
+      const pumpPrice = ownPrice ?? STATE_DIESEL_PRICE[st];
       const tax       = STATE_DIESEL_TAX[st];
       if (pumpPrice == null || tax == null) return null;
       return {
@@ -99,6 +118,7 @@ export function planFuelStops(
         pumpPrice,
         taxPerGallon:   tax,
         effectivePrice: pumpPrice - tax,
+        yourPrice:      ownPrice != null,
       };
     })
     .filter((o): o is FuelStopOption => o !== null);
@@ -110,6 +130,7 @@ export function planFuelStops(
   const naive = options.reduce((min, o) => (o.pumpPrice < min.pumpPrice ? o : min), options[0]);
 
   const savingsPerGallon = Math.max(0, naive.effectivePrice - best.effectivePrice);
+  const fillGallons      = personal?.fillGallons ?? FILL_GALLONS;
 
   return {
     options,
@@ -117,7 +138,9 @@ export function planFuelStops(
     naive,
     flipped: best.state !== naive.state,
     savingsPerGallon,
-    estSavingsPerFill: Math.round(savingsPerGallon * FILL_GALLONS),
+    estSavingsPerFill: Math.round(savingsPerGallon * fillGallons),
+    fillGallons,
+    usedYourPrices: options.some(o => o.yourPrice),
     dataAsOf: FUEL_DATA_AS_OF,
   };
 }

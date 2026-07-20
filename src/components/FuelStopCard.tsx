@@ -58,7 +58,10 @@ export default function FuelStopCard({ plan }: { plan: FuelStopPlan }) {
         </View>
         {plan.options.map((o, i) => (
           <View key={o.state} style={styles.row}>
-            <Text style={[styles.rowState, i === 0 && styles.rowTextBest]}>{o.state}</Text>
+            <Text style={[styles.rowState, i === 0 && styles.rowTextBest]}>
+              {o.state}
+              {o.yourPrice && <Text style={styles.yourPriceMark}> ●</Text>}
+            </Text>
             <Text style={styles.rowPump}>${o.pumpPrice.toFixed(2)}</Text>
             <Text style={styles.rowTax}>−${o.taxPerGallon.toFixed(2)}</Text>
             <Text style={[styles.rowEffective, i === 0 && styles.rowTextBest]}>
@@ -69,7 +72,9 @@ export default function FuelStopCard({ plan }: { plan: FuelStopPlan }) {
       </View>
 
       <Text style={styles.disclaimer}>
-        {t('addLoad.fuelStop.disclaimer', { asOf: plan.dataAsOf })}
+        {plan.usedYourPrices
+          ? t('addLoad.fuelStop.disclaimerPersonal', { asOf: plan.dataAsOf })
+          : t('addLoad.fuelStop.disclaimer', { asOf: plan.dataAsOf })}
       </Text>
     </View>
   );
@@ -105,6 +110,7 @@ const makeStyles = (Colors: ThemeColors) => StyleSheet.create({
   },
   row:          { flexDirection: 'row', paddingVertical: 5 },
   rowState:     { flex: 1, fontFamily: FontFamily.monoBold, fontSize: FontSize.label, color: Colors.textPrimary },
+  yourPriceMark:{ fontFamily: FontFamily.monoRegular, fontSize: 8, color: Colors.primary },
   rowPump:      { flex: 1, fontFamily: FontFamily.monoRegular, fontSize: FontSize.label, color: Colors.textSecondary },
   rowTax:       { flex: 1, fontFamily: FontFamily.monoRegular, fontSize: FontSize.label, color: Colors.textSecondary },
   rowEffective: { flex: 1, fontFamily: FontFamily.monoBold, fontSize: FontSize.label, color: Colors.textPrimary },

@@ -316,7 +316,9 @@
     "unloggedTitle": "{{miles}} mi driven but not logged",
     "unloggedSub": "Your odometer shows {{odometer}} mi — you've logged {{logged}} mi of loads.",
     "unloggedWhy": "Unlogged miles make your break-even, profit per load and IFTA report inaccurate.",
-    "unloggedCta": "Log a load"
+    "unloggedCta": "Log a load",
+    "goalPaceAhead": "{{amount}} ahead of pace",
+    "goalPaceBehind": "{{amount}} behind pace · {{perDay}}/day to finish"
   },
   "checkLoad": {
     "title": "Check Load",
@@ -478,7 +480,8 @@
       "colPump": "Pump",
       "colTax": "Tax",
       "colReal": "Real",
-      "disclaimer": "IFTA credits pump tax against miles driven, so price minus tax is what a gallon really costs you. State averages as of {{asOf}} — not station prices. Estimates only."
+      "disclaimer": "IFTA credits pump tax against miles driven, so price minus tax is what a gallon really costs you. State averages as of {{asOf}} — not station prices. Estimates only.",
+      "disclaimerPersonal": "● = a price you actually paid (last 45 days). Others are state averages as of {{asOf}} — not station prices. Estimates only."
     },
     "brokerCheck": {
       "verified": "FMCSA record verified",
@@ -634,7 +637,8 @@
       "deadline_one": "Next estimated tax payment due {{date}} · {{count}} day away",
       "deadline_other": "Next estimated tax payment due {{date}} · {{count}} days away",
       "deadlineUrgent_one": "⚠ Estimated taxes due {{date}} — {{count}} day",
-      "deadlineUrgent_other": "⚠ Estimated taxes due {{date}} — {{count}} days"
+      "deadlineUrgent_other": "⚠ Estimated taxes due {{date}} — {{count}} days",
+      "autoBadge": "AUTO"
     },
     "monthlyMilesHint": "Your average miles per month — used to calculate cost per mile."
   },
@@ -755,7 +759,10 @@
     "signInStorageIssueSub": "Something is preventing your login from being saved on this device — tap to see details.",
     "authLogTitle": "Sign-in event log",
     "authLogSub": "Diagnostic — tap to view recent sign-in activity",
-    "authLogEmpty": "No sign-in events recorded yet."
+    "authLogEmpty": "No sign-in events recorded yet.",
+    "taxAuto": "Auto tax rate",
+    "taxAutoSub": "Rate estimated from your actual YTD profit (SE + federal)",
+    "taxRateManualSub": "Fallback rate while auto learns your year"
   },
   "rateInsights": {
     "communityTitle": "Network",

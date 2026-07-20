@@ -316,7 +316,9 @@
     "unloggedTitle": "{{miles}} mi recorridas sin registrar",
     "unloggedSub": "Tu odómetro marca {{odometer}} mi — has registrado {{logged}} mi en cargas.",
     "unloggedWhy": "Las millas sin registrar hacen que tu punto de equilibrio, ganancia por carga e informe IFTA sean inexactos.",
-    "unloggedCta": "Registrar una carga"
+    "unloggedCta": "Registrar una carga",
+    "goalPaceAhead": "{{amount}} por delante del ritmo",
+    "goalPaceBehind": "{{amount}} por detrás del ritmo · {{perDay}}/día para lograrlo"
   },
   "checkLoad": {
     "title": "Revisar Carga",
@@ -476,7 +478,8 @@
       "colPump": "Bomba",
       "colTax": "Imp.",
       "colReal": "Real",
-      "disclaimer": "IFTA acredita el impuesto pagado en la bomba contra las millas recorridas: precio menos impuesto es el costo real del galón. Promedios estatales a {{asOf}} — no precios de estación. Solo estimaciones."
+      "disclaimer": "IFTA acredita el impuesto pagado en la bomba contra las millas recorridas: precio menos impuesto es el costo real del galón. Promedios estatales a {{asOf}} — no precios de estación. Solo estimaciones.",
+      "disclaimerPersonal": "● = un precio que realmente pagaste (últimos 45 días). El resto son promedios estatales al {{asOf}} — no precios de estación. Solo estimaciones."
     },
     "brokerCheck": {
       "verified": "Registro FMCSA verificado",
@@ -672,7 +675,8 @@
       "deadline_one": "Próximo pago estimado de impuestos el {{date}} · en {{count}} día",
       "deadline_other": "Próximo pago estimado de impuestos el {{date}} · en {{count}} días",
       "deadlineUrgent_one": "⚠ Impuestos estimados vencen el {{date}} — {{count}} día",
-      "deadlineUrgent_other": "⚠ Impuestos estimados vencen el {{date}} — {{count}} días"
+      "deadlineUrgent_other": "⚠ Impuestos estimados vencen el {{date}} — {{count}} días",
+      "autoBadge": "AUTO"
     },
     "monthlyMilesHint": "Tu promedio de millas por mes — se usa para calcular el costo por milla."
   },
@@ -755,7 +759,10 @@
     "signInStorageIssueSub": "Algo está impidiendo que tu inicio de sesión se guarde en este dispositivo — toca para ver los detalles.",
     "authLogTitle": "Registro de eventos de inicio de sesión",
     "authLogSub": "Diagnóstico — toca para ver la actividad reciente",
-    "authLogEmpty": "Aún no hay eventos de inicio de sesión registrados."
+    "authLogEmpty": "Aún no hay eventos de inicio de sesión registrados.",
+    "taxAuto": "Tasa impositiva automática",
+    "taxAutoSub": "Tasa estimada según tu ganancia real del año (SE + federal)",
+    "taxRateManualSub": "Tasa de respaldo mientras el modo automático aprende tu año"
   },
   "rateInsights": {
     "communityTitle": "Red",

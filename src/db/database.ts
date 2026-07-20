@@ -635,6 +635,53 @@ export function shouldShowUnloggedMilesNudge(gapMiles: number): boolean {
   return gapMiles >= dismissedAt + UNLOGGED_RENAG_MILES;
 }
 
+// ── Personal fuel profile (feeds the fuel-stop optimizer) ─────────────────
+// The optimizer's seeded state-average prices are a national snapshot; the
+// driver's own fills are ground truth for states they actually run. Prices
+// older than the window are stale enough to mislead (diesel moves weekly).
+const PERSONAL_PRICE_WINDOW_DAYS = 45;
+const PERSONAL_FILL_SAMPLE       = 10;
+
+export interface PersonalFuelStats {
+  /** Most recent real price the driver paid, by 2-letter state. */
+  priceByState:   Record<string, number>;
+  /** Their true average fill size (gallons), null until enough fills. */
+  avgFillGallons: number | null;
+}
+
+export function getPersonalFuelStats(): PersonalFuelStats {
+  const windowStart = (() => {
+    const d = new Date();
+    d.setDate(d.getDate() - PERSONAL_PRICE_WINDOW_DAYS);
+    return localDateISO(d);
+  })();
+
+  // Latest plausible price per state (freshness beats averaging for prices).
+  const rows = db.getAllSync<{ state: string; price: number }>(
+    `SELECT UPPER(state_purchased) as state, price_per_gallon as price
+     FROM fuel_entries
+     WHERE price_per_gallon BETWEEN 2.0 AND 7.5
+       AND LENGTH(state_purchased) = 2 AND date >= ?
+     ORDER BY date ASC`,
+    [windowStart],
+  );
+  const priceByState: Record<string, number> = {};
+  for (const r of rows) priceByState[r.state] = r.price;  // later rows overwrite → latest wins
+
+  const fill = db.getFirstSync<{ avg_gal: number; n: number }>(
+    `SELECT AVG(gallons) as avg_gal, COUNT(*) as n FROM (
+       SELECT gallons FROM fuel_entries
+       WHERE gallons > 0 ORDER BY date DESC LIMIT ?)`,
+    [PERSONAL_FILL_SAMPLE],
+  );
+  // Below 40 gal it's likely reefer/partial entries; above 250 a typo.
+  const avgFillGallons =
+    fill && fill.n >= 3 && fill.avg_gal >= 40 && fill.avg_gal <= 250
+      ? Math.round(fill.avg_gal) : null;
+
+  return { priceByState, avgFillGallons };
+}
+
 export function getWeeklyMiles(): number {
   const row = db.getFirstSync<{ value: string }>('SELECT value FROM settings WHERE key = "weekly_miles"');
   return parseFloat(row?.value ?? '0') || 0;
@@ -779,6 +826,9 @@ function currentTaxQuarter(): 1 | 2 | 3 | 4 {
 
 export interface TaxSetAside {
   rate:          number;   // 0–1 (e.g. 0.25)
+  /** True when the rate was derived from the driver's actual YTD net
+   *  (auto mode) rather than the manual slider value. */
+  auto:          boolean;
   monthNet:      number;
   quarterNet:    number;
   ytdNet:        number;
@@ -825,14 +875,61 @@ function periodNet(startISO: string): number {
   return Math.max(0, (row?.net ?? 0) - (exp?.total ?? 0));
 }
 
+// ── Smart tax rate (auto mode) ────────────────────────────────────────────
+// Seeded approximations of the federal single-filer curve — same philosophy as
+// the fuel optimizer's seeded tables: an ESTIMATE (the card already carries the
+// "not a tax-filing service" disclaimer), refreshed alongside other seeded data.
+// State income tax is deliberately excluded (varies 0–13%; the driver can flip
+// back to manual if their state changes the picture).
+const SE_TAX_NET_FACTOR   = 0.9235;   // SE tax applies to 92.35% of net
+const SE_SS_RATE          = 0.124;    // Social Security portion
+const SE_SS_WAGE_BASE     = 176_000;  // SS portion caps here
+const SE_MEDICARE_RATE    = 0.029;    // Medicare portion, uncapped
+const STD_DEDUCTION       = 15_750;
+const FED_BRACKETS: [number, number][] = [   // [upper bound, marginal rate]
+  [12_400, 0.10], [50_400, 0.12], [105_700, 0.22], [201_700, 0.24],
+  [256_200, 0.32], [640_600, 0.35], [Infinity, 0.37],
+];
+const AUTO_RATE_MIN = 0.10, AUTO_RATE_MAX = 0.40;
+const AUTO_FULL_CONF_DAYS = 60;       // YTD data this old → fully trusted
+
+/** Effective combined SE + federal rate for a given ANNUAL net (0–1). */
+function estimateEffectiveTaxRate(annualNet: number): number {
+  if (annualNet <= 0) return 0.25;
+  const seBase   = annualNet * SE_TAX_NET_FACTOR;
+  const seTax    = Math.min(seBase, SE_SS_WAGE_BASE) * SE_SS_RATE + seBase * SE_MEDICARE_RATE;
+  let taxable    = Math.max(0, annualNet - seTax / 2 - STD_DEDUCTION);
+  let fed = 0, prev = 0;
+  for (const [upper, marginal] of FED_BRACKETS) {
+    fed   += (Math.min(taxable, upper) - prev) * marginal;
+    if (taxable <= upper) break;
+    prev = upper;
+  }
+  return Math.min(AUTO_RATE_MAX, Math.max(AUTO_RATE_MIN, (seTax + fed) / annualNet));
+}
+
 export function getTaxSetAside(): TaxSetAside {
-  const rateRaw = parseFloat(getSetting('tax_rate') ?? '25');
-  const rate    = Math.min(50, Math.max(5, isNaN(rateRaw) ? 25 : rateRaw)) / 100;
+  const rateRaw    = parseFloat(getSetting('tax_rate') ?? '25');
+  const manualRate = Math.min(50, Math.max(5, isNaN(rateRaw) ? 25 : rateRaw)) / 100;
+  const autoMode   = getSetting('tax_rate_mode') === 'auto';
 
   const q = currentTaxQuarter();
   const monthNet   = periodNet(monthStart());
   const quarterNet = periodNet(quarterStartDate(q));
   const ytdNet     = periodNet(yearStart());
+
+  // Auto: annualize YTD net and read the effective rate off the bracket curve.
+  // Same confidence-blend pattern as the miles engine — early-January data
+  // annualizes wildly, so the manual rate keeps most of the weight until the
+  // year has ~2 months of shape to it. Never a cliff.
+  let rate = manualRate;
+  if (autoMode && ytdNet > 0) {
+    const dayOfYear  = Math.max(1, daysBetweenISO(yearStart(), localDateISO(new Date())) + 1);
+    const annualized = (ytdNet / dayOfYear) * 365;
+    const smart      = estimateEffectiveTaxRate(annualized);
+    const c          = clamp01(dayOfYear / AUTO_FULL_CONF_DAYS);
+    rate = Math.round((c * smart + (1 - c) * manualRate) * 100) / 100;
+  }
 
   const deadline     = nextDeadlineISO();
   const deadlineDate = new Date(deadline + 'T12:00:00');
@@ -844,6 +941,7 @@ export function getTaxSetAside(): TaxSetAside {
   const cents = (n: number) => Math.round(n * 100) / 100;
   return {
     rate,
+    auto: autoMode,
     monthNet:   cents(monthNet),
     quarterNet: cents(quarterNet),
     ytdNet:     cents(ytdNet),

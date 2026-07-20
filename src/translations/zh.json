@@ -316,7 +316,9 @@
     "unloggedTitle": "已行驶 {{miles}} 英里但未记录",
     "unloggedSub": "里程表显示 {{odometer}} 英里 — 你已记录 {{logged}} 英里的货载。",
     "unloggedWhy": "未记录的里程会让你的保本点、每单利润和 IFTA 报告不准确。",
-    "unloggedCta": "记录一单货载"
+    "unloggedCta": "记录一单货载",
+    "goalPaceAhead": "领先进度 {{amount}}",
+    "goalPaceBehind": "落后进度 {{amount}} · 每天需 {{perDay}} 才能达标"
   },
   "checkLoad": {
     "title": "查看订单",
@@ -473,7 +475,8 @@
       "colPump": "油价",
       "colTax": "税",
       "colReal": "实际",
-      "disclaimer": "IFTA 按行驶里程结算燃油税，油价减税才是每加仑的真实成本。州均价截至 {{asOf}} — 非油站实价，仅供估算。"
+      "disclaimer": "IFTA 按行驶里程结算燃油税，油价减税才是每加仑的真实成本。州均价截至 {{asOf}} — 非油站实价，仅供估算。",
+      "disclaimerPersonal": "● = 你实际支付的价格（近45天）。其余为截至{{asOf}}的州平均价 — 非加油站实价，仅为估算。"
     },
     "brokerCheck": {
       "verified": "FMCSA 记录已验证",
@@ -672,7 +675,8 @@
       "deadline_one": "下次预估税款于 {{date}} 到期 · 还有 {{count}} 天",
       "deadline_other": "下次预估税款于 {{date}} 到期 · 还有 {{count}} 天",
       "deadlineUrgent_one": "⚠ 预估税款 {{date}} 到期 — {{count}} 天",
-      "deadlineUrgent_other": "⚠ 预估税款 {{date}} 到期 — {{count}} 天"
+      "deadlineUrgent_other": "⚠ 预估税款 {{date}} 到期 — {{count}} 天",
+      "autoBadge": "自动"
     },
     "monthlyMilesHint": "你每月的平均英里数——用于计算每英里成本。"
   },
@@ -755,7 +759,10 @@
     "signInStorageIssueSub": "有些东西阻止了你的登录信息保存在此设备上——点击查看详情。",
     "authLogTitle": "登录事件日志",
     "authLogSub": "诊断信息——点击查看最近的登录活动",
-    "authLogEmpty": "尚未记录任何登录事件。"
+    "authLogEmpty": "尚未记录任何登录事件。",
+    "taxAuto": "自动税率",
+    "taxAutoSub": "根据你今年的实际净利润估算税率（自雇税+联邦税）",
+    "taxRateManualSub": "自动模式学习期间的后备税率"
   },
   "rateInsights": {
     "communityTitle": "网络",

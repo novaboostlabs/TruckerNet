@@ -46,6 +46,7 @@ export default function TaxSetAsideCard({ data, onSettings }: Props) {
           <Text style={styles.disclaimer}>{t('expenses.tax.cardDisclaimer')}</Text>
         </View>
         <TouchableOpacity style={styles.rateBtn} onPress={onSettings} activeOpacity={0.8}>
+          {data.auto && <Text style={styles.autoBadge}>{t('expenses.tax.autoBadge')}</Text>}
           <Text style={styles.rateBtnText}>{pct}%</Text>
           <Ionicons name="pencil-outline" size={12} color={Colors.secondary} />
         </TouchableOpacity>
@@ -106,6 +107,7 @@ const makeStyles = (Colors: ThemeColors) => StyleSheet.create({
     borderRadius: Radius.pill, paddingHorizontal: 10, paddingVertical: 5,
   },
   rateBtnText: { fontFamily: FontFamily.monoBold, fontSize: FontSize.label, color: Colors.secondary },
+  autoBadge:   { fontFamily: FontFamily.monoSemiBold, fontSize: 8, color: Colors.secondary, letterSpacing: 1, opacity: 0.8 },
 
   metricsRow: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 14 },
   metric:     { flex: 1, alignItems: 'center' },

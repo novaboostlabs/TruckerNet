@@ -1182,6 +1182,40 @@ modules, app.json, permissions) still need a full `eas build`.
 
 ## 6. Work Log (newest first)
 
+### 2026-07-20 (later still) — Personalization pass: goal pacing, auto tax rate, fuel optimizer learns your prices
+
+Follow-on from the miles-model rebuild: an audit swept every calculation in the
+app for the same disease (fixed constants ignoring real data sitting in the DB).
+15 findings catalogued; the top 3 by felt-personalization built now, the rest
+deliberately deferred (rate-engine multiplier learning, adaptive verdict
+thresholds etc. need REAL user data — tuning them against synthetic assumptions
+is overfitting; revisit post-launch):
+
+1. **Goal pacing** (`GoalProgressCard`): the bar now knows what "today" means.
+   Pace tick on the track at `goal × elapsed/total`; ahead/behind line
+   ("$340 ahead of pace" teal / "$210 behind · $180/day to finish" amber).
+   Suppressed on day 1 of a period (one day projects nonsense), when fresh,
+   and once reached. Earned money only — pending stays its own segment.
+2. **Auto tax rate** (`getTaxSetAside` + Settings toggle + card badge): new
+   `tax_rate_mode` setting ('manual' default — existing users see zero change
+   until they flip it). Auto annualizes YTD net and reads an effective rate off
+   a seeded SE + federal single-filer curve (SS wage-base cap, std deduction,
+   bracket walk; state tax excluded by design — sublabel says so). Same
+   confidence blend as the miles engine: c = dayOfYear/60 against the manual
+   rate, so early-January annualization can't swing it. Clamped 10–40%.
+   Curve sanity: $15k→14%, $50k→21%, $80k→24%, $180k→30%.
+3. **Fuel optimizer personalization** (`planFuelStops` + `getPersonalFuelStats`):
+   a price the driver actually paid in a state (≤45 days old, 2.00–7.50 $/gal
+   plausibility guard) overrides the seeded state average — marked ● in the
+   table with a "your logged price" disclaimer variant. Savings-per-fill now
+   uses their real avg fill size (last 10 fills, 40–250 gal guard) instead of
+   the hardcoded 120 gal.
+
+All three pure JS (ride into build 11). tsc clean, i18n parity 0/0/0 (7 new
+keys × 4 languages). Audit's full 15-item list lives in the session transcript;
+notable deferred: seasonal-index blending, deadhead-ratio learning, IFTA
+gallons-vs-miles cross-check, fuel-CPM cold-start blend.
+
 ### 2026-07-20 (later) — 21-day gate REPLACED by continuous confidence (user: "21 days is way too long")
 
 User verdict on the entry below: the direction (time coverage over load count)
