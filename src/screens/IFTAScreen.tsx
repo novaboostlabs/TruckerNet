@@ -10,7 +10,7 @@ import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import { Colors, FontFamily, FontSize, Spacing, Radius, SectionLabel, ThemeColors, sectionLabel } from '../theme/theme';
 import { useTheme } from '../theme/ThemeContext';
-import { getLoadCount, getIFTAData, hasIFTAData, IFTARow } from '../db/database';
+import { getLoadCount, getIFTAData, hasIFTAData, IFTARow, getIFTAConsistency, IFTAConsistency } from '../db/database';
 import { useSubscription } from '../contexts/SubscriptionContext';
 import { usePaywall } from '../contexts/PaywallContext';
 import { capture } from '../lib/analytics';
@@ -171,9 +171,12 @@ export default function IFTAScreen() {
   const [quarter, setQuarter] = useState<Quarter>(thisQuarter);
 
   const [rows, setRows] = useState<IFTARow[]>(() => getIFTAData(thisYear, thisQuarter));
+  const [consistency, setConsistency] = useState<IFTAConsistency | null>(() =>
+    getIFTAConsistency(thisYear, thisQuarter));
 
   const loadData = useCallback((y: number, q: Quarter) => {
     setRows(getIFTAData(y, q));
+    setConsistency(getIFTAConsistency(y, q));
   }, []);
 
   useEffect(() => { loadData(year, quarter); }, [year, quarter, loadData]);
@@ -368,6 +371,21 @@ export default function IFTAScreen() {
               </View>
             </View>
 
+            {/* Data-completeness cross-check: the quarter's implied MPG vs the
+                truck's real MPG. When they disagree hard, a log has holes and
+                the export is quietly wrong — say so before the driver files. */}
+            {consistency && (
+              <View style={styles.checkBanner}>
+                <Ionicons name="alert-circle-outline" size={16} color={Colors.secondary} />
+                <Text style={styles.checkText}>
+                  {t(consistency.issue === 'missing_fuel'
+                      ? 'ifta.checkMissingFuel' : 'ifta.checkMissingMiles',
+                    { implied: consistency.impliedMPG.toFixed(1),
+                      fleet:   consistency.fleetMPG.toFixed(1) })}
+                </Text>
+              </View>
+            )}
+
             {/* Table */}
             <View style={styles.tableCard}>
               <View style={styles.tableHeaderRow}>
@@ -442,6 +460,15 @@ const makeStyles = (Colors: ThemeColors) => StyleSheet.create({
   quarterChipTextActive: { color: Colors.primary },
 
   summaryRow:   { flexDirection: 'row', gap: 12, marginBottom: 16 },
+  checkBanner: {
+    flexDirection: 'row', alignItems: 'flex-start', gap: 8,
+    backgroundColor: Colors.secondaryDim, borderWidth: 1, borderColor: Colors.secondary + '40',
+    borderRadius: Radius.sm, paddingHorizontal: 12, paddingVertical: 10, marginBottom: 16,
+  },
+  checkText: {
+    flex: 1, fontFamily: FontFamily.regular, fontSize: FontSize.caption,
+    color: Colors.textPrimary, lineHeight: 17,
+  },
   summaryCard:  { flex: 1, backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border, borderRadius: Radius.md, padding: Spacing.cardPad },
   summaryLabel: { ...sectionLabel(Colors), fontSize: 10, marginBottom: 6 },
   summaryValue: { fontFamily: FontFamily.monoBold, fontSize: FontSize.subtitle, color: Colors.textPrimary },

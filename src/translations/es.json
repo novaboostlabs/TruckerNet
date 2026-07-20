@@ -595,7 +595,9 @@
     "lockedEmptyBody": "Tus millas y galones por estado se calculan solos con las cargas y llenados que registras — listos para tu contador al fin del trimestre.",
     "lockedBenefit1": "Millas por estado de cada carga, automáticamente",
     "lockedBenefit2": "Galones por estado desde tus llenados",
-    "lockedBenefit3": "CSV y PDF listos para tu contador"
+    "lockedBenefit3": "CSV y PDF listos para tu contador",
+    "checkMissingFuel": "Este trimestre implica {{implied}} MPG pero tu camión promedia {{fleet}} — pueden faltar recibos de combustible. IFTA necesita cada galón registrado.",
+    "checkMissingMiles": "Este trimestre implica {{implied}} MPG pero tu camión promedia {{fleet}} — pueden faltar cargas o millas en el registro."
   },
   "history": {
     "title": "Historial",

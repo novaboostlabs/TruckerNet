@@ -256,14 +256,20 @@ export function clearQueuedDeletes(entity: string, ids: string[]): void {
 
 // ── Fuel CPM helpers ──
 
+// Real fills covering this many miles → full confidence in the real CPM.
+// Fuel CPM is far less volatile than monthly pace (price × MPG is fairly
+// stable), so it earns full trust much faster than the miles engine does —
+// ~2-3 tanks of coverage is genuinely representative.
+const FUEL_CPM_FULL_CONF_MILES = 2500;
+
 export function getLatestFuelCPM(): number {
   // Rolling weighted average of the last 10 fill-ups (total $ ÷ total miles).
   // Weighted by miles so a 900-mile tank influences the average more than a
   // 50-mile top-off. Gets more accurate with every fill-up logged.
-  const row = db.getFirstSync<{ avg_cpm: number; entry_count: number }>(
+  const row = db.getFirstSync<{ avg_cpm: number; sum_miles: number }>(
     `SELECT
        SUM(dollars_spent) / NULLIF(SUM(miles_driven), 0) AS avg_cpm,
-       COUNT(*) AS entry_count
+       SUM(miles_driven) AS sum_miles
      FROM (
        SELECT dollars_spent, miles_driven
        FROM fuel_entries
@@ -272,14 +278,24 @@ export function getLatestFuelCPM(): number {
        LIMIT 10
      )`
   );
-  if (row?.avg_cpm && row.avg_cpm > 0) return row.avg_cpm;
+  const real = row?.avg_cpm && row.avg_cpm > 0 ? row.avg_cpm : 0;
 
-  // Fallback: onboarding estimate (weekly_fuel_cost ÷ weekly_miles).
+  // Onboarding estimate (weekly_fuel_cost ÷ weekly_miles), when it exists.
   const weeklyFuel  = parseFloat(getSetting('weekly_fuel_cost') ?? '0') || 0;
   const weeklyMiles = parseFloat(getSetting('weekly_miles')    ?? '0') || 0;
-  if (weeklyFuel > 0 && weeklyMiles > 0) return weeklyFuel / weeklyMiles;
+  const estimate    = weeklyFuel > 0 && weeklyMiles > 0 ? weeklyFuel / weeklyMiles : 0;
 
-  return 0;
+  if (!real) return estimate;
+  if (!estimate) return real;
+
+  // Same philosophy as the miles engine: no cliff between "estimate" and
+  // "real". The first sparse fill (one 400-mile tank) shouldn't fully replace
+  // the stated estimate — it eases in as the fills cover more miles.
+  // (The Fuel tab's own hero stat stays the raw fills-only figure — it's
+  // explicitly labeled as coming from logged fills; this blend is for the
+  // break-even/net-pay inputs.)
+  const c = clamp01((row?.sum_miles ?? 0) / FUEL_CPM_FULL_CONF_MILES);
+  return c * real + (1 - c) * estimate;
 }
 
 /**
@@ -1459,6 +1475,87 @@ export function hasIFTAData(year: number, q: number): boolean {
     [start, end]
   );
   return (row?.n ?? 0) > 0;
+}
+
+// ── IFTA data-completeness cross-check ────────────────────────────────────
+// The quarter's miles and gallons come from two INDEPENDENT logs (state
+// mileage from loads; gallons from fuel receipts). Their ratio is an MPG — and
+// the truck's real MPG is known from fill-ups. When the two disagree hard, one
+// of the logs is missing entries, and the IFTA export is quietly wrong. Same
+// idea as the unlogged-miles nudge: only the cross-check can see the hole.
+
+const IFTA_CHECK_MIN_MILES   = 1500;  // below this a quarter is too thin to judge
+const IFTA_CHECK_MIN_GALLONS = 150;
+const IFTA_CHECK_MIN_FILLS   = 3;     // fills needed to trust the fleet MPG
+const IFTA_CHECK_TOLERANCE   = 0.30;  // implied vs real MPG may differ ±30%
+
+export interface IFTAConsistency {
+  /** 'missing_fuel': too few gallons for the miles (receipts not logged).
+   *  'missing_miles': too few miles for the gallons (loads not logged). */
+  issue:      'missing_fuel' | 'missing_miles';
+  impliedMPG: number;  // quarter miles ÷ quarter gallons
+  fleetMPG:   number;  // real MPG from recent fill-ups
+}
+
+export function getIFTAConsistency(year: number, q: number): IFTAConsistency | null {
+  const rows = getIFTAData(year, q);
+  const totalMiles   = rows.reduce((s, r) => s + r.miles,   0);
+  const totalGallons = rows.reduce((s, r) => s + r.gallons, 0);
+  if (totalMiles < IFTA_CHECK_MIN_MILES || totalGallons < IFTA_CHECK_MIN_GALLONS) return null;
+
+  const fleet = db.getFirstSync<{ mpg: number; n: number }>(
+    `SELECT SUM(miles_driven) / NULLIF(SUM(gallons), 0) AS mpg, COUNT(*) AS n
+     FROM (SELECT miles_driven, gallons FROM fuel_entries
+           WHERE miles_driven > 0 AND gallons > 0
+           ORDER BY date DESC, rowid DESC LIMIT 10)`
+  );
+  // Sanity window: outside 3–12 MPG the fill data itself is suspect — don't
+  // use a broken yardstick to accuse the quarter of being wrong.
+  if (!fleet || fleet.n < IFTA_CHECK_MIN_FILLS || !fleet.mpg
+      || fleet.mpg < 3 || fleet.mpg > 12) return null;
+
+  const impliedMPG = totalMiles / totalGallons;
+  const ratio      = impliedMPG / fleet.mpg;
+  if (ratio > 1 + IFTA_CHECK_TOLERANCE) {
+    return { issue: 'missing_fuel',  impliedMPG, fleetMPG: fleet.mpg };
+  }
+  if (ratio < 1 - IFTA_CHECK_TOLERANCE) {
+    return { issue: 'missing_miles', impliedMPG, fleetMPG: fleet.mpg };
+  }
+  return null;
+}
+
+// ── Historical state split (fallback for the Add Load per-state breakdown) ──
+// When route geometry fails, the old fallback was a flat 50/50 between pickup
+// and delivery state — which drops every pass-through state and is arbitrary
+// even for the endpoints. The driver's own past runs on the same state pair
+// are a far better template: they carry the real intermediate states and the
+// real proportions. Direction doesn't matter (the split home is ~the mirror),
+// so a reversed-pair match is used when the exact pair has no history.
+
+export interface StateShare { state: string; share: number }  // shares sum to 1
+
+export function getHistoricalStateSplit(
+  pickupState: string, deliveryState: string,
+): StateShare[] | null {
+  const query = (p: string, d: string) => db.getAllSync<{ state: string; miles: number }>(
+    `SELECT sm.state, SUM(sm.miles) as miles
+     FROM state_mileage sm
+     JOIN loads l ON sm.load_id = l.id
+     WHERE l.pickup_state = ? AND l.delivery_state = ? AND l.status = 'completed'
+     GROUP BY sm.state
+     HAVING SUM(sm.miles) > 0`,
+    [p, d],
+  );
+  let rows = query(pickupState, deliveryState);
+  if (!rows.length) rows = query(deliveryState, pickupState);
+  if (!rows.length) return null;
+
+  const total = rows.reduce((s, r) => s + r.miles, 0);
+  if (total <= 0) return null;
+  return rows
+    .map(r => ({ state: r.state, share: r.miles / total }))
+    .sort((a, b) => b.share - a.share);
 }
 
 // ── History helpers ──

@@ -595,7 +595,9 @@
     "lockedEmptyBody": "Your per-state miles and gallons build themselves from the loads and fill-ups you log — ready to hand your accountant at quarter's end.",
     "lockedBenefit1": "Per-state mileage from every load, automatically",
     "lockedBenefit2": "Gallons tracked by state from your fill-ups",
-    "lockedBenefit3": "Filing-ready CSV & PDF for your accountant"
+    "lockedBenefit3": "Filing-ready CSV & PDF for your accountant",
+    "checkMissingFuel": "This quarter implies {{implied}} MPG but your truck averages {{fleet}} — some fuel receipts may be missing. IFTA needs every gallon logged.",
+    "checkMissingMiles": "This quarter implies {{implied}} MPG but your truck averages {{fleet}} — some loads or miles may be missing from the log."
   },
   "expenses": {
     "title": "Expenses",

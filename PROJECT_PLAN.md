@@ -40,17 +40,14 @@ NOT done is cutting and submitting build 11.
   Pushing is NOT required for `eas build` (it builds from local committed state).
 - Everything is `tsc` clean with i18n parity 0/0/0 across es/pa/zh.
 
-**⚠️ BLOCKING USER ACTION before build 11:** run
-`supabase/migrations/2026-07-19_profiles_goal_tax.sql` in the Supabase SQL editor
-(3 idempotent `alter table` lines). Without it the income-goal/tax-rate sync
-errors. The user was reminded but had NOT confirmed running it as of 07-20.
+**✅ Supabase migration DONE:** `2026-07-19_profiles_goal_tax.sql` was applied —
+**user confirmed 2026-07-20.** Nothing blocks build 11 on the backend side.
 
 **Immediate next action — cut build 11:**
-1. Run the migration above (if not already done).
-2. `eas build --platform ios --profile production` → autoIncrement bumps 10 → 11
+1. `eas build --platform ios --profile production` → autoIncrement bumps 10 → 11
    (version stays 1.0.0; `appVersionSource: remote`).
-3. `eas submit --platform ios --profile production`.
-4. App Store Connect: attach build 11, confirm both subscriptions are attached to
+2. `eas submit --platform ios --profile production`.
+3. App Store Connect: attach build 11, confirm both subscriptions are attached to
    the version, **reply in Resolution Center**, then Submit for Review.
 
 **Build-cap note:** the free EAS allotment was exhausted (10/10) on 07-11. It may
@@ -1181,6 +1178,40 @@ modules, app.json, permissions) still need a full `eas build`.
 ---
 
 ## 6. Work Log (newest first)
+
+### 2026-07-20 (batch 2) — Adaptive pass continues: fuel-CPM blend, IFTA cross-check, historical state split
+
+Second batch from the 15-item adaptive audit (batch 1 below). Also logged:
+the 2026-07-19 profiles migration is CONFIRMED APPLIED by the user — nothing
+blocks build 11 backend-side anymore.
+
+1. **Fuel CPM cold-start blend** (`getLatestFuelCPM`): the last naive switch in
+   the break-even engine. One 60-mile top-off used to fully replace the
+   onboarding estimate; now `c = milesCovered/2500` blends real fills in
+   (fuel CPM is stable, so ~2-3 tanks earns full trust — much faster than the
+   miles engine's ramp, deliberately). The Fuel tab hero deliberately stays the
+   raw fills-only figure (it's labeled as such); the blend feeds break-even.
+2. **IFTA gallons-vs-miles cross-check** (`getIFTAConsistency` + banner on the
+   IFTA screen): quarter miles ÷ quarter gallons is an implied MPG; the truck's
+   real MPG is known from fills. Disagreement >±30% means a log has holes —
+   banner says which ("fuel receipts missing" vs "loads/miles missing") before
+   the driver files. Guards: ≥1,500 mi + ≥150 gal in the quarter, ≥3 fills,
+   fleet MPG sanity window 3–12 (don't judge with a broken yardstick).
+3. **Historical state split** (`getHistoricalStateSplit` + AddLoad fallback):
+   when route geometry fails, the driver's own past runs on the same state
+   pair (either direction) now template the split — real proportions INCLUDING
+   pass-through states the flat 50/50 always dropped. 50/50 remains the last
+   resort. Largest share absorbs rounding so rows sum exactly to route miles.
+
+**Deliberately SKIPPED: deadhead-ratio learning** (audit item #4). On reading
+the actual UI, `calcDeadheadCost` only feeds the backhaul-rescue note — where
+the alternative to the backhaul IS driving that same leg empty, so scaling by
+a historical deadhead ratio would badly understate the saving. The current
+100% assumption is contextually correct. Not every constant wants adapting.
+
+tsc clean; i18n parity 0/0/0 (2 new keys × 4 languages). Remaining deferred
+audit items (need real user data): seasonal-index blending, rate-engine
+multiplier learning, adaptive verdict thresholds, expense-staleness cadence.
 
 ### 2026-07-20 (later still) — Personalization pass: goal pacing, auto tax rate, fuel optimizer learns your prices
 

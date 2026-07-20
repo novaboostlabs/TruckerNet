@@ -633,7 +633,9 @@
     "lockedEmptyBody": "每州的英里数和加仑数会根据您记录的货载和加油自动生成 — 季度末直接交给您的会计。",
     "lockedBenefit1": "每趟货载自动统计各州里程",
     "lockedBenefit2": "根据加油记录统计各州加仑数",
-    "lockedBenefit3": "为会计准备好的 CSV 和 PDF"
+    "lockedBenefit3": "为会计准备好的 CSV 和 PDF",
+    "checkMissingFuel": "本季度隐含油耗为 {{implied}} MPG，但你的卡车平均为 {{fleet}} — 可能有加油收据未记录。IFTA 需要记录每一加仑。",
+    "checkMissingMiles": "本季度隐含油耗为 {{implied}} MPG，但你的卡车平均为 {{fleet}} — 日志中可能缺少部分货载或里程。"
   },
   "expenses": {
     "title": "费用",

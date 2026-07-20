@@ -15,7 +15,7 @@ import { getDateLocale } from '../lib/i18n';
 import {
   calcBreakEven, saveLoad, getPersonalLaneHistory, LaneHistory, LoadExpenseInsert,
   getIncomeGoal, getWeekPnL, getMonthPnL, getSetting, setSetting, getLoadCount, localDateISO,
-  getPersonalFuelStats,
+  getPersonalFuelStats, getHistoricalStateSplit,
 } from '../db/database';
 import { useAuth } from '../contexts/AuthContext';
 import { useSubscription } from '../contexts/SubscriptionContext';
@@ -271,7 +271,10 @@ export default function AddLoadScreen({ onClose, onSaved, onFirstLoad, prefill }
           }
         }
 
-        // Fallback to address-based 50/50 split if geometry split fails
+        // Geometry split failed — fall back, best template first:
+        //   1. The driver's own past runs on this state pair (real proportions,
+        //      including pass-through states the 50/50 guess always dropped).
+        //   2. Flat 50/50 between the endpoint states (last resort).
         const pState = suggestionState(pickupSel);
         const dState = suggestionState(deliverySel);
         const totalMi = Math.round(mi);
@@ -280,11 +283,20 @@ export default function AddLoadScreen({ onClose, onSaved, onFirstLoad, prefill }
         } else if (!dState || pState === dState) {
           setStateMiles([{ state: pState, miles: String(totalMi) }]);
         } else {
-          const half = Math.round(totalMi / 2);
-          setStateMiles([
-            { state: pState, miles: String(half) },
-            { state: dState, miles: String(totalMi - half) },
-          ]);
+          const hist = getHistoricalStateSplit(pState, dState);
+          if (hist) {
+            // Round per row; the largest share absorbs the rounding remainder
+            // so the rows always sum exactly to the route total.
+            const rowsOut = hist.map(h => ({ state: h.state, miles: Math.round(totalMi * h.share) }));
+            rowsOut[0].miles += totalMi - rowsOut.reduce((s, r) => s + r.miles, 0);
+            setStateMiles(rowsOut.map(r => ({ state: r.state, miles: String(r.miles) })));
+          } else {
+            const half = Math.round(totalMi / 2);
+            setStateMiles([
+              { state: pState, miles: String(half) },
+              { state: dState, miles: String(totalMi - half) },
+            ]);
+          }
         }
       })
       .catch((err) => {
