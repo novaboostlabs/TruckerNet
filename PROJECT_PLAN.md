@@ -16,44 +16,51 @@
 > branch and push `main`** so the user's build always reflects the latest.
 > (Decided 2026-06-19 after changes weren't appearing because `main` was stale.)
 
-_Last updated: 2026-07-11 — v1.0.0 is done and in the final pre-submit lap.
-**START HERE IN A NEW CHAT.** All launch-prep is finished (see §5.8 "Launch-prep
-checklist — ALL DONE"; only the final "Submit for Review" click remains). Do NOT
-re-list seeding / Pro grant / App Store Connect listing / TestFlight QA as open —
-the user has confirmed them done repeatedly; that recurring doc-staleness was a
-real frustration.
+_Last updated: 2026-07-19 — responding to an App Store rejection (Sign in with
+Apple compliance, iPad CTA clipping, and a 2.1(b) "Upgrade to Pro did nothing"
+report). **START HERE IN A NEW CHAT.**
 
-**Where things stand (2026-07-11):**
-- Reviewer demo account (`appconnect@novaboostlabs.co`) fully seeded + synced, Pro
-  granted, App Review Information + listing complete.
-- A run of in-app tweaks landed 07-09 → 07-11: 5 post-seed polish items (History
-  calendar can log fuel/expenses with per-type colored markers; smart expense→load
-  link; fuel chart all-teal; fair-market declutter; honest "Network" counts), plus
-  two rounds of the money-decimals fix (never show fractions of a cent — the real
-  cause was Hermes ignoring `toLocaleString` options, so all money helpers now
-  pre-round), plus removal of the sign-in event-log diagnostic from Settings, plus
-  earlier-in-session fixes (deadhead $0 load couldn't save; break-even instability
-  once 5+ loads existed; fuel fill-ups couldn't be back-dated). All `tsc` clean,
-  i18n parity 0/0, all committed + pushed to `main`.
-- **Production build `7528effc` (build #10) is FINISHED** — channel `production`,
-  runtime `1.0.0`. Its embedded bundle contains everything through commit
-  `3d4a56c` (all the substantive fixes). The ONLY change not baked in is the
-  event-log removal (`2f4703e`), which rides OTA.
-- **The free EAS build allotment for the month is used up (10/10).** Remaining
-  changes must therefore ship via `eas update` (OTA), which is fine: OTA targets
-  runtime `1.0.0` on the `production` channel = build `7528effc`. **HARD
-  CONSTRAINT: remaining tweaks must be JS/TS/UI/text/asset only.** Anything native
-  (new native dep, or `app.json` permissions/icons/splash/plugins/version) CANNOT
-  ship via OTA and would need a build the user can't make until the allotment
-  resets — flag it immediately if a requested tweak needs native.
+**Where things stand (2026-07-19):**
+- All rejection-response work is committed to `main` and pushed (verified via
+  `git fetch` — local and `origin/main` match exactly, working tree clean).
+  Six commits since the rejection: `bc4bc2c` (Apple sign-in compliance + iPad
+  CTA clipping — the two literal rejection reasons), `c063fc6` (root cause of
+  "Upgrade to Pro did nothing": paywall `<Modal>` lived at the app root and
+  iOS can't present a root modal over another sheet — Settings/CheckLoad/
+  AddLoad buttons were silently inert; fixed via a `PaywallHost` nested-modal
+  pattern), `556ab48` + `5ad1bfb` (income goal/tax rate lost on sign-out —
+  profile sync gap + a signOut-before-push race), `1c0b5b0` (usage-meter text
+  bugs, IFTA free tab placeholder-data removal), `7041f69` (language
+  reverting to English on relaunch). `tsc` clean and i18n parity 0/0/0/0
+  verified after every batch.
+- **⚠️ USER ACTION PENDING — Supabase migration not yet confirmed run:**
+  `supabase/migrations/2026-07-19_profiles_goal_tax.sql` must be run in the
+  Supabase SQL editor (idempotent). Until then, cloud profile push logs a
+  schema error and the income-goal/tax-rate sync fix doesn't actually persist.
+- **⚠️ CRITICAL GAP FOUND 2026-07-19 — verified via `eas update:list`:** the
+  `production` OTA channel's most recent published update is `5ad1bfb`, but
+  the update history **skips `c063fc6` and `bc4bc2c` entirely** — it jumps
+  straight from `711b75c` to `556ab48`. That means **the two commits that fix
+  the actual rejection reasons (Apple sign-in/iPad clipping, and the
+  paywall-inert-in-modal root cause) have never been published**, either as a
+  new native build or via OTA. The live app (build #10 / `7528effc`, native
+  commit `3d4a56c`, finished 2026-07-13) still has the bugs Apple rejected it
+  for.
+- **No build #11 exists yet.** `eas build:list` still shows build #10
+  (`7528effc`, commit `3d4a56c`, finished 7/13) as the latest iOS build. None
+  of the 6 rejection-response commits are baked into a native build — all of
+  them are JS/TS/UI-only (verified: none touch `app.json`, entitlements, or
+  native folders), so they're OTA-eligible, but OTA is currently incomplete
+  (see above).
 
-**Immediate next action:** the user is doing one final full run-through of the app
-(in a separate chat, with Fable 5) to catch anything else. When they return with
-any last tweaks: make them (JS-only), then run ONE `eas update --channel production`
-to publish everything at once, then `eas submit --platform ios` to send build
-`7528effc` up, then attach it in App Store Connect → Submit for Review (the
-`appconnect@` demo login is already in the review notes). See §6 Work Log for full
-history, newest first._
+**Immediate next action:** (1) confirm the Supabase migration has been run;
+(2) publish ONE consolidated `eas update --channel production` that covers
+everything through `5ad1bfb` (must include `bc4bc2c` + `c063fc6` — do not
+skip them again); (3) decide whether to resubmit build `7528effc` as-is
+(relying on the OTA fetch on launch) or cut a fresh native build #11 before
+resubmitting — cutting a fresh build is the safer choice for an App Review
+resubmission since reviewers may not reliably pick up an OTA update in time.
+See §6 Work Log for full history, newest first._
 
 > **Backend sync state:** Local-first, SQLite is source of truth. As of
 > 2026-07-01/02: pull now MERGES instead of replacing (local wins on conflict,
@@ -1174,6 +1181,72 @@ modules, app.json, permissions) still need a full `eas build`.
 ---
 
 ## 6. Work Log (newest first)
+
+### 2026-07-19 — Income goal lost on sign-out (never pushed) + Tax Set-Aside card in English
+
+Income goal (+ tax rate, weekly miles) were saved locally in Settings but never
+pushed to the cloud, and `signOut` wiped local data BEFORE any sync — so the
+edit never reached Supabase and was gone on next sign-in. (On top of the
+profileSync FIELD_MAP fix + migration below — necessary but not sufficient.)
+`signOut` now flushes `pushAll()` to the cloud before clearing local data
+(bounded 4s, non-fatal offline) — a systemic catch-all for every unsynced
+Settings edit.
+
+Dashboard `TaxSetAsideCard` was 100% hardcoded English (never imported
+`useTranslation`) — stayed English even in Spanish/Punjabi/Chinese. Now fully
+localized via `expenses.tax.*` keys (label + disclaimer + month/quarter/YTD +
+of-net + deadline, with `_one`/`_other` plural); deadline date now formats in
+the active locale (was hardcoded `en-US` "Jun 16"). Expenses-tab tax section
+was already translated — untouched.
+
+`tsc` clean; i18n parity 0/0/0; no import cycle; app boots clean on web.
+
+### 2026-07-19 — Language reverting on relaunch + English-flash-then-correct-language
+
+Two related bugs behind "signed in, showed English, flipped to Spanish after
+switching tabs": (1) split storage — the welcome picker saved language to
+SecureStore, but the in-app Settings switcher wrote it ONLY to SQLite, which
+the boot sequence never reads, so a Settings language change silently
+reverted on the next cold start; `saveLanguage()` now writes BOTH stores and
+`getSavedLanguage()` reads SecureStore then falls back to SQLite. (2)
+cold-boot keychain race — the first SecureStore read after launch can
+transiently return null (iOS `AFTER_FIRST_UNLOCK`), so the app briefly
+initialized in English and only corrected on a forced re-render; `App.tsx`
+now re-reads the saved language at 500ms + 1800ms after mount and self-heals
+if `i18n` drifted, no tab switch needed.
+
+`tsc` clean; no import cycle; live language switching verified on web.
+
+### 2026-07-19 — Usage-meter text bugs + IFTA free tab shows no placeholder data
+
+`FreeUsageMeter` card: "X of 15 load" → "loads" (base plural key was
+singular); `valueMissed` used inline ICU plural syntax but the app has no ICU
+plugin (`compatibilityJSON` v4), so it leaked a raw fragment and stayed
+singular — replaced with native i18next `_one`/`_other` keys (same fix
+applied to `paywall.valueMissed`).
+
+IFTA tab (free users): removed ALL placeholder data — no more fake TX/TN
+sample rows or fake summary totals. Free users now see only a clean benefits
+card (lock + "Unlock full IFTA report" + 3 benefit bullets + Upgrade), which
+opens the paywall; export button + quarter/year nav + disclaimer hidden for
+free users. Pro + no data: warmer "log your first few loads" empty-state
+hint. Pro + data: unchanged full report.
+
+`tsc` clean; i18n parity 0/0/0; verified on web.
+
+### 2026-07-19 — Income goal + tax rate lost on sign-out — added to profile sync
+
+`clearAllUserData` wipes `income_goal_amount`/`period` on sign-out (correct),
+but `profileSync` never carried them to the cloud, so sign-out/sign-in
+permanently lost the driver's goal (user-reported on TestFlight). They now
+ride the `profiles` row like name/equipment; pull keeps LOCAL WINS. `tax_rate`
+included for the same reason.
+
+**USER ACTION — STILL PENDING:** run
+`supabase/migrations/2026-07-19_profiles_goal_tax.sql` in the Supabase SQL
+editor (idempotent). Until this runs, profile push logs a schema error in the
+Cloud backup row (non-fatal, but the goal/tax sync this commit adds doesn't
+actually persist to the cloud until the column exists).
 
 ### 2026-07-19 — Rejection-response round 2: paywall-in-modal root cause + pre-build-11 polish batch
 
