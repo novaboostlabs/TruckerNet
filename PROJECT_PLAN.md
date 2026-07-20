@@ -16,44 +16,51 @@
 > branch and push `main`** so the user's build always reflects the latest.
 > (Decided 2026-06-19 after changes weren't appearing because `main` was stale.)
 
-_Last updated: 2026-07-11 — v1.0.0 is done and in the final pre-submit lap.
-**START HERE IN A NEW CHAT.** All launch-prep is finished (see §5.8 "Launch-prep
-checklist — ALL DONE"; only the final "Submit for Review" click remains). Do NOT
-re-list seeding / Pro grant / App Store Connect listing / TestFlight QA as open —
-the user has confirmed them done repeatedly; that recurring doc-staleness was a
-real frustration.
+_Last updated: 2026-07-20 — **REJECTED by App Review 2026-07-16; all three issues
+are fixed in code; BUILD 11 HAS NOT BEEN CUT YET.**
 
-**Where things stand (2026-07-11):**
-- Reviewer demo account (`appconnect@novaboostlabs.co`) fully seeded + synced, Pro
-  granted, App Review Information + listing complete.
-- A run of in-app tweaks landed 07-09 → 07-11: 5 post-seed polish items (History
-  calendar can log fuel/expenses with per-type colored markers; smart expense→load
-  link; fuel chart all-teal; fair-market declutter; honest "Network" counts), plus
-  two rounds of the money-decimals fix (never show fractions of a cent — the real
-  cause was Hermes ignoring `toLocaleString` options, so all money helpers now
-  pre-round), plus removal of the sign-in event-log diagnostic from Settings, plus
-  earlier-in-session fixes (deadhead $0 load couldn't save; break-even instability
-  once 5+ loads existed; fuel fill-ups couldn't be back-dated). All `tsc` clean,
-  i18n parity 0/0, all committed + pushed to `main`.
-- **Production build `7528effc` (build #10) is FINISHED** — channel `production`,
-  runtime `1.0.0`. Its embedded bundle contains everything through commit
-  `3d4a56c` (all the substantive fixes). The ONLY change not baked in is the
-  event-log removal (`2f4703e`), which rides OTA.
-- **The free EAS build allotment for the month is used up (10/10).** Remaining
-  changes must therefore ship via `eas update` (OTA), which is fine: OTA targets
-  runtime `1.0.0` on the `production` channel = build `7528effc`. **HARD
-  CONSTRAINT: remaining tweaks must be JS/TS/UI/text/asset only.** Anything native
-  (new native dep, or `app.json` permissions/icons/splash/plugins/version) CANNOT
-  ship via OTA and would need a build the user can't make until the allotment
-  resets — flag it immediately if a requested tweak needs native.
+**START HERE IN A NEW CHAT.** Do NOT re-list seeding / Pro grant / App Store
+Connect listing / TestFlight QA as open — the user confirmed those done long ago;
+that recurring doc-staleness was a real frustration. Launch prep is done. What is
+NOT done is cutting and submitting build 11.
 
-**Immediate next action:** the user is doing one final full run-through of the app
-(in a separate chat, with Fable 5) to catch anything else. When they return with
-any last tweaks: make them (JS-only), then run ONE `eas update --channel production`
-to publish everything at once, then `eas submit --platform ios` to send build
-`7528effc` up, then attach it in App Store Connect → Submit for Review (the
-`appconnect@` demo login is already in the review notes). See §6 Work Log for full
-history, newest first._
+**Where things stand (2026-07-20):**
+- **Build 10 (`7528effc`) was REJECTED** (submission `4cca58fd-e8c3-482d-b2dd-8253aa897b4b`,
+  reviewed 2026-07-16 on an iPad Air 11" / iPadOS 26.5.2) on three counts —
+  Guideline 4 (iPad CTAs cut off), Guideline 4 (Sign in with Apple), and
+  Guideline 2.1(b) (Upgrade button did nothing). All three are FIXED in code
+  across 9 commits (`bc4bc2c` → `52c4c18`). See the 07-17 → 07-20 work-log entries.
+- **The 2.1(b) root cause was OURS, not RevenueCat:** the paywall `<Modal>` lived
+  at the app root and iOS cannot present it over an already-open pageSheet, so
+  every Upgrade button inside Settings / Check Load / Add Load silently no-oped.
+  Fixed via the `PaywallHost` pattern. RevenueCat/store config is now correct and
+  the user verified a real sandbox purchase completing end-to-end.
+- **All work is COMMITTED LOCALLY on `main`.** `git push` may fail — the GitHub
+  token was invalid (`gh auth status` → invalid); run `gh auth login` first.
+  Pushing is NOT required for `eas build` (it builds from local committed state).
+- Everything is `tsc` clean with i18n parity 0/0/0 across es/pa/zh.
+
+**⚠️ BLOCKING USER ACTION before build 11:** run
+`supabase/migrations/2026-07-19_profiles_goal_tax.sql` in the Supabase SQL editor
+(3 idempotent `alter table` lines). Without it the income-goal/tax-rate sync
+errors. The user was reminded but had NOT confirmed running it as of 07-20.
+
+**Immediate next action — cut build 11:**
+1. Run the migration above (if not already done).
+2. `eas build --platform ios --profile production` → autoIncrement bumps 10 → 11
+   (version stays 1.0.0; `appVersionSource: remote`).
+3. `eas submit --platform ios --profile production`.
+4. App Store Connect: attach build 11, confirm both subscriptions are attached to
+   the version, **reply in Resolution Center**, then Submit for Review.
+
+**Build-cap note:** the free EAS allotment was exhausted (10/10) on 07-11. It may
+have since reset — just try the build; EAS will say if it's still capped. NOTE the
+old "OTA-only / JS-only" hard constraint from 07-11 NO LONGER APPLIES: a rejection
+cannot be fixed by `eas update` (the reviewer's FIRST launch runs the embedded
+bundle, and OTA only applies on a later relaunch), so a real rebuild is required —
+which also means native/config changes are back on the table.
+
+See §6 Work Log for full history, newest first._
 
 > **Backend sync state:** Local-first, SQLite is source of truth. As of
 > 2026-07-01/02: pull now MERGES instead of replacing (local wins on conflict,
@@ -1257,6 +1264,48 @@ NOTE (product, not a bug): break-even reads high when a driver logs only some
 of their loads — real miles under-count vs their stated weekly estimate. Worth
 revisiting the ≥5-load switchover if drivers report inflated break-evens.
 
+### 2026-07-19 (later) — Round 3: goal sync, language persistence, meter copy, IFTA placeholder purge
+
+Four commits after the round-2 batch below, all from the user's device testing.
+
+**`556ab48` — income goal + tax rate never synced.** They were wiped by
+`clearAllUserData()` on sign-out but were NOT in profileSync's FIELD_MAP, so they
+could never come back. Added `income_goal_amount` / `income_goal_period` /
+`tax_rate` to the profile row. **Requires migration
+`2026-07-19_profiles_goal_tax.sql` (USER ACTION — see header).**
+
+**`5ad1bfb` — income goal STILL lost (the fix above was necessary but not
+sufficient).** Three stacked failures: (1) not in sync [fixed above], (2)
+`saveGoal` in Settings only wrote locally and never pushed, (3) `signOut` wiped
+local data BEFORE anything synced. Systemic fix: `signOut` now `await`s
+`pushAll(uid)` (bounded 4s, non-fatal offline) BEFORE `clearAllUserData()` — a
+catch-all for every unsynced Settings edit (goal, tax rate, weekly miles).
+Same commit: **Dashboard `TaxSetAsideCard` was 100% hardcoded English** (never
+imported `useTranslation`) — now fully localized incl. `_one/_other` plurals and
+an active-locale deadline date (was hardcoded `en-US`). The Expenses-tab tax
+section was already translated and was left alone.
+
+**`7041f69` — language reverted to English on relaunch.** Two bugs: (a) the
+welcome picker saved to SecureStore but the Settings switcher wrote only to
+SQLite, which boot never reads — so Settings changes silently reverted;
+`saveLanguage()` now writes BOTH and `getSavedLanguage()` reads SecureStore then
+falls back to SQLite. (b) The first keychain read after a cold boot can
+transiently return null (AFTER_FIRST_UNLOCK), so the app briefly init'd in
+English and only corrected on a forced re-render — the user's "English, then
+Spanish after switching tabs". App.tsx now re-reads + re-applies at 500ms and
+1800ms, so it self-heals with no tab switch.
+
+**`1c0b5b0` — usage-meter copy + IFTA placeholder purge.** "1 of 15 load" →
+"loads"; `valueMissed` used inline ICU plural syntax (`{{count, plural, …}}`)
+with NO ICU plugin configured (`compatibilityJSON: 'v4'`), so it leaked a raw
+`{5}` / "Load 5" fragment — replaced with native i18next `_one/_other` keys (same
+latent bug fixed in `paywall.valueMissed`). IFTA free tab: removed ALL fake
+sample data (the bogus TX/TN rows and 3,810 mi / 586.3 gal totals). Free users
+now see ONLY a clean benefits card (lock + 3 benefit bullets + Upgrade, which
+opens the paywall); export button, quarter/year nav and disclaimer hidden for
+free. Pro-with-no-data gets a "log your first few loads" empty state. No fake
+data in any state.
+
 ### 2026-07-19 — Rejection-response round 2: paywall-in-modal root cause + pre-build-11 polish batch
 
 **THE BIG ONE — 2.1(b) root cause found in code:** every "Upgrade to Pro" button
@@ -1304,6 +1353,42 @@ All verified on expo-web where possible (placeholders, flow reorder both branche
 Google logo, IFTA locked state, profile-name-optional); tsc clean; i18n parity
 0/0/0. Device-only items for the build-11 TestFlight pass: paywall from Settings/
 CheckLoad/AddLoad, celebration timing, Apple button, suggestion taps, switches.
+
+### 2026-07-17 — ⛔ APP REVIEW REJECTION (build 10) + round 1 fixes
+
+**Submission `4cca58fd-e8c3-482d-b2dd-8253aa897b4b`, reviewed 2026-07-16 on an
+iPad Air 11-inch (M3) / iPadOS 26.5.2, version 1.0 (10). Three issues:**
+
+1. **Guideline 4 — Design (iPad):** "the 'Next' and 'Sign In' buttons were not
+   completely visible and accessible."
+2. **Guideline 4 — Design (Sign in with Apple):** button artwork not from Apple
+   Design Resources; black background made it unclear it was a button; and the
+   app required a name after Sign in with Apple, which Authentication Services
+   already provides.
+3. **Guideline 2.1(b) — Performance:** "app did not produce intended action when
+   tapped on the 'Upgrade to Driver Pro' feature."
+
+**Round-1 fixes (`bc4bc2c`) — issues 1 and 2:**
+- Replaced the custom black Apple `TouchableOpacity` (Ionicons glyph) with the
+  native `AppleAuthentication.AppleAuthenticationButton` in both SignIn and
+  SignUp — Apple's own artwork, WHITE on dark / BLACK on light so it always
+  reads as a button.
+- `credential.fullName` is now captured on first authorization and stored, and
+  ProfileSetup no longer hard-requires a name (was
+  `if (!name.trim()) { focus(); return; }`) — Apple forbids re-requesting it.
+- iPad clipping: Welcome (LanguagePicker) and OnboardingResult were fixed
+  non-scrolling `View`s with a `flex:1` spacer pushing the CTA off the bottom on
+  iPad's aspect ratio — both converted to `ScrollView` + `flexGrow` containers;
+  SignIn/SignUp scroll containers got `flexGrow: 1`. Verified at 375×667 (the
+  logical size iPhone apps render at inside iPad's compatibility window) that
+  every CTA is reachable.
+
+**Key process insight recorded at the time:** a rejection CANNOT be fixed with
+`eas update` — the reviewer's first launch runs the embedded bundle, so every
+fix must be in a new BUILD. This retired the 07-11 "OTA-only/JS-only" constraint.
+
+Issue 3 was initially assumed to be RevenueCat/store config; the actual code
+root cause was found two days later (see the 07-19 round-2 entry).
 
 ### 2026-07-11 — Full pre-submit QA run-through (Playwright, expo web) + 3 JS-only fixes
 
