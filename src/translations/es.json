@@ -311,7 +311,8 @@
     "upcoming": "PRÓXIMA",
     "startLoad": "Iniciar Carga",
     "goalPendingLine": "+{{amount}} en ruta → {{pct}}% al entregar",
-    "weekPendingLine": "+{{amount}} en cargas aún en ruta"
+    "weekPendingLine": "+{{amount}} en cargas aún en ruta",
+    "milesSource_odometer": "según tu odómetro"
   },
   "checkLoad": {
     "title": "Revisar Carga",

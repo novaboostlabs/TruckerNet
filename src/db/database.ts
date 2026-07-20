@@ -405,46 +405,139 @@ export function getTotalMonthlyExpenses(): number {
  * The 90-day window is intentional: one slow month shouldn't crater the
  * break-even; the rolling average is more representative of real operating pace.
  */
-export function getMonthlyMiles(): number {
-  // ── Option 1: rolling 90-day actual miles (5+ loads — high confidence) ──
-  const ninetyDaysAgo = (() => {
+// ── Monthly-miles tuning constants ────────────────────────────────────────
+const MILES_WINDOW_DAYS   = 90;   // how far back we look for real data
+const MILES_MIN_SPAN_DAYS = 21;   // real data must COVER this much time to count
+const MILES_FULL_CONF_DAYS = 60;  // coverage at/above this → full confidence
+const MILES_LOADS_CONF_CAP = 0.8; // loads can't see unlogged miles → never 100%
+const MILES_MAX_PER_DAY    = 1200; // typo guard (no truck sustains this)
+
+export interface MonthlyMilesDetail {
+  /** Final figure the break-even divides by (blended). */
+  monthlyMiles: number;
+  /** Which signal drove it. */
+  source:       BreakEvenSource;
+  /** 0–1: how much the real signal (vs the estimate) drove the result. */
+  confidence:   number;
+  /** The real signal's own monthly figure, pre-blend (0 when none). */
+  realMonthly:  number;
+  /** The driver's stated estimate (weekly_miles × 4.333). */
+  estimate:     number;
+}
+
+/** Whole days between two YYYY-MM-DD dates (noon-anchored, so DST can't shift it). */
+function daysBetweenISO(a: string, b: string): number {
+  const ms = new Date(`${b}T12:00:00`).getTime() - new Date(`${a}T12:00:00`).getTime();
+  return Math.max(0, Math.round(ms / 86400000));
+}
+
+const clamp01 = (n: number) => Math.max(0, Math.min(1, n));
+
+/**
+ * Monthly miles for the break-even denominator, from the best signal available.
+ *
+ * Signals, best first:
+ *   1. ODOMETER span across fuel entries — ground truth. This is the only source
+ *      that counts miles the driver DIDN'T log (unlogged loads, deadhead,
+ *      bobtail), so it can't be fooled by incomplete load logging. That matters:
+ *      summing loads can't tell "I drove less" from "I logged less", and
+ *      under-logging silently inflates break-even.
+ *   2. COMPLETED LOADS — good, but structurally blind to unlogged miles, so its
+ *      confidence is capped below the odometer's.
+ *   3. STATED ESTIMATE (weekly_miles × 4.333) — always available, never learns.
+ *
+ * Two deliberate design choices:
+ *   • Gate on TIME COVERAGE (≥21 days), not a load COUNT. Five loads says nothing
+ *     about the period they cover — five in one week is not a month of data.
+ *   • BLEND rather than switch: monthly = c·real + (1−c)·estimate, where c grows
+ *     with coverage. A hard switch made the number jump ~3× the moment a 5th load
+ *     was logged; blending eases real data in as it earns trust.
+ *
+ * Rates are measured over the period the data actually spans (first→last
+ * observation), i.e. the driver's pace *while working* — so a stretch of
+ * downtime doesn't crater the figure the app plans future loads against.
+ */
+export function getMonthlyMilesDetail(): MonthlyMilesDetail {
+  const weeklyRow = db.getFirstSync<{ value: string }>(
+    'SELECT value FROM settings WHERE key = "weekly_miles"',
+  );
+  const estimate = (parseFloat(weeklyRow?.value ?? '0') || 0) * 4.333;
+
+  const windowStart = (() => {
     const d = new Date();
-    d.setDate(d.getDate() - 90);
+    d.setDate(d.getDate() - MILES_WINDOW_DAYS);
     return localDateISO(d);
   })();
 
-  // Upcoming loads haven't been driven — their miles can't count as actuals.
-  const rolling = db.getFirstSync<{ total_miles: number; load_count: number; earliest_date: string }>(
-    `SELECT COALESCE(SUM(total_miles), 0) as total_miles, COUNT(*) as load_count,
-            MIN(date) as earliest_date
-     FROM loads
-     WHERE status = 'completed' AND date >= ?`,
-    [ninetyDaysAgo],
+  let best: { monthly: number; source: BreakEvenSource; conf: number } | null = null;
+
+  // ── Signal 1: odometer span (counts every mile the truck moved) ──
+  const odo = db.getFirstSync<{ n: number; lo: number; hi: number; first_date: string; last_date: string }>(
+    `SELECT COUNT(*) as n, MIN(odometer_reading) as lo, MAX(odometer_reading) as hi,
+            MIN(date) as first_date, MAX(date) as last_date
+     FROM fuel_entries
+     WHERE odometer_reading > 0 AND date >= ?`,
+    [windowStart],
   );
-  if (rolling && rolling.load_count >= 5 && rolling.total_miles > 0) {
-    // Extrapolate from the actual span the data covers rather than assuming a
-    // full 90 days elapsed — a driver (or seeded demo account) with 5+ loads
-    // packed into their first few weeks would otherwise have that mileage
-    // divided by 3 as if it were a full quarter, cratering the monthly-miles
-    // figure and inflating break-even. Floor of 7 days keeps a same-day batch
-    // of loads from extrapolating to an absurd monthly figure.
-    const daysSpan = Math.max(
-      7,
-      Math.round((Date.now() - new Date(rolling.earliest_date).getTime()) / 86400000) + 1,
-    );
-    return Math.round((rolling.total_miles / daysSpan) * 30);
+  if (odo && odo.n >= 2 && odo.hi > odo.lo && odo.first_date && odo.last_date) {
+    const spanDays = daysBetweenISO(odo.first_date, odo.last_date);
+    const miles    = odo.hi - odo.lo;
+    // Guard a mistyped reading (e.g. a dropped digit) from wrecking break-even.
+    if (spanDays >= MILES_MIN_SPAN_DAYS && miles / spanDays <= MILES_MAX_PER_DAY) {
+      best = {
+        monthly: (miles / spanDays) * 30,
+        source:  'odometer',
+        conf:    clamp01(spanDays / MILES_FULL_CONF_DAYS),
+      };
+    }
   }
 
-  // ── Fallback: onboarding estimate (weekly_miles × 4.333) ──
-  // We deliberately do NOT use a partial current-month sum here. The sum of
-  // 1–4 loads logged so far this month is NOT a monthly mileage total — early in
-  // the month it can be tiny (e.g. one 35-mile load), which would divide fixed
-  // costs by 35 and produce a nonsensical break-even of hundreds of $/mi. Until
-  // the 90-day window has enough real data (Option 1, ≥5 loads), the driver's
-  // stated weekly miles is by far the more representative figure.
-  const row = db.getFirstSync<{ value: string }>('SELECT value FROM settings WHERE key = "weekly_miles"');
-  const weekly = parseFloat(row?.value ?? '0');
-  return weekly * 4.333;
+  // ── Signal 2: completed loads (only when there's no usable odometer span) ──
+  if (!best) {
+    // Upcoming loads haven't been driven — their miles can't count as actuals.
+    const rolling = db.getFirstSync<{ total_miles: number; load_count: number; first_date: string; last_date: string }>(
+      `SELECT COALESCE(SUM(total_miles), 0) as total_miles, COUNT(*) as load_count,
+              MIN(date) as first_date, MAX(date) as last_date
+       FROM loads
+       WHERE status = 'completed' AND date >= ?`,
+      [windowStart],
+    );
+    if (rolling && rolling.load_count >= 5 && rolling.total_miles > 0 && rolling.first_date) {
+      const spanDays = daysBetweenISO(rolling.first_date, rolling.last_date);
+      if (spanDays >= MILES_MIN_SPAN_DAYS && rolling.total_miles / spanDays <= MILES_MAX_PER_DAY) {
+        best = {
+          monthly: (rolling.total_miles / spanDays) * 30,
+          source:  'loads_90d',
+          conf:    clamp01(spanDays / MILES_FULL_CONF_DAYS) * MILES_LOADS_CONF_CAP,
+        };
+      }
+    }
+  }
+
+  // ── No usable real signal → the stated estimate ──
+  if (!best) {
+    return { monthlyMiles: estimate, source: 'estimate', confidence: 0, realMonthly: 0, estimate };
+  }
+  // Real data but no estimate to blend against (never onboarded) → trust it fully.
+  if (estimate <= 0) {
+    return {
+      monthlyMiles: Math.round(best.monthly),
+      source: best.source, confidence: 1, realMonthly: best.monthly, estimate: 0,
+    };
+  }
+
+  const blended = best.conf * best.monthly + (1 - best.conf) * estimate;
+  return {
+    monthlyMiles: Math.round(blended),
+    source:       best.source,
+    confidence:   best.conf,
+    realMonthly:  best.monthly,
+    estimate,
+  };
+}
+
+export function getMonthlyMiles(): number {
+  return getMonthlyMilesDetail().monthlyMiles;
 }
 
 export function getWeeklyMiles(): number {
@@ -535,7 +628,7 @@ export function mergeUserExpenses(
 
 // ── Break-even calculation ──
 
-export type BreakEvenSource = 'loads_90d' | 'loads_month' | 'estimate';
+export type BreakEvenSource = 'odometer' | 'loads_90d' | 'loads_month' | 'estimate';
 
 export function calcBreakEven(): {
   breakEvenRPM: number;
@@ -546,22 +639,10 @@ export function calcBreakEven(): {
   const fuelCPM    = getLatestFuelCPM();
   const totalFixed = getTotalMonthlyExpenses();
 
-  // Determine source before calling getMonthlyMiles so we can tag it. Must mirror
-  // getMonthlyMiles: real data only once the 90-day window has ≥5 loads, else the
-  // onboarding estimate (a partial-month sum is never used — see getMonthlyMiles).
-  const ninetyDaysAgo = (() => {
-    const d = new Date(); d.setDate(d.getDate() - 90);
-    return localDateISO(d);
-  })();
-  const rolling = db.getFirstSync<{ load_count: number }>(
-    `SELECT COUNT(*) as load_count FROM loads WHERE status = 'completed' AND date >= ?`,
-    [ninetyDaysAgo],
-  );
-
-  const milesSource: BreakEvenSource =
-    (rolling?.load_count ?? 0) >= 5 ? 'loads_90d' : 'estimate';
-
-  const monthlyMiles = getMonthlyMiles();
+  // Single source of truth: the miles AND the label come from the same call, so
+  // they can never drift. (This previously re-derived the source with a copy of
+  // getMonthlyMiles' rules — a mirror that had to be kept in sync by hand.)
+  const { monthlyMiles, source: milesSource } = getMonthlyMilesDetail();
   if (monthlyMiles <= 0) return { breakEvenRPM: 0, fuelCPM, fixedCPM: 0, milesSource };
 
   const fixedCPM = totalFixed / monthlyMiles;

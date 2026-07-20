@@ -1175,6 +1175,41 @@ modules, app.json, permissions) still need a full `eas build`.
 
 ## 6. Work Log (newest first)
 
+### 2026-07-20 — Monthly-miles algorithm rebuilt: odometer-first + coverage gate + blend
+
+Follow-up to the Fixed CPM fix below. The denominator itself was the deeper
+problem: `getMonthlyMiles()` switched to real data on a raw COUNT (≥5 completed
+loads), which says nothing about the time those loads cover, and summing loads
+can't distinguish "I drove less" from "I logged less" — so under-logging
+silently inflated break-even.
+
+New `getMonthlyMilesDetail()` (getMonthlyMiles now delegates to it):
+- **Signal 1 — ODOMETER span** across fuel entries. Ground truth: counts every
+  mile the truck moved, including unlogged loads + deadhead. The only signal
+  immune to incomplete logging.
+- **Signal 2 — completed loads**, confidence capped at 0.8 (structurally blind
+  to unlogged miles).
+- **Signal 3 — stated estimate** (weekly × 4.333).
+- Gate on TIME COVERAGE ≥21 days (not load count) — kills the "5 loads in one
+  week extrapolates to 17k mi/mo" case.
+- BLEND: `c·real + (1−c)·estimate`, c = coverage/60 → no cliff when load #5 lands.
+- Guards: reject >1,200 mi/day (odometer typos), require hi>lo, ≥2 entries.
+- Rates measured over first→last observation (pace *while working*), so time
+  off doesn't crater the number the app plans future loads against.
+
+`calcBreakEven` now takes miles AND source from the same call — it previously
+re-derived the source with a hand-maintained mirror of getMonthlyMiles' rules.
+New `'odometer'` BreakEvenSource + label in all 4 languages.
+
+Validated with a scenario simulation (scratchpad/miles-sim.js). User's case:
+old → 3,214 mi/mo / BE $2.71; new loads-only → 7,988 / $1.41; new with fuel
+logged → 10,316 / $1.21. Burst case (5 loads in 6 days): old 17,143 mi/mo →
+new correctly falls back to the estimate. tsc clean; i18n parity 0/0/0.
+
+OPEN (deferred, not built): the "you drove 9,400 mi but only logged 3,200"
+nudge when odometer and loads disagree — strong data-quality/retention feature
+and it also flags incomplete IFTA. Revisit post-approval.
+
 ### 2026-07-20 — Fixed CPM contradicted itself: Dashboard $2.18 vs Expenses $0.646
 
 Same "Fixed CPM" label showed two different numbers because the two screens

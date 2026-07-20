@@ -196,7 +196,7 @@ export default function ExpensesScreen() {
   // engine actually uses, or this screen contradicts the dashboard. Real logged
   // miles win when we have them; otherwise fall back to the live input so the
   // number still updates as the driver types.
-  const usingRealMiles = milesSource === 'loads_90d' && actualMonthlyMiles > 0;
+  const usingRealMiles = (milesSource === 'odometer' || milesSource === 'loads_90d') && actualMonthlyMiles > 0;
   const heroMiles      = usingRealMiles ? actualMonthlyMiles : monthlyMiles;
   const fixedCPM       = heroMiles > 0 ? total / heroMiles : 0;
 
@@ -312,7 +312,7 @@ export default function ExpensesScreen() {
             {total > 0 && heroMiles > 0 ? (
               <Text style={styles.heroSub}>
                 ${Math.round(total).toLocaleString('en-US')} {t('expenses.perMo')} ÷ {Math.round(heroMiles).toLocaleString('en-US')} mi
-                {usingRealMiles ? ` · ${t('dashboard.milesSource_loads_90d')}` : ''}
+                {usingRealMiles ? ` · ${t(`dashboard.milesSource_${milesSource}`)}` : ''}
               </Text>
             ) : (
               <Text style={styles.heroSub}>{t('expenses.heroEmpty')}</Text>

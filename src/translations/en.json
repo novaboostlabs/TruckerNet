@@ -311,7 +311,8 @@
     "upcoming": "UPCOMING",
     "startLoad": "Start Load",
     "goalPendingLine": "+{{amount}} rolling now → {{pct}}% once delivered",
-    "weekPendingLine": "+{{amount}} on loads still rolling"
+    "weekPendingLine": "+{{amount}} on loads still rolling",
+    "milesSource_odometer": "from your odometer"
   },
   "checkLoad": {
     "title": "Check Load",

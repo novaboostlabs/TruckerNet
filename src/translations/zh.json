@@ -311,7 +311,8 @@
     "upcoming": "即将执行",
     "startLoad": "开始运输",
     "goalPendingLine": "+{{amount}} 在途 → 送达后 {{pct}}%",
-    "weekPendingLine": "+{{amount}} 来自在途货载"
+    "weekPendingLine": "+{{amount}} 来自在途货载",
+    "milesSource_odometer": "来自里程表"
   },
   "checkLoad": {
     "title": "查看订单",
