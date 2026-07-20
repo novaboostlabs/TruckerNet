@@ -33,34 +33,28 @@ report). **START HERE IN A NEW CHAT.**
   bugs, IFTA free tab placeholder-data removal), `7041f69` (language
   reverting to English on relaunch). `tsc` clean and i18n parity 0/0/0/0
   verified after every batch.
-- **⚠️ USER ACTION PENDING — Supabase migration not yet confirmed run:**
-  `supabase/migrations/2026-07-19_profiles_goal_tax.sql` must be run in the
-  Supabase SQL editor (idempotent). Until then, cloud profile push logs a
-  schema error and the income-goal/tax-rate sync fix doesn't actually persist.
-- **⚠️ CRITICAL GAP FOUND 2026-07-19 — verified via `eas update:list`:** the
-  `production` OTA channel's most recent published update is `5ad1bfb`, but
-  the update history **skips `c063fc6` and `bc4bc2c` entirely** — it jumps
-  straight from `711b75c` to `556ab48`. That means **the two commits that fix
-  the actual rejection reasons (Apple sign-in/iPad clipping, and the
-  paywall-inert-in-modal root cause) have never been published**, either as a
-  new native build or via OTA. The live app (build #10 / `7528effc`, native
-  commit `3d4a56c`, finished 2026-07-13) still has the bugs Apple rejected it
-  for.
-- **No build #11 exists yet.** `eas build:list` still shows build #10
-  (`7528effc`, commit `3d4a56c`, finished 7/13) as the latest iOS build. None
-  of the 6 rejection-response commits are baked into a native build — all of
-  them are JS/TS/UI-only (verified: none touch `app.json`, entitlements, or
-  native folders), so they're OTA-eligible, but OTA is currently incomplete
-  (see above).
+- **✅ Supabase migration run (confirmed by user 2026-07-19):**
+  `supabase/migrations/2026-07-19_profiles_goal_tax.sql` has been applied.
+  Cloud profile push for income-goal/tax-rate no longer errors.
+- **✅ OTA update published (confirmed by user 2026-07-19):** all six
+  rejection-response commits, including the two that were previously found
+  missing from the update history (`bc4bc2c` Apple sign-in/iPad clipping,
+  `c063fc6` paywall-inert-in-modal root cause), have now shipped via
+  `eas update --channel production`.
+- **⚠️ Still open — no native build #11 yet.** The OTA update above only
+  patches JS/TS on top of build #10 (`7528effc`, native commit `3d4a56c`,
+  finished 2026-07-13) — it does **not** replace the App Store binary. A new
+  native build is still required before resubmitting to App Review; an OTA
+  update alone does not satisfy a resubmission. **Current focus (user,
+  2026-07-19): doing a pass through the app to catch and fix any remaining
+  small bugs/improvements before cutting build #11**, so #11 goes out as
+  clean as possible. Build #11 has not been cut yet — that happens after this
+  bug-sweep pass.
 
-**Immediate next action:** (1) confirm the Supabase migration has been run;
-(2) publish ONE consolidated `eas update --channel production` that covers
-everything through `5ad1bfb` (must include `bc4bc2c` + `c063fc6` — do not
-skip them again); (3) decide whether to resubmit build `7528effc` as-is
-(relying on the OTA fetch on launch) or cut a fresh native build #11 before
-resubmitting — cutting a fresh build is the safer choice for an App Review
-resubmission since reviewers may not reliably pick up an OTA update in time.
-See §6 Work Log for full history, newest first._
+**Immediate next action:** continue the pre-build-11 bug sweep (small fixes/
+polish found while using the app); once that pass is done, cut a fresh native
+build #11 (`eas build --platform ios --profile production`) and submit it to
+App Store Connect for review. See §6 Work Log for full history, newest first._
 
 > **Backend sync state:** Local-first, SQLite is source of truth. As of
 > 2026-07-01/02: pull now MERGES instead of replacing (local wins on conflict,
@@ -1242,11 +1236,10 @@ permanently lost the driver's goal (user-reported on TestFlight). They now
 ride the `profiles` row like name/equipment; pull keeps LOCAL WINS. `tax_rate`
 included for the same reason.
 
-**USER ACTION — STILL PENDING:** run
+**USER ACTION — DONE (confirmed 2026-07-19):** ran
 `supabase/migrations/2026-07-19_profiles_goal_tax.sql` in the Supabase SQL
-editor (idempotent). Until this runs, profile push logs a schema error in the
-Cloud backup row (non-fatal, but the goal/tax sync this commit adds doesn't
-actually persist to the cloud until the column exists).
+editor. Profile push no longer errors; the goal/tax sync this commit adds now
+persists to the cloud.
 
 ### 2026-07-19 — Rejection-response round 2: paywall-in-modal root cause + pre-build-11 polish batch
 
