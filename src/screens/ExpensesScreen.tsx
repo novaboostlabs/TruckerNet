@@ -12,6 +12,7 @@ import { useTheme } from '../theme/ThemeContext';
 import {
   getUserExpenses, replaceUserExpenses, getWeeklyMiles, setMonthlyMiles,
   getTaxSetAside, setSetting, getSetting, TaxSetAside,
+  getMonthlyMiles, calcBreakEven, BreakEvenSource,
 } from '../db/database';
 import { toMonthlyAmount, ExpenseFrequency } from '../utils/marketRates';
 import { useAuth } from '../contexts/AuthContext';
@@ -80,7 +81,19 @@ export default function ExpensesScreen() {
   const [taxData, setTaxData] = useState<TaxSetAside>(() => getTaxSetAside());
   const [taxRate, setTaxRate] = useState<number>(() => Math.round(getTaxSetAside().rate * 100));
 
-  useFocusEffect(useCallback(() => { setTaxData(getTaxSetAside()); }, []));
+  // The dashboard's break-even divides fixed costs by getMonthlyMiles() — REAL
+  // 90-day miles once 5+ loads exist, otherwise the typed estimate. This screen
+  // used to always divide by the typed estimate, so the same "Fixed CPM" label
+  // showed two different numbers on the two screens (e.g. $2.18 vs $0.646).
+  // Track the real figure + its source so the hero below can match exactly.
+  const [actualMonthlyMiles, setActualMonthlyMiles] = useState(0);
+  const [milesSource, setMilesSource] = useState<BreakEvenSource>('estimate');
+
+  useFocusEffect(useCallback(() => {
+    setTaxData(getTaxSetAside());
+    setActualMonthlyMiles(getMonthlyMiles());
+    setMilesSource(calcBreakEven().milesSource);
+  }, []));
 
   const applyTaxRate = useCallback((r: number) => {
     setSetting('tax_rate', String(r));
@@ -176,8 +189,16 @@ export default function ExpensesScreen() {
   }
 
   const total       = totalMonthly();
+  // The typed estimate — still what gets SAVED and what the sanity gate checks.
   const monthlyMiles = parseFloat(monthlyMilesInput) || 0;
-  const fixedCPM    = monthlyMiles > 0 ? total / monthlyMiles : 0;
+
+  // …but the DISPLAYED cost-per-mile must divide by whatever the break-even
+  // engine actually uses, or this screen contradicts the dashboard. Real logged
+  // miles win when we have them; otherwise fall back to the live input so the
+  // number still updates as the driver types.
+  const usingRealMiles = milesSource === 'loads_90d' && actualMonthlyMiles > 0;
+  const heroMiles      = usingRealMiles ? actualMonthlyMiles : monthlyMiles;
+  const fixedCPM       = heroMiles > 0 ? total / heroMiles : 0;
 
   function handleSave() {
     // Same sanity gate as onboarding: block expense/miles combos that produce a
@@ -288,9 +309,10 @@ export default function ExpensesScreen() {
             <Text style={[styles.heroNumber, fixedCPM > 0 && styles.heroNumberActive]}>
               ${fixedCPM.toFixed(3)}
             </Text>
-            {total > 0 && monthlyMiles > 0 ? (
+            {total > 0 && heroMiles > 0 ? (
               <Text style={styles.heroSub}>
-                ${Math.round(total).toLocaleString('en-US')} {t('expenses.perMo')} ÷ {Math.round(monthlyMiles).toLocaleString('en-US')} mi
+                ${Math.round(total).toLocaleString('en-US')} {t('expenses.perMo')} ÷ {Math.round(heroMiles).toLocaleString('en-US')} mi
+                {usingRealMiles ? ` · ${t('dashboard.milesSource_loads_90d')}` : ''}
               </Text>
             ) : (
               <Text style={styles.heroSub}>{t('expenses.heroEmpty')}</Text>

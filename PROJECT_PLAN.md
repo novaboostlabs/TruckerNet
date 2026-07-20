@@ -1175,6 +1175,28 @@ modules, app.json, permissions) still need a full `eas build`.
 
 ## 6. Work Log (newest first)
 
+### 2026-07-20 — Fixed CPM contradicted itself: Dashboard $2.18 vs Expenses $0.646
+
+Same "Fixed CPM" label showed two different numbers because the two screens
+divided the SAME expense total by DIFFERENT mileage:
+- Dashboard (`calcBreakEven` → `getMonthlyMiles()`): real 90-day logged miles
+  once 5+ completed loads exist, else the onboarding estimate.
+- Expenses tab: ALWAYS `parseFloat(monthlyMilesInput)` — the typed estimate,
+  never the real data.
+User's account had 5+ loads whose actual miles were ~1/3.4 of their stated
+estimate, so the dashboard's divisor was much smaller → $2.18 vs $0.646.
+
+Fix: the Expenses hero now divides by the same effective miles the break-even
+engine uses (`usingRealMiles ? actualMonthlyMiles : live input`), and appends
+"· from your loads" when running on real data so the divisor differing from
+the typed estimate is explained rather than confusing. Save + the break-even
+sanity gate deliberately still use the TYPED estimate (that's the field being
+edited). Fallback path verified on web ($2,000 ÷ 10,000 = $0.200, live).
+
+NOTE (product, not a bug): break-even reads high when a driver logs only some
+of their loads — real miles under-count vs their stated weekly estimate. Worth
+revisiting the ≥5-load switchover if drivers report inflated break-evens.
+
 ### 2026-07-19 — Rejection-response round 2: paywall-in-modal root cause + pre-build-11 polish batch
 
 **THE BIG ONE — 2.1(b) root cause found in code:** every "Upgrade to Pro" button
