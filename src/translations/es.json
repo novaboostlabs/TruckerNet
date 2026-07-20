@@ -348,7 +348,8 @@
       "close": "Cerrar",
       "aboveBreakEven": "+{{amount}}/mi sobre el equilibrio",
       "belowBreakEven": "{{amount}}/mi bajo el equilibrio",
-      "deadheadSaving": "Ahorra ~{{amount}} vs viajar vacío"
+      "deadheadSaving": "Ahorra ~{{amount}} vs viajar vacío",
+      "beatsPct": "Supera el {{pct}}% de tus últimas {{count}} cargas"
     }
   },
   "fuel": {

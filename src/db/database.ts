@@ -1525,6 +1525,43 @@ export function getIFTAConsistency(year: number, q: number): IFTAConsistency | n
   return null;
 }
 
+// ── Verdict context: how does this load rank against the driver's own book? ──
+// The green/amber/red verdict bar is a fixed rule (break-even ×1.15) on
+// purpose — moving the bar to match a driver's habits would quietly normalize
+// thin margins. This is the safe personalization instead: keep the bar fixed,
+// ADD context. "Beats 78% of your recent loads" tells a driver what the
+// verdict can't — whether this load is good FOR THEM, by their own history.
+
+const VERDICT_CTX_WINDOW_DAYS = 90;
+const VERDICT_CTX_MIN_LOADS   = 5;   // below this a percentile is noise
+
+export interface VerdictContext {
+  /** 0–100: % of the driver's recent completed loads this net RPM beats. */
+  pctBeaten: number;
+  sample:    number;
+}
+
+export function getVerdictContext(netRPM: number): VerdictContext | null {
+  if (!isFinite(netRPM)) return null;
+  const windowStart = (() => {
+    const d = new Date();
+    d.setDate(d.getDate() - VERDICT_CTX_WINDOW_DAYS);
+    return localDateISO(d);
+  })();
+  // Deadhead legs are excluded — they're unpaid by definition, and counting
+  // them would let any paying load "beat" them and flatter the percentile.
+  const row = db.getFirstSync<{ total: number; beaten: number }>(
+    `SELECT COUNT(*) as total,
+            SUM(CASE WHEN (net_pay / total_miles) < ? THEN 1 ELSE 0 END) as beaten
+     FROM loads
+     WHERE status = 'completed' AND is_deadhead = 0
+       AND total_miles > 0 AND date >= ?`,
+    [netRPM, windowStart],
+  );
+  if (!row || row.total < VERDICT_CTX_MIN_LOADS) return null;
+  return { pctBeaten: Math.round((row.beaten / row.total) * 100), sample: row.total };
+}
+
 // ── Historical state split (fallback for the Add Load per-state breakdown) ──
 // When route geometry fails, the old fallback was a flat 50/50 between pickup
 // and delivery state — which drops every pass-through state and is arbitrary
@@ -1951,7 +1988,16 @@ export interface StaleCategoryAlert {
 /**
  * Returns expenses whose category-specific aging threshold has been exceeded.
  * Sorted by how overdue they are (most overdue first).
+ *
+ * Thresholds are IMPACT-WEIGHTED per driver: an expense's share of their total
+ * fixed costs scales its aging window. A stale truck payment that's 40% of
+ * fixed costs distorts break-even an order of magnitude more than a stale $40
+ * parking fee — so the big rows get checked sooner and the trivial ones nag
+ * less. This adapts to each driver's own cost mix with zero tuning data.
  */
+const STALE_BIG_SHARE   = 0.30, STALE_BIG_FACTOR   = 0.7;  // ≥30% of costs → check 30% sooner
+const STALE_SMALL_SHARE = 0.03, STALE_SMALL_FACTOR = 1.5;  // ≤3% → let it age 50% longer
+
 export function getStaleCategoryAlerts(): StaleCategoryAlert[] {
   const rows = db.getAllSync<UserExpenseRow & { created_at: string }>(
     `SELECT id, label, category, amount, frequency, monthly_equivalent,
@@ -1960,9 +2006,16 @@ export function getStaleCategoryAlerts(): StaleCategoryAlert[] {
      FROM user_expenses WHERE is_active = 1 AND category != 'fuel'`
   );
 
+  const totalMonthly = rows.reduce((s, r) => s + (r.monthly_equivalent || 0), 0);
+
   const alerts: StaleCategoryAlert[] = [];
   for (const r of rows) {
-    const threshold = CATEGORY_AGING_DAYS[r.category] ?? 90;
+    const base   = CATEGORY_AGING_DAYS[r.category] ?? 90;
+    const share  = totalMonthly > 0 ? (r.monthly_equivalent || 0) / totalMonthly : 0;
+    const factor = share >= STALE_BIG_SHARE   ? STALE_BIG_FACTOR
+                 : share <= STALE_SMALL_SHARE ? STALE_SMALL_FACTOR
+                 : 1;
+    const threshold = Math.round(base * factor);
     const days = daysSinceConfirmed(r.confirmed_at);
     if (days >= threshold) {
       alerts.push({

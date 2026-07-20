@@ -15,7 +15,7 @@ import { getDateLocale } from '../lib/i18n';
 import {
   calcBreakEven, saveLoad, getPersonalLaneHistory, LaneHistory, LoadExpenseInsert,
   getIncomeGoal, getWeekPnL, getMonthPnL, getSetting, setSetting, getLoadCount, localDateISO,
-  getPersonalFuelStats, getHistoricalStateSplit,
+  getPersonalFuelStats, getHistoricalStateSplit, getVerdictContext,
 } from '../db/database';
 import { useAuth } from '../contexts/AuthContext';
 import { useSubscription } from '../contexts/SubscriptionContext';
@@ -373,6 +373,10 @@ export default function AddLoadScreen({ onClose, onSaved, onFirstLoad, prefill }
 
   const stateMilesTotal = stateMiles.reduce((s, r) => s + (parseFloat(r.miles) || 0), 0);
   const stateMilesDiff  = loadMi > 0 ? Math.abs(Math.round(stateMilesTotal) - Math.round(loadMi)) : 0;
+
+  // How this load ranks in the driver's own recent book. Suppressed for
+  // deadhead legs — ranking an unpaid reposition against paid loads is noise.
+  const verdictCtx = hasInputs && !deadhead ? getVerdictContext(netRPM) : null;
 
   // Driver's own fuel history — real prices they paid + real avg fill size —
   // personalizes the optimizer below. Read once per screen mount.
@@ -1013,6 +1017,11 @@ export default function AddLoadScreen({ onClose, onSaved, onFirstLoad, prefill }
               <Text style={styles.netPreviewSub}>
                 ${grossRPM.toFixed(3)}/mi gross · ${netRPM.toFixed(3)}/mi net
               </Text>
+              {verdictCtx && (
+                <Text style={styles.netPreviewCtx}>
+                  {t('checkLoad.result.beatsPct', { pct: verdictCtx.pctBeaten, count: verdictCtx.sample })}
+                </Text>
+              )}
             </View>
           )}
 
@@ -1464,6 +1473,7 @@ const makeStyles = (Colors: ThemeColors) => StyleSheet.create({
     lineHeight: 40, letterSpacing: -0.5, marginBottom: 4,
   },
   netPreviewSub: { fontFamily: FontFamily.regular, fontSize: FontSize.caption, color: Colors.textSecondary },
+  netPreviewCtx: { fontFamily: FontFamily.monoRegular, fontSize: FontSize.caption, color: Colors.textSecondary, marginTop: 4, letterSpacing: 0.2 },
 
   dropdown: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',

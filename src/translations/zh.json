@@ -348,7 +348,8 @@
       "close": "关闭",
       "aboveBreakEven": "高于盈亏平衡 {{amount}}/英里",
       "belowBreakEven": "低于盈亏平衡 {{amount}}/英里",
-      "deadheadSaving": "比空驶节省约 {{amount}}"
+      "deadheadSaving": "比空驶节省约 {{amount}}",
+      "beatsPct": "超过你最近 {{count}} 个货载中的 {{pct}}%"
     }
   },
   "fuel": {

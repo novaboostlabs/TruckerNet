@@ -348,7 +348,8 @@
       "belowBreakEven": "{{amount}}/mi below break-even",
       "deadheadSaving": "Saves ~{{amount}} vs driving empty",
       "logLoad": "Accept & Log This Load",
-      "close": "Close"
+      "close": "Close",
+      "beatsPct": "Beats {{pct}}% of your last {{count}} loads"
     }
   },
   "fuel": {

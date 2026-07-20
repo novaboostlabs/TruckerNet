@@ -1179,6 +1179,36 @@ modules, app.json, permissions) still need a full `eas build`.
 
 ## 6. Work Log (newest first)
 
+### 2026-07-20 (batch 3) — Verdict personal context + impact-weighted expense staleness
+
+Third batch from the adaptive audit. These two close out everything that can
+be built honestly WITHOUT real user data; the rest of the audit list is now
+formally post-launch (needs live distributions to tune against).
+
+1. **Verdict personal context** (`getVerdictContext` + CheckLoad result card +
+   AddLoad net preview): "Beats {{pct}}% of your last {{count}} loads". The
+   deliberate design: the green/amber/red bar STAYS FIXED at break-even ×1.15 —
+   adapting the bar to a driver's habits would normalize thin margins (the
+   trap the audit's original suggestion walked into). Context is added BESIDE
+   the fixed verdict instead. Percentile over 90-day completed loads,
+   deadhead legs excluded from the pool (unpaid by definition — counting them
+   flatters every real load) AND suppressed when the load being added IS a
+   deadhead. Hidden below 5 loads of history (a percentile of 3 is noise).
+2. **Impact-weighted expense staleness** (`getStaleCategoryAlerts`): category
+   aging thresholds now scale by the row's share of the driver's total fixed
+   costs — ≥30% of costs → checked 30% sooner, ≤3% → nags 50% less. A stale
+   truck payment distorts break-even an order of magnitude more than a stale
+   parking fee; now the nag pressure matches the distortion. Adapts to each
+   driver's cost mix with zero tuning data. (The audit's original idea —
+   learning each row's edit cadence — is impossible today: only the LATEST
+   confirmed_at is stored, no history. Logged here so it isn't re-proposed.)
+
+tsc clean; i18n parity 0/0/0 (1 new key × 4 languages). Pure JS → rides into
+build 11. Audit now fully dispositioned: 9 items built, 2 deliberately
+rejected with reasons (deadhead ratio, adaptive verdict bar), 4 deferred to
+post-launch with real data (seasonal blend, rate-engine multipliers,
+fair-market spread-from-variance, unlogged-nudge personal baseline).
+
 ### 2026-07-20 (batch 2) — Adaptive pass continues: fuel-CPM blend, IFTA cross-check, historical state split
 
 Second batch from the 15-item adaptive audit (batch 1 below). Also logged:

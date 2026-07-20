@@ -347,7 +347,8 @@
       "fairMarket": "ਉਚਿਤ ਬਾਜ਼ਾਰ ({{type}})",
       "aboveBreakEven": "ਬਰੇਕ-ਈਵਨ ਤੋਂ +{{amount}}/ਮੀਲ ਉੱਪਰ",
       "belowBreakEven": "ਬਰੇਕ-ਈਵਨ ਤੋਂ {{amount}}/ਮੀਲ ਹੇਠਾਂ",
-      "deadheadSaving": "ਖਾਲੀ ਚੱਲਣ ਨਾਲੋਂ ~{{amount}} ਬਚਾਉਂਦਾ ਹੈ"
+      "deadheadSaving": "ਖਾਲੀ ਚੱਲਣ ਨਾਲੋਂ ~{{amount}} ਬਚਾਉਂਦਾ ਹੈ",
+      "beatsPct": "ਤੁਹਾਡੇ ਪਿਛਲੇ {{count}} ਲੋਡਾਂ ਵਿੱਚੋਂ {{pct}}% ਤੋਂ ਵਧੀਆ"
     },
     "loadPayPlaceholder": "ਬਰੋਕਰ ਕੀ ਪੇਸ਼ਕਸ਼ ਕਰ ਰਿਹਾ ਹੈ ($)"
   },

@@ -8,7 +8,7 @@ import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, FontFamily, FontSize, Spacing, Radius, SectionLabel, ThemeColors, sectionLabel } from '../theme/theme';
 import { useTheme } from '../theme/ThemeContext';
-import { calcBreakEven, getPersonalLaneHistory, LaneHistory, getSetting } from '../db/database';
+import { calcBreakEven, getPersonalLaneHistory, LaneHistory, getSetting, getVerdictContext } from '../db/database';
 import {
   getFairMarketRate, calcDeadheadCost, LoadType,
 } from '../utils/marketRates';
@@ -206,6 +206,10 @@ export default function CheckLoadScreen({ onClose, onLogLoad }: Props) {
   const fairDest   = deliverySel ? suggestionState(deliverySel) : undefined;
   const fair = hasInputs ? getFairMarketRate(loadMiles, loadType, grossPay, fairOrigin, fairDest) : null;
   const deadheadCost = calcDeadheadCost(loadMiles, fuelCPM, fixedCPM);
+
+  // How this load ranks against the driver's own recent book — context the
+  // fixed verdict bar can't give. Null until they have enough history.
+  const verdictCtx = hasInputs ? getVerdictContext(netRPM) : null;
 
   const verdictColor =
     isBackhaulRescue ? Colors.secondary :
@@ -434,6 +438,14 @@ export default function CheckLoadScreen({ onClose, onLogLoad }: Props) {
                       : t('checkLoad.result.belowBreakEven', { amount: `$${Math.abs(deltaRPM).toFixed(3)}` })}
                   </Text>
                 </View>
+              )}
+
+              {/* Personal ranking — the fixed verdict bar says "clears YOUR
+                  break-even"; this says how it ranks in YOUR recent book. */}
+              {verdictCtx && (
+                <Text style={styles.verdictCtx}>
+                  {t('checkLoad.result.beatsPct', { pct: verdictCtx.pctBeaten, count: verdictCtx.sample })}
+                </Text>
               )}
 
               {/* Backhaul reframe */}
@@ -672,6 +684,10 @@ const makeStyles = (Colors: ThemeColors) => StyleSheet.create({
     borderRadius: Radius.pill, paddingHorizontal: 12, paddingVertical: 7,
   },
   deltaText: { fontFamily: FontFamily.monoSemiBold, fontSize: FontSize.label },
+  verdictCtx: {
+    fontFamily: FontFamily.monoRegular, fontSize: FontSize.caption,
+    color: Colors.textSecondary, marginTop: 8, letterSpacing: 0.2,
+  },
 
   backhaulNote: {
     flexDirection: 'row', alignItems: 'flex-start', gap: 8,
