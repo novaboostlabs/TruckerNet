@@ -35,19 +35,37 @@ NOT done is cutting and submitting build 11.
   every Upgrade button inside Settings / Check Load / Add Load silently no-oped.
   Fixed via the `PaywallHost` pattern. RevenueCat/store config is now correct and
   the user verified a real sandbox purchase completing end-to-end.
-- **All work is COMMITTED LOCALLY on `main`.** `git push` may fail — the GitHub
-  token was invalid (`gh auth status` → invalid); run `gh auth login` first.
-  Pushing is NOT required for `eas build` (it builds from local committed state).
+- **✅ OTA update published 2026-07-19** (confirmed by user that session): the
+  rejection-response commits through `7041f69` shipped via
+  `eas update --channel production`, on top of build #10. This does **not**
+  satisfy the resubmission by itself — OTA only applies on a relaunch, not the
+  reviewer's first launch of a fresh binary — so build #11 is still required.
+  Worth knowing: anyone who already has build #10 installed and reopens the app
+  has these fixes live now, ahead of #11.
+- **Two sessions worked in parallel on `main` and diverged from the same base
+  (`5ad1bfb`) — reconciled 2026-07-20 via `git merge origin/main`.** The other
+  session's `main` had 4 commits (`3e653be`→`420eeb9`): a Google sign-in/up
+  button label fix (was showing the bare word "Google", now "Sign in/up with
+  Google") plus an earlier, shallower fix for the same Dashboard-vs-Expenses
+  Fixed CPM mismatch this session already fixed more thoroughly (see
+  "Merge reconciliation" work-log entry for what the merge actually kept).
+  9 more feature commits landed this session on top of the rejection fixes —
+  an adaptive-intelligence pass across break-even, tax, fuel, and IFTA
+  calculations (2026-07-20 batch 1/2/3 entries below).
+- **All work is COMMITTED LOCALLY on `main` and reconciled with `origin/main`**
+  — ready to push (`gh auth login` first if the token's gone stale again).
 - Everything is `tsc` clean with i18n parity 0/0/0 across es/pa/zh.
 
 **✅ Supabase migration DONE:** `2026-07-19_profiles_goal_tax.sql` was applied —
-**user confirmed 2026-07-20.** Nothing blocks build 11 on the backend side.
+confirmed by the user across two separate sessions (2026-07-19 and 2026-07-20).
+Nothing blocks build 11 on the backend side.
 
 **Immediate next action — cut build 11:**
-1. `eas build --platform ios --profile production` → autoIncrement bumps 10 → 11
+1. `git push` (should fast-forward now that the histories are reconciled).
+2. `eas build --platform ios --profile production` → autoIncrement bumps 10 → 11
    (version stays 1.0.0; `appVersionSource: remote`).
-2. `eas submit --platform ios --profile production`.
-3. App Store Connect: attach build 11, confirm both subscriptions are attached to
+3. `eas submit --platform ios --profile production`.
+4. App Store Connect: attach build 11, confirm both subscriptions are attached to
    the version, **reply in Resolution Center**, then Submit for Review.
 
 **Build-cap note:** the free EAS allotment was exhausted (10/10) on 07-11. It may
@@ -1179,6 +1197,40 @@ modules, app.json, permissions) still need a full `eas build`.
 
 ## 6. Work Log (newest first)
 
+### 2026-07-20 — Merge reconciliation: another session pushed directly to origin/main
+
+Discovered when `git push` was rejected ("remote contains work you do not have
+locally"). A separate session had committed straight to `origin/main`,
+diverging from the same base (`5ad1bfb`) this session branched from —
+4 commits, `3e653be`→`420eeb9`. `git fetch` + a dry-run merge on a throwaway
+branch (`merge-test`) before touching `main`, to see the real conflict shape
+before committing to anything.
+
+**Result: only `PROJECT_PLAN.md` conflicted** (expected — both sessions
+appended to the same work-log/header). Code merged clean, but "clean" needed
+verification, not trust:
+- **Both sessions independently fixed the identical bug** — Dashboard vs
+  Expenses Fixed CPM disagreeing (`$2.18` vs `$0.646`). Origin's fix
+  (`639e294`) was shallower: re-seed the Expenses input from `getMonthlyMiles()`
+  on mount. This session's fix (`70df711`, see below) went further: the
+  *displayed* hero number live-tracks the real source via `calcBreakEven()`,
+  with "· from your loads/odometer" attribution. Git's textual auto-merge kept
+  both changes — but left `getMonthlyMiles` imported twice in
+  `ExpensesScreen.tsx`, a compile error with no conflict markers to flag it.
+  `tsc --noEmit` caught it; fixed by dropping the duplicate. **Lesson: a merge
+  with zero conflict markers is not the same as a correct merge — always
+  typecheck after, especially when the same file was touched by both sides.**
+- **Genuinely new from origin, kept as-is:** Google sign-in/up buttons now say
+  "Sign in with Google" / "Sign up with Google" instead of a bare "Google" —
+  never touched by this session, merged with zero issues.
+- Verified with a real SQLite database seeded to match the app schema
+  (`sqlite3 :memory:`) that every query this session added — verdict context,
+  historical state split (+ its reversed-pair fallback), IFTA fleet-MPG
+  check, personal fuel-price lookup — still executes correctly against the
+  post-merge schema. All returned expected values.
+
+`tsc` clean post-merge. `main` now contains both sessions' work; ready to push.
+
 ### 2026-07-20 (batch 3) — Verdict personal context + impact-weighted expense staleness
 
 Third batch from the adaptive audit. These two close out everything that can
@@ -1432,6 +1484,13 @@ now see ONLY a clean benefits card (lock + 3 benefit bullets + Upgrade, which
 opens the paywall); export button, quarter/year nav and disclaimer hidden for
 free. Pro-with-no-data gets a "log your first few loads" empty state. No fake
 data in any state.
+
+_(The other session's parallel `origin/main` history for 07-19 — Google button
+label, an earlier/shallower Fixed-CPM fix, and re-tellings of the income-goal/
+language/usage-meter bugs above — is folded into the "Merge reconciliation"
+entry and the "Round 3" entry above; not duplicated here. Full original text
+is recoverable via `git log origin/main` commits `3e653be`→`420eeb9` if ever
+needed.)
 
 ### 2026-07-19 — Rejection-response round 2: paywall-in-modal root cause + pre-build-11 polish batch
 

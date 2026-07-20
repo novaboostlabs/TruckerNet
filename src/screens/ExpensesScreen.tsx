@@ -10,9 +10,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { Colors, FontFamily, FontSize, Spacing, Radius, SectionLabel, ThemeColors, sectionLabel } from '../theme/theme';
 import { useTheme } from '../theme/ThemeContext';
 import {
-  getUserExpenses, replaceUserExpenses, getWeeklyMiles, setMonthlyMiles,
+  getUserExpenses, replaceUserExpenses, getMonthlyMiles, setMonthlyMiles,
   getTaxSetAside, setSetting, getSetting, TaxSetAside,
-  getMonthlyMiles, calcBreakEven, BreakEvenSource,
+  calcBreakEven, BreakEvenSource,
 } from '../db/database';
 import { toMonthlyAmount, ExpenseFrequency } from '../utils/marketRates';
 import { useAuth } from '../contexts/AuthContext';
@@ -131,8 +131,12 @@ export default function ExpensesScreen() {
     setFixed(fixedRows);
     setOthers(otherRows);
 
-    const weekly = getWeeklyMiles();
-    if (weekly > 0) setMonthlyMilesInput(String(Math.round(weekly * 4.333)));
+    // Same source as the dashboard's break-even calc (calcBreakEven → getMonthlyMiles):
+    // actual completed-load mileage once there's enough of it, else the onboarding
+    // weekly-miles estimate. Keeps this screen's Fixed CPM consistent with the
+    // dashboard's instead of always falling back to the onboarding number.
+    const monthly = getMonthlyMiles();
+    if (monthly > 0) setMonthlyMilesInput(String(Math.round(monthly)));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

@@ -182,7 +182,7 @@ export default function SignUpScreen({ onGoToSignIn }: Props) {
             <TouchableOpacity style={[styles.oauthBtnFull, styles.oauthBtnGoogle]} onPress={handleGoogle} activeOpacity={0.85} disabled={!!oauthLoading}>
               {oauthLoading === 'google'
                 ? <ActivityIndicator color={Colors.textPrimary} size="small" />
-                : <><GoogleIcon /><Text style={styles.oauthBtnText}>Google</Text></>
+                : <><GoogleIcon /><Text style={styles.oauthBtnText}>{t('auth.signUpWithGoogle')}</Text></>
               }
             </TouchableOpacity>
           </View>

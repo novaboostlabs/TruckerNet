@@ -185,7 +185,7 @@ export default function SignInScreen({ onGoToSignUp, onShowWalkthrough }: Props)
                 ? <ActivityIndicator color={Colors.textPrimary} size="small" />
                 : <>
                     <GoogleIcon />
-                    <Text style={styles.oauthBtnText}>Google</Text>
+                    <Text style={styles.oauthBtnText}>{t('auth.signInWithGoogle')}</Text>
                   </>
               }
             </TouchableOpacity>
