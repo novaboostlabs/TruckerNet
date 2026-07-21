@@ -17,12 +17,13 @@
 > (Decided 2026-06-19 after changes weren't appearing because `main` was stale.)
 
 _Last updated: 2026-07-20 — **REJECTED by App Review 2026-07-16; all three issues
-are fixed in code; BUILD 11 HAS NOT BEEN CUT YET.**
+fixed in code; BUILD 11 CUT AND SUBMITTED — awaiting App Review decision.**
 
 **START HERE IN A NEW CHAT.** Do NOT re-list seeding / Pro grant / App Store
 Connect listing / TestFlight QA as open — the user confirmed those done long ago;
-that recurring doc-staleness was a real frustration. Launch prep is done. What is
-NOT done is cutting and submitting build 11.
+that recurring doc-staleness was a real frustration. Launch prep is done. Build 11
+is also done — do NOT re-list "cut build 11" as a next action. **What's actually
+next: wait for the App Review decision on build 11's resubmission.**
 
 **Where things stand (2026-07-20):**
 - **Build 10 (`7528effc`) was REJECTED** (submission `4cca58fd-e8c3-482d-b2dd-8253aa897b4b`,
@@ -52,28 +53,25 @@ NOT done is cutting and submitting build 11.
   9 more feature commits landed this session on top of the rejection fixes —
   an adaptive-intelligence pass across break-even, tax, fuel, and IFTA
   calculations (2026-07-20 batch 1/2/3 entries below).
-- **All work is COMMITTED LOCALLY on `main` and reconciled with `origin/main`**
-  — ready to push (`gh auth login` first if the token's gone stale again).
+- **All work was pushed and reconciled** — `main` and `origin/main` match exactly
+  (verified 2026-07-20 via the merge commit `10561ff`, fast-forwarded clean).
 - Everything is `tsc` clean with i18n parity 0/0/0 across es/pa/zh.
 
 **✅ Supabase migration DONE:** `2026-07-19_profiles_goal_tax.sql` was applied —
 confirmed by the user across two separate sessions (2026-07-19 and 2026-07-20).
 Nothing blocks build 11 on the backend side.
 
-**Immediate next action — cut build 11:**
-1. `git push` (should fast-forward now that the histories are reconciled).
-2. `eas build --platform ios --profile production` → autoIncrement bumps 10 → 11
-   (version stays 1.0.0; `appVersionSource: remote`).
-3. `eas submit --platform ios --profile production`.
-4. App Store Connect: attach build 11, confirm both subscriptions are attached to
-   the version, **reply in Resolution Center**, then Submit for Review.
+**✅ Build 11 CUT** (`854bde78-12be-44d0-aba1-e9624986a835`, commit `10561ff`,
+finished 2026-07-20 10:01 — same fingerprint as build 10, so this was a JS-only
+rebuild carrying every fix + the adaptive-intelligence batch) **and SUBMITTED to
+App Store Connect for review** (user-confirmed 2026-07-20). Resolution Center
+reply drafted the same session (see chat — owns the 2.1(b) bug directly, no em
+dashes, deliberately omits guideline numbers/internal naming/unrelated feature
+work to avoid inviting scope creep in review).
 
-**Build-cap note:** the free EAS allotment was exhausted (10/10) on 07-11. It may
-have since reset — just try the build; EAS will say if it's still capped. NOTE the
-old "OTA-only / JS-only" hard constraint from 07-11 NO LONGER APPLIES: a rejection
-cannot be fixed by `eas update` (the reviewer's FIRST launch runs the embedded
-bundle, and OTA only applies on a later relaunch), so a real rebuild is required —
-which also means native/config changes are back on the table.
+**Immediate next action:** none — waiting on App Review's decision on build 11.
+When a verdict comes back (accepted, or rejected again with new feedback),
+that's the next thing to act on.
 
 See §6 Work Log for full history, newest first._
 
