@@ -16,14 +16,38 @@
 > branch and push `main`** so the user's build always reflects the latest.
 > (Decided 2026-06-19 after changes weren't appearing because `main` was stale.)
 
-_Last updated: 2026-07-20 — **REJECTED by App Review 2026-07-16; all three issues
-fixed in code; BUILD 11 CUT AND SUBMITTED — awaiting App Review decision.**
+_Last updated: 2026-07-24 — **BUILD 11 REJECTED (Guideline 2.3.2, metadata) over the
+promoted-IAP promotional images. BLOCKED by an App Store Connect bug, not by code.**
 
 **START HERE IN A NEW CHAT.** Do NOT re-list seeding / Pro grant / App Store
 Connect listing / TestFlight QA as open — the user confirmed those done long ago;
 that recurring doc-staleness was a real frustration. Launch prep is done. Build 11
-is also done — do NOT re-list "cut build 11" as a next action. **What's actually
-next: wait for the App Review decision on build 11's resubmission.**
+is done. The app binary is fine — nothing is wrong with the code, UI, or perf.
+
+**⛔ CURRENT BLOCKER (2026-07-24) — locked promotional image in App Store Connect:**
+- Build 11 was rejected on **Guideline 2.3.2 (Accurate Metadata)**, but ONLY about
+  the promoted in-app-purchase **promotional images**: they were duplicate/identical
+  across the two subscription products, one was a raw app screenshot, and the text
+  was too small. The app itself passed.
+- New promo images already made and committed: `assets/store/promo-pro-monthly-1024.png`
+  and `assets/store/promo-pro-annual-1024.png` — two visually distinct, illustrated
+  (non-screenshot), 1024×1024, no-alpha, large-text images (one teal/monthly, one
+  amber/annual with a "SAVE 29%" badge). Ready to upload the moment the field unlocks.
+- **The user physically cannot edit or remove the existing promotional image.** The
+  `+` to replace is inactive; there is no remove button; identical on desktop AND
+  mobile across multiple browsers. Root cause = a known ASC limitation/bug: the promo
+  image is locked because the subscriptions are "associated with a version of an app
+  that's not yet approved" (build 11). Confirmed via Apple Developer Forums threads
+  705460 and 710798 — normal fixes (cancel submission, new build/version) don't clear
+  it; the reliable resolution is contacting Apple directly.
+- **Action handed to user (guidance only — all ASC ops are the user's to do):**
+  (1) try detaching the subscriptions from the in-review version to unlock the field;
+  (2) reply in Resolution Center (a ready-to-send draft was provided in chat) asking
+  App Review to reset/remove the promo image or unlock it; (3) open a Developer
+  Support case in parallel. Whichever responds first unblocks the upload.
+
+**What's actually next: wait for Apple (Resolution Center reply and/or Developer
+Support) to unlock the promo-image field, then upload the two new images and resubmit.**
 
 **Where things stand (2026-07-20):**
 - **Build 10 (`7528effc`) was REJECTED** (submission `4cca58fd-e8c3-482d-b2dd-8253aa897b4b`,
