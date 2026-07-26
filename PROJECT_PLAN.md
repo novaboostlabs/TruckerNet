@@ -40,14 +40,19 @@ is done. The app binary is fine — nothing is wrong with the code, UI, or perf.
   that's not yet approved" (build 11). Confirmed via Apple Developer Forums threads
   705460 and 710798 — normal fixes (cancel submission, new build/version) don't clear
   it; the reliable resolution is contacting Apple directly.
-- **Action handed to user (guidance only — all ASC ops are the user's to do):**
-  (1) try detaching the subscriptions from the in-review version to unlock the field;
-  (2) reply in Resolution Center (a ready-to-send draft was provided in chat) asking
-  App Review to reset/remove the promo image or unlock it; (3) open a Developer
-  Support case in parallel. Whichever responds first unblocks the upload.
+- **Resolution Center was tried and FAILED (2026-07-24).** The user replied with a
+  full explanation plus both corrected images attached. App Review responded with a
+  form letter: "please revise your promotional image to ensure it is unique and
+  accurately represents the associated promoted In-App Purchase," plus doc links.
+  They did not engage with the locked-field problem. **App Review will not fix this
+  — stop using Resolution Center for it.**
+- **Current plan (see §5.7 "DO THIS NOW" for full steps):** Plan A = cancel/remove
+  the version from review so the subscriptions leave the queue and the field
+  unfreezes, then upload + resubmit. Plan B (parallel) = Apple **Developer Support**
+  case, a different team from App Review and the one that can actually fix a console
+  bug. Plan C (last resort) = new subscription product IDs + RevenueCat rework.
 
-**What's actually next: wait for Apple (Resolution Center reply and/or Developer
-Support) to unlock the promo-image field, then upload the two new images and resubmit.**
+**What's actually next: Plan A, with a Developer Support case opened in parallel.**
 
 **Where things stand (2026-07-20):**
 - **Build 10 (`7528effc`) was REJECTED** (submission `4cca58fd-e8c3-482d-b2dd-8253aa897b4b`,
@@ -873,9 +878,48 @@ app has proven product-market fit.
 
 ---
 
-## 5.7 📌 YOUR PERSONAL TODO — updated 2026-06-30
+## 5.7 📌 YOUR PERSONAL TODO — updated 2026-07-24
 
 > Status as of this session. ✅ = done, [ ] = still needed.
+
+### 🔴 DO THIS NOW — unlock the locked promotional image (build 11 blocker)
+
+**Context:** Build 11 rejected on Guideline 2.3.2 — the promoted-IAP promotional
+images were duplicates, one was a screenshot, text too small. Corrected images are
+DONE and committed (`assets/store/promo-pro-monthly-1024.png`,
+`assets/store/promo-pro-annual-1024.png`). The ONLY blocker is that App Store
+Connect will not let the image be edited or removed: the `+` is inactive, no remove
+button, same on desktop + mobile across browsers. Cause: the subscriptions are
+attached to an app version that isn't approved, which freezes the field.
+
+Resolution Center was already tried — App Review replied with a form letter telling
+us to edit the image in App Store Connect, which is exactly what's impossible.
+They will not fix it. Stop asking App Review.
+
+- [ ] **Plan A — cancel the submission, then edit.** App Store Connect → app →
+      version in sidebar → click **"remove this version from review"** at the top →
+      confirm. (Alt route: app → **App Review → Submissions** → the submission →
+      **Cancel Submission** → Confirm.) Status becomes **Developer Rejected** — this
+      is self-inflicted and reversible, not an Apple rejection. Per Apple's docs the
+      app "and any other items in the submission" (= the subscriptions) leave the
+      queue, which should unfreeze the image field. Then upload both images and
+      resubmit. Cost: lose queue position, review restarts — already unavoidable.
+      ⚠️ NOT the same as "Remove from Sale" on the subscription page — do not click
+      that one; it unpublishes the product and does not unlock anything.
+- [ ] **Plan B — Apple Developer Support (do in parallel, today).** This is a
+      DIFFERENT team from App Review and the one that can actually fix a console bug.
+      developer.apple.com/contact → App Store Connect → In-App Purchases. Request a
+      phone callback if offered. Draft text is in the 2026-07-24 chat; the key point
+      to lead with is the loop: App Review says fix it in the console, the console
+      won't allow it. Product IDs: `truckernet_pro_monthly`, `truckernet_pro_annual`.
+- [ ] **Plan C — last resort, only if A and B both fail.** Create NEW subscription
+      products with new product IDs (promo image fields are editable before a product
+      has ever been submitted), set the correct images from the start, abandon the
+      stuck ones. Requires reconfiguring RevenueCat: new products, re-attach to the
+      `pro` entitlement, rebuild the offering. Real work — don't start without asking.
+
+**Do NOT press "Resubmit for Review" until the images are actually uploaded** —
+resubmitting an unchanged state just burns a review cycle.
 
 ### 🏠 WHEN I GET HOME — do these in order (everything code-side is committed & pushed)
 
