@@ -211,17 +211,35 @@ do not start these until the user calls for them. Newest batch first.
     **What happens:** `expo-secure-store` has no web implementation — its web build is
     literally `export default {}` (see `node_modules/expo-secure-store/build/ExpoSecureStore.web.js`).
     So on web, `SecureStore.getItemAsync()` resolves to `undefined` and calling it throws
-    `TypeError: ExpoSecureStore.default.getValueWithKeyAsync is not a function`. The
-    `.default.` in the message is the tell — that's the ESM interop of the empty web
-    shim, so this frame can ONLY be the web bundle, never iOS/Android.
+    `TypeError: ExpoSecureStore.default.getValueWithKeyAsync is not a function`.
+
+    **Why we believe it's web-only** (note: the `.default.` in the message is NOT the
+    tell — an early read claimed that and it was wrong; BOTH the web shim and the
+    native resolver use `export default`, so `.default` appears either way):
+    (a) the web shim is an empty object, so web produces exactly this error, always;
+    (b) `expo-secure-store` has been pinned at `~15.0.8` since the initial Phase 1
+    commit and has NEVER been bumped (`git log -L` on package.json), so no JS/native
+    version drift is possible — every OTA bundle matches every native build, meaning
+    `getValueWithKeyAsync` genuinely exists on device; (c) if the native module were
+    missing outright, `requireNativeModule('ExpoSecureStore')` throws
+    "Cannot find native module" at IMPORT time — a different error, not this one.
+    **Definitive check if it ever matters: the `os` / `browser` / `device` tags on the
+    Sentry issue (visible when logged in; the public share link hides them).**
 
     **Why it repeats:** the throw is caught by `secureGet`'s try/catch in
     `src/lib/secureStorage.ts` (so `handled: true`, nothing crashes) but
     `recordStorageError` reports it to Sentry every time. Supabase's auth client calls
-    `getItem` from `_autoRefreshTokenTick`, which runs on a REPEATING timer — so every
-    open web tab drips Sentry events forever. Cost is noise + Sentry quota, not
-    stability. Also means the Supabase session can never persist on web (every read
-    returns null), which is part of why web QA can't hold a login.
+    `getItem` from `_autoRefreshTokenTick`, which runs on a REPEATING ~30s timer — so
+    every open web tab drips ~120 events/hour (~2,880/day) forever. Cost is noise +
+    Sentry quota, not stability. Also means the Supabase session can never persist on
+    web (every read returns null), which is part of why web QA can't hold a login.
+
+    **Volume as of 2026-07-24: 5,400+ events** — consistent with ~2 tab-days of web QA.
+    This EXCEEDS Sentry's 5k/month free-tier error quota, which means real errors may
+    now be getting dropped. Still not a ship blocker (app isn't live, so 100% of these
+    are self-inflicted from our own QA tabs, zero from users), but the blind-safety-net
+    risk is real. **Immediate no-code mitigation: stop leaving the expo-web build open
+    during QA — that alone stops the bleeding instantly.**
 
     **The fix (small, contained, web-only):** in `src/lib/secureStorage.ts`, branch on
     `Platform.OS === 'web'` and back the three functions with `localStorage` instead of
