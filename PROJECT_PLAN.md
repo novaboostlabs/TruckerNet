@@ -202,6 +202,34 @@ _(Add any other launch-gating items here as they come up.)_
 User-reported items. Captured so nothing is forgotten; **explicitly deferred** —
 do not start these until the user calls for them. Newest batch first.
 
+### Added 2026-07-24 — DO IN THE FIRST POST-LAUNCH UPDATE
+
+18. **SecureStore blows up on web → Sentry error loop (Sentry `TRUCKERNET-REACT-NATIVE-6`).**
+    **NOT shipped-app-affecting — web only. Deliberately NOT fixed before build 11;
+    fix in the first update after the app is live.**
+
+    **What happens:** `expo-secure-store` has no web implementation — its web build is
+    literally `export default {}` (see `node_modules/expo-secure-store/build/ExpoSecureStore.web.js`).
+    So on web, `SecureStore.getItemAsync()` resolves to `undefined` and calling it throws
+    `TypeError: ExpoSecureStore.default.getValueWithKeyAsync is not a function`. The
+    `.default.` in the message is the tell — that's the ESM interop of the empty web
+    shim, so this frame can ONLY be the web bundle, never iOS/Android.
+
+    **Why it repeats:** the throw is caught by `secureGet`'s try/catch in
+    `src/lib/secureStorage.ts` (so `handled: true`, nothing crashes) but
+    `recordStorageError` reports it to Sentry every time. Supabase's auth client calls
+    `getItem` from `_autoRefreshTokenTick`, which runs on a REPEATING timer — so every
+    open web tab drips Sentry events forever. Cost is noise + Sentry quota, not
+    stability. Also means the Supabase session can never persist on web (every read
+    returns null), which is part of why web QA can't hold a login.
+
+    **The fix (small, contained, web-only):** in `src/lib/secureStorage.ts`, branch on
+    `Platform.OS === 'web'` and back the three functions with `localStorage` instead of
+    SecureStore. Wrap `localStorage` access in try/catch — merely touching it throws in
+    Safari private mode / blocked-storage contexts. Leave the native path exactly as-is.
+    Bonus: web QA gains a session that survives a reload. (An implementation of this was
+    written and reverted on 2026-07-24 — product was already frozen for build 11.)
+
 ### Added 2026-06-23
 
 17. **Pre-onboarding: app walkthrough + driver profile setup.** Before the language
