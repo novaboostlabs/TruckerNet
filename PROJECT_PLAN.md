@@ -16,43 +16,57 @@
 > branch and push `main`** so the user's build always reflects the latest.
 > (Decided 2026-06-19 after changes weren't appearing because `main` was stale.)
 
-_Last updated: 2026-07-24 — **BUILD 11 REJECTED (Guideline 2.3.2, metadata) over the
-promoted-IAP promotional images. BLOCKED by an App Store Connect bug, not by code.**
+_Last updated: 2026-07-28 — **✅ SUBMITTED TO APP REVIEW. Version 1.0.0 / build 11,
+plus both subscriptions and the subscription group, all in ONE submission. Apple
+quoted up to 48 hours. Nothing is blocked. Waiting on the verdict.**
 
 **START HERE IN A NEW CHAT.** Do NOT re-list seeding / Pro grant / App Store
-Connect listing / TestFlight QA as open — the user confirmed those done long ago;
-that recurring doc-staleness was a real frustration. Launch prep is done. Build 11
-is done. The app binary is fine — nothing is wrong with the code, UI, or perf.
+Connect listing / TestFlight QA / cutting a build as open — all done, confirmed by
+the user; that recurring doc-staleness was a real frustration. The app binary is
+fine. **There is no outstanding work item. Do not invent one.** If the review comes
+back approved, the app is live. If it comes back rejected, act on that feedback.
 
-**⛔ CURRENT BLOCKER (2026-07-24) — locked promotional image in App Store Connect:**
-- Build 11 was rejected on **Guideline 2.3.2 (Accurate Metadata)**, but ONLY about
-  the promoted in-app-purchase **promotional images**: they were duplicate/identical
-  across the two subscription products, one was a raw app screenshot, and the text
-  was too small. The app itself passed.
-- New promo images already made and committed: `assets/store/promo-pro-monthly-1024.png`
-  and `assets/store/promo-pro-annual-1024.png` — two visually distinct, illustrated
-  (non-screenshot), 1024×1024, no-alpha, large-text images (one teal/monthly, one
-  amber/annual with a "SAVE 29%" badge). Ready to upload the moment the field unlocks.
-- **The user physically cannot edit or remove the existing promotional image.** The
-  `+` to replace is inactive; there is no remove button; identical on desktop AND
-  mobile across multiple browsers. Root cause = a known ASC limitation/bug: the promo
-  image is locked because the subscriptions are "associated with a version of an app
-  that's not yet approved" (build 11). Confirmed via Apple Developer Forums threads
-  705460 and 710798 — normal fixes (cancel submission, new build/version) don't clear
-  it; the reliable resolution is contacting Apple directly.
-- **Resolution Center was tried and FAILED (2026-07-24).** The user replied with a
-  full explanation plus both corrected images attached. App Review responded with a
-  form letter: "please revise your promotional image to ensure it is unique and
-  accurately represents the associated promoted In-App Purchase," plus doc links.
-  They did not engage with the locked-field problem. **App Review will not fix this
-  — stop using Resolution Center for it.**
-- **Current plan (see §5.7 "DO THIS NOW" for full steps):** Plan A = cancel/remove
-  the version from review so the subscriptions leave the queue and the field
-  unfreezes, then upload + resubmit. Plan B (parallel) = Apple **Developer Support**
-  case, a different team from App Review and the one that can actually fix a console
-  bug. Plan C (last resort) = new subscription product IDs + RevenueCat rework.
+**How the 2.3.2 blocker was finally resolved (2026-07-24 → 07-28):**
+- Build 11 was rejected on **Guideline 2.3.2 (Accurate Metadata)** — only about the
+  promoted-IAP **promotional images** (duplicate across both products, one was a raw
+  screenshot, text too small). The app itself passed review.
+- The promo image field was **locked and uneditable** for days. Root cause was NOT
+  user error: **Apple confirmed by email it was their own bug** — "an issue caused a
+  small number of submitted In-App Purchases, including subscriptions and subscription
+  groups, to get stuck in review." They fixed it and flipped the affected products to
+  **Developer Rejected** so they could be resubmitted.
+- Resolution Center was tried first and **failed** — App Review replied with a form
+  letter restating the guideline and did not engage with the locked field. For a
+  console bug, App Review is the wrong team; Developer Support is the right one.
+- **Final fix: the promotional image was DELETED rather than replaced.** The field is
+  optional, and removing it **auto-disabled App Store Promotion** for the subscription
+  — which is the correct config anyway, since the app implements **no promoted-IAP
+  StoreKit handling** (verified: no `shouldAddStorePayment`, no promoted-purchase
+  listener). No image ⇒ nothing for 2.3.2 to catch. The two prepared replacement
+  images were never needed but remain committed at `assets/store/promo-pro-*-1024.png`
+  if App Store Promotion is ever wanted later (it would require app-side StoreKit work).
 
-**What's actually next: Plan A, with a Developer Support case opened in parallel.**
+**⚠️ HARD-WON APP STORE CONNECT LESSONS — read before touching a submission again:**
+1. **One app-version submission per platform.** Max two submissions: one holding an
+   app version, one items-only. A version already sitting in a submission CANNOT be
+   added to another — this is why "Add for Review" appeared to not exist for days.
+2. **A FIRST subscription group must be submitted together with an app version.** An
+   items-only submission therefore can never carry it. A draft containing only
+   subscriptions is structurally unsubmittable — not a missing button, a dead end.
+3. **To free a held app version, CANCEL the old submission** (App Review → Submissions
+   → Cancel Submission, or "remove this version from review"). Status → Developer
+   Rejected, which is self-inflicted and reversible. This is what finally unblocked it.
+4. **ASC caches submission state aggressively.** After cancelling, "Add for Review"
+   appeared but stayed GREYED THROUGH saves, refreshes, and version edits. What fixed
+   it: **navigating to a different app in ASC and back to TruckerNet.** Also, the final
+   "Submit for Review" button was greyed for several seconds after the items were all
+   added, then turned blue on its own. **If a button is greyed and everything looks
+   correct, leave the app entirely and come back before assuming it's broken.**
+5. **"Remove from Sale" on a subscription is NOT how you detach it from a submission** —
+   it unpublishes the product. Do not click it for this purpose.
+6. **ASC version numbers must match a build's marketing version.** Creating version 1.1
+   would have orphaned build 11 (compiled as 1.0.0) and forced an unnecessary rebuild.
+   Staying on 1.0.0 meant no new build was needed at any point in this fix.
 
 **Where things stand (2026-07-20):**
 - **Build 10 (`7528effc`) was REJECTED** (submission `4cca58fd-e8c3-482d-b2dd-8253aa897b4b`,
@@ -928,7 +942,20 @@ app has proven product-market fit.
 
 > Status as of this session. ✅ = done, [ ] = still needed.
 
-### 🔴 DO THIS NOW — unlock the locked promotional image (build 11 blocker)
+### ✅ RESOLVED 2026-07-28 — locked promotional image (was the build 11 blocker)
+
+**DONE. Do not action any of the below.** Kept only as the record of what was tried.
+Outcome: Apple confirmed it was an ASC bug on their side and unlocked the products;
+the promo image was then **deleted** (optional field, and deleting it auto-disabled
+App Store Promotion), the old submission was cancelled to free the app version, and
+version 1.0.0 / build 11 + both subscriptions + the subscription group went to App
+Review as ONE submission on 2026-07-28. No new build was ever required. See the
+top-of-file summary for the full resolution and the ASC lessons learned.
+
+<details>
+<summary>Original plan (historical — Plan A is what worked)</summary>
+
+#### 🔴 (was) DO THIS NOW — unlock the locked promotional image (build 11 blocker)
 
 **Context:** Build 11 rejected on Guideline 2.3.2 — the promoted-IAP promotional
 images were duplicates, one was a screenshot, text too small. Corrected images are
@@ -966,6 +993,8 @@ They will not fix it. Stop asking App Review.
 
 **Do NOT press "Resubmit for Review" until the images are actually uploaded** —
 resubmitting an unchanged state just burns a review cycle.
+
+</details>
 
 ### 🏠 WHEN I GET HOME — do these in order (everything code-side is committed & pushed)
 
@@ -1308,6 +1337,52 @@ modules, app.json, permissions) still need a full `eas build`.
 ---
 
 ## 6. Work Log (newest first)
+
+### 2026-07-28 — ✅ SUBMITTED TO APP REVIEW — 2.3.2 promo-image blocker resolved
+
+Ended a ~2-week block. **No code changed; this was entirely App Store Connect.**
+
+**What was wrong:** build 11 rejected on Guideline 2.3.2 over the promoted-IAP
+promotional images. The images could not be edited or removed — field locked on every
+browser and device. Not user error: Apple emailed to confirm a bug in their own new
+IAP submission flow had left "a small number of submitted In-App Purchases, including
+subscriptions and subscription groups, stuck in review," and flipped the affected
+products to **Developer Rejected** so they could be resubmitted.
+
+**Resolution Center did NOT solve it.** The user sent a detailed explanation with both
+corrected images attached; App Review replied with a form letter restating the
+guideline. Lesson: App Review evaluates apps, it does not fix console bugs — that's
+Developer Support.
+
+**What actually fixed it:**
+1. **Deleted the promotional image** instead of replacing it. The field is optional,
+   and deleting it **auto-disabled App Store Promotion**. That's the correct config
+   regardless: the app has **no promoted-IAP StoreKit handling** (verified by grep —
+   no `shouldAddStorePayment`, no promoted-purchase listener), so a promoted product
+   would have opened the app and done nothing. No image ⇒ no 2.3.2 surface.
+2. **Cancelled the old submission** to release app version 1.0.0. This was the real
+   unlock — Apple allows only one app-version submission per platform, so the version
+   was held hostage and could never join the subscriptions' draft. Correspondingly, a
+   FIRST subscription group cannot go in an items-only submission, so that draft was
+   structurally unsubmittable. Two boxes, neither legal; one box, legal.
+3. **Rebuilt a single submission** containing app version 1.0.0 + build 11 + both
+   subscriptions + the subscription group, and submitted. Apple quoted up to 48 hours.
+
+**Two ASC UI traps burned hours and are worth remembering:**
+- After cancelling, "Add for Review" appeared but stayed **greyed through saves,
+  refreshes, and version edits**. What cleared it: **navigating to a different app in
+  ASC and back.** Pure client-side cache staleness.
+- The final "Submit for Review" button was greyed for **several seconds** after all
+  items were added, then went blue unprompted. Wait before concluding it's broken.
+
+**Avoided:** a needless rebuild. The user briefly created version 1.1; since
+`app.json` is `1.0.0` and build 11 was compiled as 1.0.0, ASC would not have offered
+any build for 1.1 and a fresh `eas build` would have been required. Reverting to
+1.0.0 kept build 11 valid. **No new build was needed at any point in this fix.**
+
+The prepared replacement images (`assets/store/promo-pro-monthly-1024.png`,
+`assets/store/promo-pro-annual-1024.png`) went unused but stay committed for any
+future App Store Promotion work — which would also require app-side StoreKit support.
 
 ### 2026-07-20 — Merge reconciliation: another session pushed directly to origin/main
 
