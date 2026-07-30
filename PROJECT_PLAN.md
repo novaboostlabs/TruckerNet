@@ -137,14 +137,30 @@ install actually reach the paywall and convert?** Ordered by leverage.
 (fewer if annual mixes in). The near-term milestone is **the first 100 payers**, not
 1,430. Everything here is about learning what converts before spending to scale it.
 
-### 1. ⭐ Ratings & reviews — the biggest missing lever
+### 1. ⭐ IN-APP REVIEW PROMPT — BUILD THIS (user-requested 2026-07-29)
 **There is NO in-app review prompt.** Verified: `expo-store-review` isn't installed
 and nothing calls `StoreReview`. This is the single highest-leverage gap. App Store
 ranking and install-conversion both key off rating count/score, and a new listing
-with 0 ratings converts poorly. Add `expo-store-review` and fire
-`requestReview()` at a genuine moment of delivered value — right after
-`load_completed` on a profitable load, or after a first successful IFTA export. Never
-on launch, never mid-task. Gate it so it asks at most once or twice ever.
+with 0 ratings converts poorly.
+
+**Implementation plan:**
+- Add `expo-store-review`. **Native dependency ⇒ requires a new build, NOT OTA.**
+  Bundle it with the web-SecureStore fix (#2) so one build carries both.
+- Fire `StoreReview.requestReview()` only at a delivered-value moment. Best trigger:
+  just after `load_completed` on a **profitable** load (the driver just saw a good
+  number). Second choice: after a successful IFTA export.
+- Never on launch, never mid-task, never after an error or a paywall dismissal.
+- Guard it: check `StoreReview.isAvailableAsync()`, persist an "asked" flag + count in
+  SQLite settings, cap at ~2 lifetime asks, and require ≥1 prior session so it never
+  hits a first-run user. iOS itself caps prompts at 3/year per user — a wasted prompt
+  is genuinely spent, so gate hard.
+
+**⚠️ Do NOT solicit reviews from non-users (friends/family who don't drive trucks).**
+Apple's Developer Program License Agreement and Review Guideline 3.2(f) prohibit
+review manipulation; the penalty is app removal, and Apple pattern-matches on
+correlated new accounts leaving 5★ with no usage. Real trucker users (e.g. the user's
+father's driver friends who actually run loads in the app) are legitimate and
+encouraged — the distinction is whether the reviewer genuinely uses the product.
 
 ### 2. 🐛 Fix the web SecureStore Sentry loop — NOW MATTERS MORE
 Backlog item 18 (§0.6). It was harmless when nobody used the app. **Now real users
@@ -165,6 +181,31 @@ If a big drop shows between `welcome_completed` and `onboarding_result_completed
 that — not marketing — is the thing costing the most money.
 **Second: `load_limit_hit` and `paywall_shown` → `subscription_purchased`.** That
 ratio is the business.
+
+### 3b. 📣 DISTRIBUTION PLAN — founder-anonymous by design (user decision 2026-07-29)
+**Hard constraint: the user will NOT be a front-facing personality.** No podcasts, no
+face-on-camera content, no co-marketing partnerships, no involving third parties. The
+product stands on its own. Any future marketing suggestion must respect this — do not
+re-propose podcast guesting, founder-story press, or partnership/affiliate deals as
+acquisition channels. (Affiliate relationships as a *revenue* line in the far-future
+hub vision are a separate thing — see §0a.)
+
+Chosen channels:
+- **Communities (text-only):** r/Truckers, r/owneroperators, trucker Facebook groups.
+  Note: most have strict self-promo rules — participate genuinely, and where a group
+  requires it, get admin permission before posting a link. A ban is permanent and
+  these communities are small in number.
+- **Paid ads:** ChatGPT ads (~$25/day ≈ $750/mo), plus smaller Instagram/TikTok spend.
+  Static/carousel creative only — no founder video needed.
+- **Business cards with a QR code** handed out at truck stops. Zero-face, correctly
+  targeted, physically where the buyer already is.
+- **ASO** (see §4 below).
+
+**Unit economics to hold ad spend against:** at $34.99/mo and Apple's 15% Small
+Business Program cut, net ≈ **$29.74/subscriber/month**. $750/mo of ad spend needs
+**~25 net-new subscribers/month just to break even in month one** (better once you
+credit lifetime value across months, worse if churn is high). Track CAC per channel in
+PostHog against `subscription_purchased` before scaling any channel up.
 
 ### 4. 📱 App Store Optimization — best marketing that isn't content creation
 Title/subtitle/keywords should target what truckers actually search: IFTA, cost per
@@ -213,6 +254,37 @@ features before consumer is solid.
 
 **Exit path:** Strategic acquisition by TMS provider (McLeod, Oracle Transportation)
 or PE roll-up wanting the data asset, OR raise Series A at $3–5M ARR.
+
+### The "financial hub for trucking" vision (user, 2026-07-29) — FAR FUTURE
+
+**Thesis:** consolidate everything an owner-operator's business touches into one app,
+the way a SoFi consolidates consumer finance — DVIRs, ELD, load boards, truck sales,
+truck insurance. **Explicitly NOT operating those businesses** — TruckerNet becomes
+the hub/marketplace layer and earns referral/affiliate revenue from providers.
+
+**Why this is genuinely strong:** the moat isn't the aggregation, it's the **data**.
+By then TruckerNet knows each driver's true cost per mile, revenue, equipment, annual
+mileage, and IFTA history. That is underwriting-grade data, which makes insurance and
+lending referrals worth many multiples of generic lead-gen because the leads arrive
+pre-qualified. Commercial truck insurance runs ~$10–20k/truck/year, so referral
+economics are real. This is the natural monetization of the §0a data moat, and it
+composes with the enterprise/fleet play rather than competing with it.
+
+**Sequencing warnings — do NOT start at a few hundred users:**
+- Affiliate deals need volume. No insurer or dealer negotiates meaningfully with an
+  app that has a few hundred users. Thousands of active drivers is the entry ticket.
+- **ELD is not an affiliate play** — it's FMCSA-regulated, requires certification and
+  hardware. That's a hardware company, not a feature. Treat as out of scope.
+- **DVIR is the natural first adjacency** — software-only, compliance-driven, no
+  hardware, and it sits right next to data already collected.
+- **Load boards** are a cold-start marketplace problem and collide with the standing
+  "never scrape DAT/Truckstop" constraint. Hardest of the set; do last or never.
+- Insurance and truck-sales referrals are the highest-value, lowest-ops-burden entries.
+
+**The rule:** earn the right to be a hub by being indispensable at the core job first.
+Every super-app began as one thing people couldn't live without. For TruckerNet that's
+True Net Pay Per Load + IFTA. Revisit this when actives are in the thousands and
+retention is proven — not before.
 
 ---
 
