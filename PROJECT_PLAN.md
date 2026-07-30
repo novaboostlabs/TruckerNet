@@ -16,15 +16,17 @@
 > branch and push `main`** so the user's build always reflects the latest.
 > (Decided 2026-06-19 after changes weren't appearing because `main` was stale.)
 
-_Last updated: 2026-07-28 — **✅ SUBMITTED TO APP REVIEW. Version 1.0.0 / build 11,
-plus both subscriptions and the subscription group, all in ONE submission. Apple
-quoted up to 48 hours. Nothing is blocked. Waiting on the verdict.**
+_Last updated: 2026-07-29 — **🎉 APPROVED AND LIVE ON THE APP STORE.** Version 1.0.0 /
+build 11 passed App Review 2026-07-29 with both subscriptions and the subscription
+group. Listing propagates to the storefront within ~24h. **iOS launch is DONE.**
 
-**START HERE IN A NEW CHAT.** Do NOT re-list seeding / Pro grant / App Store
-Connect listing / TestFlight QA / cutting a build as open — all done, confirmed by
-the user; that recurring doc-staleness was a real frustration. The app binary is
-fine. **There is no outstanding work item. Do not invent one.** If the review comes
-back approved, the app is live. If it comes back rejected, act on that feedback.
+**START HERE IN A NEW CHAT.** The entire iOS launch track is closed — do NOT re-list
+seeding / Pro grant / listing / TestFlight QA / builds / submission as open. **The app
+is shipped.** The phase has changed from "get it approved" to **distribution, activation,
+and conversion**. See §0.7 for the post-launch priorities.
+
+**Remaining platform work:** Google Play Store listing — user starting it 2026-07-29,
+expected to take a few days. Android build config already exists (see §5.7 Android).
 
 **How the 2.3.2 blocker was finally resolved (2026-07-24 → 07-28):**
 - Build 11 was rejected on **Guideline 2.3.2 (Accurate Metadata)** — only about the
@@ -123,6 +125,58 @@ See §6 Work Log for full history, newest first._
 > tombstone-queue deletes) — the old "cloud replace" model could destroy
 > unpushed local data across devices; that's fixed. All Supabase migrations
 > incl. the 2026-06-30 RLS hardening are applied and verified (see §5.7-H).
+
+---
+
+## 0.7 🚀 POST-LAUNCH PRIORITIES (opened 2026-07-29, day 1 of being live)
+
+The build phase is over. Everything below serves one question: **do drivers who
+install actually reach the paywall and convert?** Ordered by leverage.
+
+**Reality check on the North Star:** $50K MRR ÷ $34.99 ≈ **1,430 paying subscribers**
+(fewer if annual mixes in). The near-term milestone is **the first 100 payers**, not
+1,430. Everything here is about learning what converts before spending to scale it.
+
+### 1. ⭐ Ratings & reviews — the biggest missing lever
+**There is NO in-app review prompt.** Verified: `expo-store-review` isn't installed
+and nothing calls `StoreReview`. This is the single highest-leverage gap. App Store
+ranking and install-conversion both key off rating count/score, and a new listing
+with 0 ratings converts poorly. Add `expo-store-review` and fire
+`requestReview()` at a genuine moment of delivered value — right after
+`load_completed` on a profitable load, or after a first successful IFTA export. Never
+on launch, never mid-task. Gate it so it asks at most once or twice ever.
+
+### 2. 🐛 Fix the web SecureStore Sentry loop — NOW MATTERS MORE
+Backlog item 18 (§0.6). It was harmless when nobody used the app. **Now real users
+generate real crashes, and 2,880 junk events/day from a stray web tab can bury them
+and exhaust the free 5k/month quota.** Small, contained, web-only fix. Do it in the
+first update.
+
+### 3. 📊 Watch the funnel that's already instrumented
+No new analytics work needed — PostHog already captures the whole path. The drop-offs
+to watch, in order:
+`walkthrough_slide_viewed` → `welcome_completed` → `onboarding_profile_completed` →
+`onboarding_expenses_completed` → `onboarding_result_completed` → `user_signed_up` →
+`check_load_used` → `load_added` → `paywall_shown` → `upgrade_tapped` →
+`subscription_purchased`.
+**Prime suspect: onboarding.** It demands expenses, weekly miles, and passes a
+break-even sanity gate BEFORE the driver sees any value. That's a heavy ask up front.
+If a big drop shows between `welcome_completed` and `onboarding_result_completed`,
+that — not marketing — is the thing costing the most money.
+**Second: `load_limit_hit` and `paywall_shown` → `subscription_purchased`.** That
+ratio is the business.
+
+### 4. 📱 App Store Optimization — best marketing that isn't content creation
+Title/subtitle/keywords should target what truckers actually search: IFTA, cost per
+mile, owner operator, trucking expenses, load calculator. Screenshots should lead with
+the numbers-forward verdict screen. One-time work, compounds forever, costs nothing.
+
+### 5. 🤝 Support must be real
+`support@truckernet.app` needs to be a monitored inbox from day one. Live users email,
+and an unanswered support address turns into 1-star reviews, which feeds back into #1.
+
+### 6. 🤖 Google Play listing
+In progress 2026-07-29. Android surfaces a second store's worth of organic search.
 
 ---
 
