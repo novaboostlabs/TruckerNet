@@ -207,6 +207,30 @@ Business Program cut, net ≈ **$29.74/subscriber/month**. $750/mo of ad spend n
 credit lifetime value across months, worse if churn is high). Track CAC per channel in
 PostHog against `subscription_purchased` before scaling any channel up.
 
+### 3c. 📝 LISTING COPY FIXES — bundle into the next version submission
+**Live listing:** https://apps.apple.com/us/app/truckernet-driver-finance/id6783367581
+(App ID `6783367581`, category Business, iPhone only, EN only, iOS 16.0+.)
+Reviewed 2026-07-31. Description/keywords/screenshots need a version submission;
+**promotional text is editable any time with no review.**
+
+- [ ] **🔴 TYPO in the lead sentence of feature #1:** "Brokers give me you total gross
+      pay." → "Brokers only give you the total gross pay." Highest-visibility error.
+- [ ] **🔴 VERIFY PRICE:** description says annual is **$299.99/year**; every internal
+      record says **$297.99**. If the live IAP is $297.99 this is a **Guideline 2.3.2
+      accurate-metadata violation** — the same guideline that rejected builds 10 and 11.
+      Make description and IAP agree.
+- [ ] **Naming inconsistency:** body says "TruckerNet Pro," the subscription disclosure
+      says "Driver Pro." Pick one and use it everywhere (app UI included).
+- [ ] Minor: `"Pay Analytics- Net-pay"` missing space; `"bill of ladings"` → "bills of
+      lading"; double space in `"should pay,  backed by"`.
+
+### 3d. 🌎 SPANISH LISTING LOCALIZATION — highest-upside ASO item
+The app already ships **en/es/pa/zh**, but the App Store listing is **English only**,
+so Spanish-speaking owner-operators (a large share of the market) cannot find it in
+search. Add an `es-MX`/`es-ES` listing localization: title, subtitle, keywords,
+description, and ideally localized screenshots. The product work is already done —
+this is pure translation for a search market TruckerNet is already equipped to serve.
+
 ### 4. 📱 App Store Optimization — best marketing that isn't content creation
 Title/subtitle/keywords should target what truckers actually search: IFTA, cost per
 mile, owner operator, trucking expenses, load calculator. Screenshots should lead with
