@@ -22,6 +22,7 @@ import { getRouteMiles, AddressSuggestion, suggestionState } from '../lib/mapbox
 import { AddLoadPrefill } from './AddLoadScreen';
 import { getCommunityRate, CommunityRate, CommunityTier } from '../lib/rateReports';
 import { capture } from '../lib/analytics';
+import { maybeRequestReview } from '../lib/reviewPrompt';
 import * as haptics from '../lib/haptics';
 import { getBrokerScorecard, BrokerScorecard } from '../lib/brokerScorecard';
 import BrokerScorecardCard from '../components/BrokerScorecardCard';
@@ -242,6 +243,13 @@ export default function CheckLoadScreen({ onClose, onLogLoad }: Props) {
         verdict, load_type: loadType, miles: loadMiles,
         gross_pay: grossPay, net_pay: netPay, is_backhaul: backhaul,
       });
+      // The app's aha moment: the driver just saw a load clear their break-even.
+      // Ask for a rating here (fully gated in reviewPrompt) — but only on a good
+      // verdict, never after showing someone a bad number. Fires on close so it
+      // can't cover the result they came for.
+      // 'green' only — comfortably above break-even. 'amber' merely scrapes past
+      // it and 'red' is a loss; neither is a moment worth spending a prompt on.
+      maybeRequestReview(verdict === 'green').catch(() => {});
     }
     onClose();
   }
