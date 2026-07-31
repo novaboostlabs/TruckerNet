@@ -48,6 +48,18 @@ expected to take a few days. Android build config already exists (see §5.7 Andr
   images were never needed but remain committed at `assets/store/promo-pro-*-1024.png`
   if App Store Promotion is ever wanted later (it would require app-side StoreKit work).
 
+**⚠️ BUILD FROM A CURRENT CHECKOUT — build 12 was wasted on this (2026-07-31).**
+EAS archives the LOCAL git state, so a build run from a stale machine silently ships
+old code. Build 12 (`06c601f1`) was built from commit `10561ff` — byte-identical code
+to build 11, missing all 19 commits of 1.1.0 work — because it ran on a second machine
+that had never pulled. Apple rejected it (ITMS-90186 / ITMS-90062: version 1.0.0 is
+closed) only because the version bump was among the missing commits; had the bump been
+present, the stale build with the BROKEN VERDICT MATH would have shipped to users.
+**Always run before `eas build`:**
+`git pull && git log --oneline -1 && grep '"version"' app.json`
+and confirm HEAD + version are what you expect. Prefer building from the machine where
+the commits are actually made.
+
 **⚠️ HARD-WON APP STORE CONNECT LESSONS — read before touching a submission again:**
 1. **One app-version submission per platform.** Max two submissions: one holding an
    app version, one items-only. A version already sitting in a submission CANNOT be
