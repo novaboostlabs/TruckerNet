@@ -366,6 +366,21 @@ _(Add any other launch-gating items here as they come up.)_
 User-reported items. Captured so nothing is forgotten; **explicitly deferred** —
 do not start these until the user calls for them. Newest batch first.
 
+### Added 2026-07-31 — IFTA correction workflow (external review finding; NEXT update after 1.1.0)
+
+19. **IFTA data is read-only after save — no correction workflow.** Found by external
+    code review 2026-07-31. The driver can adjust state mileage while entering a load,
+    but afterwards there is no way to: edit state mileage from Load Detail, override
+    an IFTA table value, edit or delete a fuel entry, or record a manual IFTA
+    adjustment. The UI correctly says the report is an estimate to verify — while
+    giving no way to correct it. Scope for the fix (deliberate, in order of value):
+    (a) edit state-mileage rows from Load Detail (reuses the Add Load editor);
+    (b) edit/delete fuel entries from the Fuel tab;
+    (c) recompute the IFTA table off the corrected rows (already derived, so free).
+    A separate "manual IFTA adjustment with audit trail" is deferred — overkill for
+    an estimate explicitly not a filing service. NOT blocking 1.1.0 (real feature
+    work, not a copy/config fix); target the update right after.
+
 ### Added 2026-07-24 — DO IN THE FIRST POST-LAUNCH UPDATE
 
 18. **SecureStore blows up on web → Sentry error loop (Sentry `TRUCKERNET-REACT-NATIVE-6`).**
