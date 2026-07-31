@@ -728,9 +728,9 @@
     "replayTitle": "重新设置",
     "replayConfirm": "这将再次引导您完成设置流程，以更新您的盈亏平衡计算。",
     "replayAction": "开始设置",
-    "upgradeTitle": "升级到 Driver Pro",
+    "upgradeTitle": "升级到 TruckerNet Pro",
     "upgradeSub": "公平市场价、IFTA、完整历史及更多",
-    "proActive": "Driver Pro",
+    "proActive": "TruckerNet Pro",
     "proActiveSub": "订阅已激活",
     "manageSub": "管理订阅",
     "devProToggle": "Mock Pro（仅开发）",
@@ -824,8 +824,8 @@
     "markComplete": "标记完成"
   },
   "paywall": {
-    "badge": "DRIVER PRO",
-    "title": "解锁 Driver Pro",
+    "badge": "TRUCKERNET PRO",
+    "title": "解锁 TruckerNet Pro",
     "titleFairMarket": "了解每票货应该支付多少",
     "titleLoadLimit": "无限制运单",
     "titleHistory": "完整盈亏，每票在册",
@@ -876,8 +876,8 @@
     "comingSoonTitle": "马上就好",
     "purchaseFailedTitle": "购买未完成",
     "restoredTitle": "已恢复",
-    "restoredBody": "你的 Driver Pro 订阅已激活。",
-    "alreadyPro": "你已是 Driver Pro——谢谢！",
+    "restoredBody": "你的 TruckerNet Pro 订阅已激活。",
+    "alreadyPro": "你已是 TruckerNet Pro——谢谢！",
     "fairMarketLock": "升级到 Pro，看看你应该拿多少钱",
     "valueMissed_one": "本月 {{count}} 笔货运中，你可能多留了 {{amount}} 在谈判桌上。Pro 用户在接单前就能看到市场行情。",
     "valueMissed_other": "本月 {{count}} 笔货运中，你可能多留了 {{amount}} 在谈判桌上。Pro 用户在接单前就能看到市场行情。"

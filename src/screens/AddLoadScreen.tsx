@@ -365,10 +365,13 @@ export default function AddLoadScreen({ onClose, onSaved, onFirstLoad, prefill }
   const netCommunityCount = communityRate ? Math.max(0, communityRate.count - ownLaneCount) : 0;
   const showCommunity    = isPro && (communityLoading || (!!communityRate && netCommunityCount > 0));
 
+  // Costs are already inside netRPM, so profitability is netRPM ≥ 0 and the
+  // green cushion is netRPM ≥ 0.15×BE (equivalent to gross ≥ 1.15× break-even).
+  // The old `netRPM >= breakEvenRPM` double-counted costs (external review 2026-07-31).
   const verdictColor =
-    !breakEvenRPM         ? Colors.textSecondary :
-    netRPM >= breakEvenRPM * 1.15 ? Colors.primary :
-    netRPM >= breakEvenRPM        ? Colors.secondary :
+    !breakEvenRPM                 ? Colors.textSecondary :
+    netRPM >= breakEvenRPM * 0.15 ? Colors.primary :
+    netRPM >= 0                   ? Colors.secondary :
                                     Colors.danger;
 
   const stateMilesTotal = stateMiles.reduce((s, r) => s + (parseFloat(r.miles) || 0), 0);
@@ -542,8 +545,9 @@ export default function AddLoadScreen({ onClose, onSaved, onFirstLoad, prefill }
       const dLabel = deliverySel?.label ?? delivery;
 
       const hasBreakEven = breakEvenRPM > 0;
+      // Same corrected thresholds as the verdict color above and CheckLoadScreen.
       const verdict: string | undefined = hasBreakEven
-        ? (netRPM >= breakEvenRPM * 1.15 ? 'green' : netRPM >= breakEvenRPM ? 'amber' : 'red')
+        ? (netRPM >= breakEvenRPM * 0.15 ? 'green' : netRPM >= 0 ? 'amber' : 'red')
         : undefined;
 
       const validStateMiles = stateMiles.filter(

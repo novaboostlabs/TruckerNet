@@ -728,9 +728,9 @@
     "replayTitle": "Replay Setup",
     "replayConfirm": "This will walk you through the setup flow again to update your break-even calculation.",
     "replayAction": "Start Setup",
-    "upgradeTitle": "Upgrade to Driver Pro",
+    "upgradeTitle": "Upgrade to TruckerNet Pro",
     "upgradeSub": "Fair-market rates, IFTA, full history & more",
-    "proActive": "Driver Pro",
+    "proActive": "TruckerNet Pro",
     "proActiveSub": "Active subscription",
     "manageSub": "Manage Subscription",
     "devProToggle": "Mock Pro (dev only)",
@@ -824,8 +824,8 @@
     "markComplete": "Mark Complete"
   },
   "paywall": {
-    "badge": "DRIVER PRO",
-    "title": "Unlock Driver Pro",
+    "badge": "TRUCKERNET PRO",
+    "title": "Unlock TruckerNet Pro",
     "titleFairMarket": "Know What Every Load Should Pay",
     "titleLoadLimit": "Go Unlimited",
     "titleHistory": "Your Full P&L, Every Load",
@@ -876,8 +876,8 @@
     "comingSoonTitle": "Almost there",
     "purchaseFailedTitle": "Purchase didn’t go through",
     "restoredTitle": "Restored",
-    "restoredBody": "Your Driver Pro subscription is active.",
-    "alreadyPro": "You're on Driver Pro — thank you!",
+    "restoredBody": "Your TruckerNet Pro subscription is active.",
+    "alreadyPro": "You're on TruckerNet Pro — thank you!",
     "fairMarketLock": "Upgrade to Pro to see what you should be getting paid",
     "valueMissed_one": "On {{count}} load this month, you may have left {{amount}} on the table. Pro drivers see fair market rates before accepting.",
     "valueMissed_other": "On {{count}} loads this month, you may have left {{amount}} on the table. Pro drivers see fair market rates before accepting."

@@ -2,6 +2,7 @@ import React, { createContext, useCallback, useContext, useEffect, useRef, useSt
 import { Modal } from 'react-native';
 import PaywallScreen, { PaywallReason } from '../screens/PaywallScreen';
 import { capture } from '../lib/analytics';
+import * as haptics from '../lib/haptics';
 
 /**
  * App-wide paywall presentation. The paywall fires from many places (Add Load
@@ -50,6 +51,9 @@ export function PaywallProvider({ children }: { children: React.ReactNode }) {
   const [hosts, setHosts] = useState<number[]>([]);
 
   const present = useCallback((r: PaywallReason = 'generic') => {
+    // Single choke point for every "Upgrade to Pro" button in the app — one
+    // haptic here covers them all (Settings, IFTA, meters, gates, …).
+    haptics.tapMedium();
     setReason(r);
     setVisible(true);
     capture('paywall_shown', { reason: r });

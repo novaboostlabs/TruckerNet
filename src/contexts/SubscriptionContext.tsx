@@ -82,7 +82,7 @@ export interface TrialEligibility {
 }
 
 export interface SubscriptionContextValue {
-  /** True when the user has an active Driver Pro entitlement. */
+  /** True when the user has an active TruckerNet Pro entitlement. */
   isPro:      boolean;
   /** Still resolving entitlement state on cold start. */
   loading:    boolean;

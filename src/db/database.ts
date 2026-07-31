@@ -212,6 +212,32 @@ export function initDatabase(): void {
     }
     db.runSync('PRAGMA foreign_keys = ON');
   }
+
+  // ── One-time verdict backfill (2026-07-31) ──
+  // The verdict formula double-counted costs (compared netRPM — which already
+  // has all costs subtracted — against the full break-even RPM, effectively
+  // demanding gross ≥ 2× break-even). Every stored verdict predating the fix
+  // is suspect, so recompute all of them once with the corrected thresholds:
+  // profitable = netRPM ≥ 0, green = netRPM ≥ 0.15 × break-even.
+  const verdictFixFlag = db.getFirstSync<{ value: string }>(
+    `SELECT value FROM settings WHERE key = 'verdict_fix_2026_07_31'`
+  );
+  if (!verdictFixFlag) {
+    const be = calcBreakEven().breakEvenRPM;
+    if (be > 0) {
+      db.runSync(
+        `UPDATE loads SET verdict = CASE
+           WHEN net_rate_per_mile >= ? THEN 'green'
+           WHEN net_rate_per_mile >= 0 THEN 'amber'
+           ELSE 'red' END
+         WHERE verdict IS NOT NULL`,
+        [be * 0.15],
+      );
+    }
+    db.runSync(
+      `INSERT OR REPLACE INTO settings (key, value) VALUES ('verdict_fix_2026_07_31', '1')`
+    );
+  }
 }
 
 // ── Settings helpers ──
@@ -1790,9 +1816,12 @@ function recalculateLoadFinancials(loadId: string): void {
   const { breakEvenRPM } = calcBreakEven();
   let verdict: string | null = null;
   if (breakEvenRPM > 0) {
-    if (netRPM >= breakEvenRPM * 1.15)   verdict = 'green';
-    else if (netRPM >= breakEvenRPM)      verdict = 'amber';
-    else                                  verdict = 'red';
+    // Costs (fuel + fixed + per-load extras) are already inside netRPM, so
+    // profitable = netRPM ≥ 0; green adds a 15%-of-break-even cushion. The old
+    // `netRPM >= breakEvenRPM` double-counted costs (external review 2026-07-31).
+    if (netRPM >= breakEvenRPM * 0.15)   verdict = 'green';
+    else if (netRPM >= 0)                verdict = 'amber';
+    else                                 verdict = 'red';
   }
 
   db.runSync(

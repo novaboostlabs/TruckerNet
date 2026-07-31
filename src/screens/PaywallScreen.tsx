@@ -9,6 +9,7 @@ import { FontFamily, FontSize, Spacing, Radius, ThemeColors } from '../theme/the
 import { useTheme } from '../theme/ThemeContext';
 import { useSubscription } from '../contexts/SubscriptionContext';
 import { capture } from '../lib/analytics';
+import * as haptics from '../lib/haptics';
 import GridBackground from '../components/GridBackground';
 import AccentRule from '../components/AccentRule';
 import { getValueMissedStats, ValueMissedStats } from '../db/database';
@@ -118,14 +119,17 @@ export default function PaywallScreen({ onClose, reason = 'generic' }: Props) {
     : t(`paywall.reason.${reason}`);
 
   async function handlePurchase() {
+    haptics.tapHeavy();
     capture('upgrade_tapped', { plan, reason });
     setBusy(true);
     const { error } = await purchase(plan);
     setBusy(false);
     if (error) {
+      haptics.error();
       Alert.alert(t('paywall.purchaseFailedTitle'), error);
       return;
     }
+    haptics.success();
     capture('subscription_purchased', { plan, reason });
     onClose();
   }
@@ -235,7 +239,7 @@ export default function PaywallScreen({ onClose, reason = 'generic' }: Props) {
         {/* ── Plan picker ── */}
         <PlanOption
           selected={plan === 'annual'}
-          onPress={() => setPlan('annual')}
+          onPress={() => { haptics.tapLight(); setPlan('annual'); }}
           title={t('paywall.planAnnual')}
           price={annual.priceString}
           unit={t('paywall.perYear')}
@@ -245,7 +249,7 @@ export default function PaywallScreen({ onClose, reason = 'generic' }: Props) {
         />
         <PlanOption
           selected={plan === 'monthly'}
-          onPress={() => setPlan('monthly')}
+          onPress={() => { haptics.tapLight(); setPlan('monthly'); }}
           title={t('paywall.planMonthly')}
           price={monthly.priceString}
           unit={t('paywall.perMonth')}

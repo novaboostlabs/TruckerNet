@@ -30,6 +30,7 @@ import ExpenseReviewModal from '../components/ExpenseReviewModal';
 import TaxSetAsideCard from '../components/TaxSetAsideCard';
 import { useSubscription } from '../contexts/SubscriptionContext';
 import { usePaywall } from '../contexts/PaywallContext';
+import * as haptics from '../lib/haptics';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useAuth } from '../contexts/AuthContext';
 import CheckLoadScreen from './CheckLoadScreen';
@@ -158,6 +159,7 @@ export default function DashboardScreen() {
   const fabAnim = useRef(new Animated.Value(0)).current;
 
   const toggleFab = useCallback((open: boolean) => {
+    if (open) haptics.tapLight();
     setFabOpen(open);
     Animated.spring(fabAnim, {
       toValue: open ? 1 : 0,
@@ -169,6 +171,7 @@ export default function DashboardScreen() {
 
   // Run a FAB action: close the dial first, then fire it next frame.
   const runFabAction = useCallback((fn: () => void) => {
+    haptics.tapMedium();
     toggleFab(false);
     setTimeout(fn, 120);
   }, [toggleFab]);
@@ -479,7 +482,7 @@ export default function DashboardScreen() {
 
         {/* ── ZONE 2: Daily action — the primary CTA, right after the numbers ── */}
         <FadeInSlide delay={110}>
-        <PressableScale style={styles.evalButton} onPress={() => setShowCheckLoad(true)}>
+        <PressableScale style={styles.evalButton} onPress={() => { haptics.tapMedium(); setShowCheckLoad(true); }}>
           <Ionicons name="flash" size={15} color={Colors.onPrimary} />
           <Text style={styles.evalText}>{t('dashboard.checkLoadBtn')}</Text>
           <Ionicons name="chevron-forward" size={15} color={Colors.onPrimary} />

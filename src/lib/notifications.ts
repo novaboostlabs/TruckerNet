@@ -79,9 +79,12 @@ export async function scheduleWeeklyPnL(): Promise<void> {
 
     const parts: string[] = [];
     if (breakEvenRPM > 0 && miles > 0) {
+      // net already has all costs subtracted, so net/miles IS the per-mile
+      // margin over break-even — don't subtract breakEvenRPM again (that
+      // double-counted costs; external review 2026-07-31).
       const rpm = net / miles;
-      const delta = Math.abs(rpm - breakEvenRPM).toFixed(2);
-      parts.push(rpm >= breakEvenRPM
+      const delta = Math.abs(rpm).toFixed(2);
+      parts.push(rpm >= 0
         ? tn('weeklyPnlAbove', { delta })
         : tn('weeklyPnlBelow', { delta }));
     }

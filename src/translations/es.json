@@ -728,9 +728,9 @@
     "replayTitle": "Repetir Configuración",
     "replayConfirm": "Esto te guiará por el proceso de configuración de nuevo para actualizar tu cálculo de equilibrio.",
     "replayAction": "Comenzar Configuración",
-    "upgradeTitle": "Hazte Driver Pro",
+    "upgradeTitle": "Hazte TruckerNet Pro",
     "upgradeSub": "Tarifas de mercado, IFTA, historial completo y más",
-    "proActive": "Driver Pro",
+    "proActive": "TruckerNet Pro",
     "proActiveSub": "Suscripción activa",
     "manageSub": "Administrar suscripción",
     "devProToggle": "Mock Pro (solo dev)",
@@ -824,8 +824,8 @@
     "markComplete": "Marcar Completada"
   },
   "paywall": {
-    "badge": "DRIVER PRO",
-    "title": "Desbloquea Driver Pro",
+    "badge": "TRUCKERNET PRO",
+    "title": "Desbloquea TruckerNet Pro",
     "titleFairMarket": "Conoce lo que debe pagar cada carga",
     "titleLoadLimit": "Sin límites",
     "titleHistory": "Tu P&L completo, cada carga",
@@ -876,8 +876,8 @@
     "comingSoonTitle": "Casi listo",
     "purchaseFailedTitle": "La compra no se completó",
     "restoredTitle": "Restaurado",
-    "restoredBody": "Tu suscripción Driver Pro está activa.",
-    "alreadyPro": "Ya tienes Driver Pro — ¡gracias!",
+    "restoredBody": "Tu suscripción TruckerNet Pro está activa.",
+    "alreadyPro": "Ya tienes TruckerNet Pro — ¡gracias!",
     "fairMarketLock": "Hazte Pro para ver lo que deberían pagarte",
     "valueMissed_one": "En {{count}} carga este mes, podrías haber dejado {{amount}} sobre la mesa. Los conductores Pro ven los precios de mercado antes de aceptar.",
     "valueMissed_other": "En {{count}} cargas este mes, podrías haber dejado {{amount}} sobre la mesa. Los conductores Pro ven los precios de mercado antes de aceptar."

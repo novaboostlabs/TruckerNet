@@ -1,7 +1,7 @@
 import { getLoadCountThisMonth } from '../db/database';
 
 /**
- * Free-tier limits and gating helpers for the Free ↔ Driver Pro paywall.
+ * Free-tier limits and gating helpers for the Free ↔ TruckerNet Pro paywall.
  * Pair these with `useSubscription().isPro` at each call site:
  * pro users bypass every gate.
  *

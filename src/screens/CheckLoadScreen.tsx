@@ -185,15 +185,21 @@ export default function CheckLoadScreen({ onClose, onLogLoad }: Props) {
   const fixedCost = loadMiles * fixedCPM;
   const netPay    = grossPay - fuelCost - fixedCost;
   const netRPM    = loadMiles > 0 ? netPay / loadMiles : 0;
-  const deltaRPM  = netRPM - breakEvenRPM;
+  // Costs are ALREADY inside netRPM (netRPM = grossRPM − breakEvenRPM), so the
+  // margin over break-even IS netRPM. The old `netRPM - breakEvenRPM` subtracted
+  // costs a second time and demanded gross ≥ 2× break-even to look good —
+  // mislabeling genuinely profitable loads red (found in external review 2026-07-31).
+  const deltaRPM  = netRPM;
 
   const hasBreakEven = breakEvenRPM > 0;
 
   let verdict: Verdict = 'red';
   if (hasBreakEven) {
+    // Green = gross clears break-even with a 15% cushion (netRPM ≥ 0.15×BE);
+    // amber = profitable but thin; red = loses money.
     // >= matches Add Load exactly, so both screens agree at the boundary.
-    if (netRPM >= breakEvenRPM * 1.15)   verdict = 'green';
-    else if (netRPM >= breakEvenRPM)     verdict = 'amber';
+    if (netRPM >= breakEvenRPM * 0.15)   verdict = 'green';
+    else if (netRPM >= 0)                verdict = 'amber';
     else                                 verdict = 'red';
   } else {
     verdict = netPay > 0 ? 'green' : 'red';
@@ -243,13 +249,12 @@ export default function CheckLoadScreen({ onClose, onLogLoad }: Props) {
         verdict, load_type: loadType, miles: loadMiles,
         gross_pay: grossPay, net_pay: netPay, is_backhaul: backhaul,
       });
-      // The app's aha moment: the driver just saw a load clear their break-even.
-      // Ask for a rating here (fully gated in reviewPrompt) — but only on a good
-      // verdict, never after showing someone a bad number. Fires on close so it
-      // can't cover the result they came for.
-      // 'green' only — comfortably above break-even. 'amber' merely scrapes past
-      // it and 'red' is a loss; neither is a moment worth spending a prompt on.
-      maybeRequestReview(verdict === 'green').catch(() => {});
+      // The app's aha moment: the driver just got a real verdict. Deliberately
+      // fires on ANY verdict (user decision 2026-07-31) — a red verdict means
+      // the app just saved them from a losing load, which is the product
+      // working. Fully gated in reviewPrompt; fires on close so the sheet can't
+      // cover the result they came for.
+      maybeRequestReview().catch(() => {});
     }
     onClose();
   }

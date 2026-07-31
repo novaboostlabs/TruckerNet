@@ -728,9 +728,9 @@
     "replayTitle": "ਸੈੱਟਅੱਪ ਦੁਬਾਰਾ ਕਰੋ",
     "replayConfirm": "ਇਹ ਤੁਹਾਡੀ ਬਰੇਕ-ਈਵਨ ਗਣਨਾ ਅੱਪਡੇਟ ਕਰਨ ਲਈ ਤੁਹਾਨੂੰ ਸੈੱਟਅੱਪ ਪ੍ਰਕਿਰਿਆ ਵਿੱਚੋਂ ਦੁਬਾਰਾ ਲੰਘਾਏਗਾ।",
     "replayAction": "ਸੈੱਟਅੱਪ ਸ਼ੁਰੂ ਕਰੋ",
-    "upgradeTitle": "Driver Pro 'ਤੇ ਅੱਪਗ੍ਰੇਡ ਕਰੋ",
+    "upgradeTitle": "TruckerNet Pro 'ਤੇ ਅੱਪਗ੍ਰੇਡ ਕਰੋ",
     "upgradeSub": "ਫੇਅਰ-ਮਾਰਕੀਟ ਰੇਟ, IFTA, ਪੂਰਾ ਇਤਿਹਾਸ ਅਤੇ ਹੋਰ",
-    "proActive": "Driver Pro",
+    "proActive": "TruckerNet Pro",
     "proActiveSub": "ਸਰਗਰਮ ਸਬਸਕ੍ਰਿਪਸ਼ਨ",
     "manageSub": "ਸਬਸਕ੍ਰਿਪਸ਼ਨ ਪ੍ਰਬੰਧਿਤ ਕਰੋ",
     "devProToggle": "Mock Pro (ਸਿਰਫ਼ dev)",
@@ -824,8 +824,8 @@
     "markComplete": "ਮੁਕੰਮਲ ਵਜੋਂ ਨਿਸ਼ਾਨ ਲਗਾਓ"
   },
   "paywall": {
-    "badge": "DRIVER PRO",
-    "title": "Driver Pro ਅਨਲਾਕ ਕਰੋ",
+    "badge": "TRUCKERNET PRO",
+    "title": "TruckerNet Pro ਅਨਲਾਕ ਕਰੋ",
     "titleFairMarket": "ਜਾਣੋ ਹਰ ਲੋਡ ਕਿੰਨਾ ਦੇਣਾ ਚਾਹੀਦਾ ਹੈ",
     "titleLoadLimit": "ਅਸੀਮਤ ਜਾਓ",
     "titleHistory": "ਤੁਹਾਡਾ ਪੂਰਾ P&L, ਹਰ ਲੋਡ",
@@ -876,8 +876,8 @@
     "comingSoonTitle": "ਲਗਭਗ ਤਿਆਰ",
     "purchaseFailedTitle": "ਖਰੀਦ ਪੂਰੀ ਨਹੀਂ ਹੋਈ",
     "restoredTitle": "ਬਹਾਲ ਕੀਤਾ",
-    "restoredBody": "ਤੁਹਾਡੀ Driver Pro ਸਬਸਕ੍ਰਿਪਸ਼ਨ ਸਰਗਰਮ ਹੈ।",
-    "alreadyPro": "ਤੁਸੀਂ Driver Pro 'ਤੇ ਹੋ — ਧੰਨਵਾਦ!",
+    "restoredBody": "ਤੁਹਾਡੀ TruckerNet Pro ਸਬਸਕ੍ਰਿਪਸ਼ਨ ਸਰਗਰਮ ਹੈ।",
+    "alreadyPro": "ਤੁਸੀਂ TruckerNet Pro 'ਤੇ ਹੋ — ਧੰਨਵਾਦ!",
     "fairMarketLock": "ਤੁਹਾਨੂੰ ਕਿੰਨਾ ਭੁਗਤਾਨ ਮਿਲਣਾ ਚਾਹੀਦਾ ਹੈ, ਦੇਖਣ ਲਈ Pro 'ਤੇ ਅੱਪਗ੍ਰੇਡ ਕਰੋ",
     "valueMissed_one": "ਇਸ ਮਹੀਨੇ {{count}} ਲੋਡ ਵਿੱਚ ਤੁਸੀਂ {{amount}} ਗੁਆ ਸਕਦੇ ਹੋ। Pro ਡਰਾਈਵਰ ਸਵੀਕਾਰ ਕਰਨ ਤੋਂ ਪਹਿਲਾਂ ਬਾਜ਼ਾਰ ਦਰਾਂ ਦੇਖਦੇ ਹਨ।",
     "valueMissed_other": "ਇਸ ਮਹੀਨੇ {{count}} ਲੋਡਾਂ ਵਿੱਚ ਤੁਸੀਂ {{amount}} ਗੁਆ ਸਕਦੇ ਹੋ। Pro ਡਰਾਈਵਰ ਸਵੀਕਾਰ ਕਰਨ ਤੋਂ ਪਹਿਲਾਂ ਬਾਜ਼ਾਰ ਦਰਾਂ ਦੇਖਦੇ ਹਨ।"
