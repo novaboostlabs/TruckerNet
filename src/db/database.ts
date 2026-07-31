@@ -2296,6 +2296,82 @@ export function getAllStateMileage(): StateMileageRow[] {
   );
 }
 
+// ── IFTA correction workflow (2026-07-31) ──
+// The auto-derived per-state split is an ESTIMATE the UI tells drivers to
+// verify, so it must be correctable after the fact. These are the write paths
+// behind post-save editing in Load Detail and the Fuel tab.
+
+/** Per-state rows for one load, in display order. */
+export function getStateMileageForLoad(loadId: string): { state: string; miles: number; is_manually_edited: number }[] {
+  return db.getAllSync<{ state: string; miles: number; is_manually_edited: number }>(
+    `SELECT state, miles, is_manually_edited FROM state_mileage
+     WHERE load_id = ? ORDER BY miles DESC`,
+    [loadId],
+  );
+}
+
+/**
+ * Replace a load's per-state mileage with driver-corrected rows. Every row
+ * written here is flagged `is_manually_edited = 1` so a later auto-recalculation
+ * can never silently overwrite a correction the driver made by hand.
+ * Rows with blank states or non-positive miles are dropped.
+ */
+export function updateStateMileageForLoad(
+  loadId: string,
+  rows: { state: string; miles: number }[],
+): void {
+  db.withTransactionSync(() => {
+    db.runSync('DELETE FROM state_mileage WHERE load_id = ?', [loadId]);
+    for (const r of rows) {
+      const state = (r.state || '').trim().toUpperCase();
+      if (state.length !== 2 || !(r.miles > 0)) continue;
+      db.runSync(
+        'INSERT INTO state_mileage (load_id, state, miles, is_manually_edited) VALUES (?,?,?,1)',
+        [loadId, state, r.miles],
+      );
+    }
+  });
+}
+
+/** One fuel entry by id — powers "edit this fill-up". */
+export function getFuelEntryById(id: string): {
+  id: string; date: string; dollars_spent: number; gallons: number;
+  miles_driven: number; cost_per_mile: number; price_per_gallon: number;
+  mpg: number; odometer_reading: number; state_purchased: string;
+} | null {
+  return db.getFirstSync(
+    `SELECT id, date, dollars_spent, gallons, miles_driven, cost_per_mile,
+            price_per_gallon, mpg, odometer_reading, state_purchased
+     FROM fuel_entries WHERE id = ?`,
+    [id],
+  ) ?? null;
+}
+
+/** Update a fill-up in place. Derived fields are passed in already computed. */
+export function updateFuelEntry(id: string, e: {
+  date: string; dollars_spent: number; gallons: number; miles_driven: number;
+  cost_per_mile: number; price_per_gallon: number; mpg: number;
+  odometer_reading: number; state_purchased: string;
+}): void {
+  db.runSync(
+    `UPDATE fuel_entries
+     SET date = ?, dollars_spent = ?, gallons = ?, miles_driven = ?,
+         cost_per_mile = ?, price_per_gallon = ?, mpg = ?,
+         odometer_reading = ?, state_purchased = ?
+     WHERE id = ?`,
+    [e.date, e.dollars_spent, e.gallons, e.miles_driven, e.cost_per_mile,
+     e.price_per_gallon, e.mpg, e.odometer_reading, e.state_purchased, id],
+  );
+}
+
+/** Delete a fill-up, tombstoning it so the delete propagates to the cloud. */
+export function deleteFuelEntry(id: string): void {
+  db.withTransactionSync(() => {
+    db.runSync('DELETE FROM fuel_entries WHERE id = ?', [id]);
+    queueDelete('fuel_entries', id);
+  });
+}
+
 /** Replace all local loads (+ their state_mileage rows) with the given sets.
  *  Transactional: a mid-loop failure rolls back rather than emptying the table. */
 export function replaceLoads(

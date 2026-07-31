@@ -442,7 +442,11 @@
     "statsLabel": "ESTADÍSTICAS · ÚLTIMOS 10 LLENADOS",
     "avgMpg": "MPG PROM",
     "bestMpg": "MEJOR MPG",
-    "avgPrice": "PROM $/GAL"
+    "avgPrice": "PROM $/GAL",
+    "editHint": "Toca una carga para editar · mantén pulsado para eliminar",
+    "deleteTitle": "¿Eliminar esta carga de combustible?",
+    "deleteBody": "Se eliminará la carga del {{date}}. Esto afecta tu costo por milla y los totales del IFTA.",
+    "editFillup": "Editar carga"
   },
   "addLoad": {
     "title": "Agregar Carga",
@@ -821,7 +825,10 @@
     },
     "bolPhoto": "Foto del BOL",
     "startLoad": "Iniciar Carga",
-    "markComplete": "Marcar Completada"
+    "markComplete": "Marcar Completada",
+    "addState": "Agregar un estado",
+    "stateMilesTotal": "Total de millas por estado",
+    "stateMilesMismatch": "Difiere en {{diff}} mi del total de esta carga. El IFTA usa estos números — ajústalos para que cuadren."
   },
   "paywall": {
     "badge": "TRUCKERNET PRO",

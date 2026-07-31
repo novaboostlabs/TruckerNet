@@ -10,7 +10,9 @@ import { FontFamily, FontSize, Spacing, Radius, ThemeColors, sectionLabel } from
 import { useTheme } from '../theme/ThemeContext';
 import {
   getLoadById, LoadDetail, addSingleLoadExpense, deleteSingleLoadExpense, updateLoad,
+  updateStateMileageForLoad,
 } from '../db/database';
+import * as haptics from '../lib/haptics';
 import { useAuth } from '../contexts/AuthContext';
 import { pushLoads } from '../lib/sync/loadsSync';
 import { getBolDisplayUri } from '../lib/storage';
@@ -120,9 +122,60 @@ export default function LoadDetailScreen({ loadId, onClose, startInEdit = false 
   // Pending expense being typed in (null = no add row showing)
   const [pending, setPending] = useState<{ label: string; amount: string; category: string } | null>(null);
 
+  // ── State-mileage correction (IFTA) ──
+  // The per-state split is an auto-derived ESTIMATE the UI tells drivers to
+  // verify, so it has to be correctable after the load is saved. null = not
+  // editing; otherwise the working copy of the rows.
+  const [editingMiles, setEditingMiles] = useState<{ state: string; miles: string }[] | null>(null);
+
   const refreshLoad = useCallback(() => {
     setLoad(getLoadById(loadId));
   }, [loadId]);
+
+  // ── State-mileage correction handlers ──
+  function startEditMiles() {
+    haptics.tapLight();
+    setEditingMiles(
+      (load?.stateMileage ?? []).map(r => ({
+        state: r.state,
+        miles: String(Math.round(r.miles)),
+      })),
+    );
+  }
+
+  function updateMileRow(i: number, field: 'state' | 'miles', value: string) {
+    setEditingMiles(prev =>
+      prev ? prev.map((r, idx) => (idx === i ? { ...r, [field]: value } : r)) : prev,
+    );
+  }
+
+  function addMileRow() {
+    haptics.tapLight();
+    setEditingMiles(prev => [...(prev ?? []), { state: '', miles: '' }]);
+  }
+
+  function removeMileRow(i: number) {
+    haptics.tapLight();
+    setEditingMiles(prev => (prev ? prev.filter((_, idx) => idx !== i) : prev));
+  }
+
+  const editMilesTotal = (editingMiles ?? []).reduce(
+    (s, r) => s + (parseFloat(r.miles) || 0), 0,
+  );
+  const editMilesDiff = load ? Math.abs(editMilesTotal - load.total_miles) : 0;
+
+  function saveEditMiles() {
+    if (!editingMiles) return;
+    const rows = editingMiles
+      .map(r => ({ state: r.state.trim().toUpperCase(), miles: parseFloat(r.miles) || 0 }))
+      .filter(r => r.state.length === 2 && r.miles > 0);
+    updateStateMileageForLoad(loadId, rows);
+    setEditingMiles(null);
+    refreshLoad();
+    haptics.success();
+    // Corrections must reach the cloud, or another device re-pulls the old split.
+    if (user) pushLoads(user.id);
+  }
 
   useEffect(() => { refreshLoad(); }, [refreshLoad]);
 
@@ -642,17 +695,89 @@ export default function LoadDetailScreen({ loadId, onClose, startInEdit = false 
           </>
         )}
 
-        {/* State mileage */}
-        {hasStateMi && (
+        {/* State mileage — editable, because IFTA is only an estimate */}
+        {(hasStateMi || editingMiles) && (
           <>
-            <Text style={styles.sectionHeader}>{t('loadDetail.stateMileage')}</Text>
+            <View style={styles.sectionHeaderRow}>
+              <Text style={styles.sectionHeader}>{t('loadDetail.stateMileage')}</Text>
+              {!editingMiles ? (
+                <TouchableOpacity onPress={startEditMiles} activeOpacity={0.7}>
+                  <Text style={styles.sectionAction}>{t('common.edit')}</Text>
+                </TouchableOpacity>
+              ) : (
+                <View style={styles.sectionActions}>
+                  <TouchableOpacity onPress={() => setEditingMiles(null)} activeOpacity={0.7}>
+                    <Text style={styles.sectionActionMuted}>{t('common.cancel')}</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={saveEditMiles} activeOpacity={0.7}>
+                    <Text style={styles.sectionAction}>{t('common.save')}</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+            </View>
+
             <View style={styles.card}>
-              {load.stateMileage.map((row, i) => (
-                <React.Fragment key={row.state}>
-                  {i > 0 && <Divider />}
-                  <DetailRow label={row.state} value={`${Math.round(row.miles).toLocaleString()} mi`} />
-                </React.Fragment>
-              ))}
+              {!editingMiles ? (
+                <>
+                  {load.stateMileage.map((row, i) => (
+                    <React.Fragment key={row.state}>
+                      {i > 0 && <Divider />}
+                      <DetailRow label={row.state} value={`${Math.round(row.miles).toLocaleString()} mi`} />
+                    </React.Fragment>
+                  ))}
+                </>
+              ) : (
+                <>
+                  {editingMiles.map((row, i) => (
+                    <React.Fragment key={i}>
+                      {i > 0 && <Divider />}
+                      <View style={styles.smEditRow}>
+                        <TextInput
+                          style={styles.smStateInput}
+                          value={row.state}
+                          onChangeText={(v) => updateMileRow(i, 'state', v.toUpperCase().slice(0, 2))}
+                          placeholder="ST"
+                          placeholderTextColor={Colors.textTertiary}
+                          autoCapitalize="characters"
+                          maxLength={2}
+                        />
+                        <TextInput
+                          style={styles.smMilesInput}
+                          value={row.miles}
+                          onChangeText={(v) => updateMileRow(i, 'miles', v.replace(/[^0-9.]/g, ''))}
+                          placeholder="0"
+                          placeholderTextColor={Colors.textTertiary}
+                          keyboardType="decimal-pad"
+                        />
+                        <Text style={styles.smUnit}>mi</Text>
+                        <TouchableOpacity onPress={() => removeMileRow(i)} activeOpacity={0.7} style={styles.smRemove}>
+                          <Ionicons name="close-circle" size={20} color={Colors.danger} />
+                        </TouchableOpacity>
+                      </View>
+                    </React.Fragment>
+                  ))}
+                  <Divider />
+                  <TouchableOpacity style={styles.smAddRow} onPress={addMileRow} activeOpacity={0.7}>
+                    <Ionicons name="add-circle-outline" size={18} color={Colors.primary} />
+                    <Text style={styles.smAddText}>{t('loadDetail.addState')}</Text>
+                  </TouchableOpacity>
+                  <Divider />
+                  <View style={styles.smTotalRow}>
+                    <Text style={styles.smTotalLabel}>{t('loadDetail.stateMilesTotal')}</Text>
+                    <Text style={[
+                      styles.smTotalValue,
+                      editMilesDiff > 5 && styles.smTotalValueWarn,
+                    ]}>
+                      {Math.round(editMilesTotal).toLocaleString()} / {Math.round(load.total_miles).toLocaleString()} mi
+                    </Text>
+                  </View>
+                  {editMilesDiff > 5 && (
+                    <Text style={styles.smWarn}>
+                      {t('loadDetail.stateMilesMismatch', { diff: Math.round(editMilesDiff).toLocaleString() })}
+                    </Text>
+                  )}
+                </>
+              )}
             </View>
           </>
         )}
@@ -792,6 +917,38 @@ const makeStyles = (Colors: ThemeColors) => StyleSheet.create({
   progressBtnText: { fontFamily: FontFamily.semiBold, fontSize: FontSize.body, color: Colors.onPrimary },
 
   sectionHeader: { ...sectionLabel(Colors), marginBottom: 10, paddingLeft: 4 },
+
+  // ── State-mileage correction (IFTA) ──
+  sectionHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  sectionActions:   { flexDirection: 'row', gap: 16 },
+  sectionAction:    { fontFamily: FontFamily.semiBold, fontSize: FontSize.label, color: Colors.primary, marginBottom: 10 },
+  sectionActionMuted: { fontFamily: FontFamily.medium, fontSize: FontSize.label, color: Colors.textSecondary, marginBottom: 10 },
+  smEditRow:   { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, paddingHorizontal: 14, gap: 10 },
+  smStateInput: {
+    width: 52, height: 38, borderRadius: Radius.sm, borderWidth: 1, borderColor: Colors.border,
+    backgroundColor: Colors.surface, color: Colors.textPrimary, textAlign: 'center',
+    fontFamily: FontFamily.monoRegular, fontSize: FontSize.body,
+  },
+  smMilesInput: {
+    flex: 1, height: 38, borderRadius: Radius.sm, borderWidth: 1, borderColor: Colors.border,
+    backgroundColor: Colors.surface, color: Colors.textPrimary, paddingHorizontal: 10,
+    fontFamily: FontFamily.monoRegular, fontSize: FontSize.body, textAlign: 'right',
+  },
+  smUnit:    { fontFamily: FontFamily.medium, fontSize: FontSize.label, color: Colors.textSecondary, width: 20 },
+  smRemove:  { padding: 2 },
+  smAddRow:  { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 12, paddingHorizontal: 14 },
+  smAddText: { fontFamily: FontFamily.semiBold, fontSize: FontSize.label, color: Colors.primary },
+  smTotalRow: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingVertical: 12, paddingHorizontal: 14,
+  },
+  smTotalLabel:     { fontFamily: FontFamily.medium, fontSize: FontSize.label, color: Colors.textSecondary },
+  smTotalValue:     { fontFamily: FontFamily.monoRegular, fontSize: FontSize.label, color: Colors.textPrimary },
+  smTotalValueWarn: { color: Colors.secondary },
+  smWarn: {
+    fontFamily: FontFamily.regular, fontSize: FontSize.caption, color: Colors.secondary,
+    paddingHorizontal: 14, paddingBottom: 12, lineHeight: 16,
+  },
 
   card: {
     backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border,

@@ -442,7 +442,11 @@
     "statsLabel": "ENGINE STATS · LAST 10 FILL-UPS",
     "avgMpg": "AVG MPG",
     "bestMpg": "BEST MPG",
-    "avgPrice": "AVG $/GAL"
+    "avgPrice": "AVG $/GAL",
+    "editHint": "Tap a fill-up to edit · hold to delete",
+    "deleteTitle": "Delete this fill-up?",
+    "deleteBody": "The {{date}} fill-up will be removed. This affects your cost per mile and IFTA totals.",
+    "editFillup": "Edit Fill-up"
   },
   "addLoad": {
     "title": "Add Load",
@@ -821,7 +825,10 @@
     },
     "bolPhoto": "BOL Photo",
     "startLoad": "Start Load",
-    "markComplete": "Mark Complete"
+    "markComplete": "Mark Complete",
+    "addState": "Add a state",
+    "stateMilesTotal": "State miles total",
+    "stateMilesMismatch": "Off by {{diff}} mi from this load's total. IFTA uses these numbers — adjust so they add up."
   },
   "paywall": {
     "badge": "TRUCKERNET PRO",

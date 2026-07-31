@@ -442,7 +442,11 @@
     "statsLabel": "引擎数据 · 最近 10 次加油",
     "avgMpg": "平均 MPG",
     "bestMpg": "最佳 MPG",
-    "avgPrice": "平均 $/加仑"
+    "avgPrice": "平均 $/加仑",
+    "editHint": "点按加油记录可编辑 · 长按可删除",
+    "deleteTitle": "删除这条加油记录？",
+    "deleteBody": "将删除 {{date}} 的加油记录。这会影响你的每英里成本和 IFTA 合计。",
+    "editFillup": "编辑加油记录"
   },
   "addLoad": {
     "title": "添加订单",
@@ -821,7 +825,10 @@
     },
     "bolPhoto": "BOL 照片",
     "startLoad": "开始运输",
-    "markComplete": "标记完成"
+    "markComplete": "标记完成",
+    "addState": "添加州",
+    "stateMilesTotal": "各州英里合计",
+    "stateMilesMismatch": "与本单总里程相差 {{diff}} 英里。IFTA 使用这些数字——请调整使其相符。"
   },
   "paywall": {
     "badge": "TRUCKERNET PRO",

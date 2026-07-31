@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState, useMemo } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Modal } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Modal, Alert } from 'react-native';
 import FuelEntryScreen from './FuelEntryScreen';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -8,7 +8,10 @@ import { useTranslation } from 'react-i18next';
 import { Colors, FontFamily, FontSize, Spacing, Radius, SectionLabel, ThemeColors, sectionLabel } from '../theme/theme';
 import { useTheme } from '../theme/ThemeContext';
 import { getDateLocale } from '../lib/i18n';
-import { getFuelStats, getFuelEntryCount, getFuelEstimate, FuelStats, FuelEntryDisplay, FuelEstimate } from '../db/database';
+import { getFuelStats, getFuelEntryCount, getFuelEstimate, deleteFuelEntry, FuelStats, FuelEntryDisplay, FuelEstimate } from '../db/database';
+import { useAuth } from '../contexts/AuthContext';
+import { pushFuel } from '../lib/sync/fuelSync';
+import * as haptics from '../lib/haptics';
 import GridBackground from '../components/GridBackground';
 import AccentRule from '../components/AccentRule';
 
@@ -28,7 +31,12 @@ export default function FuelScreen() {
   const { colors: Colors } = useTheme();
   const styles = useMemo(() => makeStyles(Colors), [Colors]);
   const { t } = useTranslation();
+  const { user } = useAuth();
   const [showEntry, setShowEntry] = useState(false);
+  // Fill-up being edited (null = the modal is creating a new one). Fuel feeds
+  // the IFTA report, which the UI calls an estimate to verify — so entries must
+  // be correctable and removable after the fact.
+  const [editEntryId, setEditEntryId] = useState<string | null>(null);
   const [stats, setStats] = useState<FuelStats>(() =>
     getFuelEntryCount() > 0 ? getFuelStats() : EMPTY_STATS
   );
@@ -62,13 +70,44 @@ export default function FuelScreen() {
     return { avgMpg, bestMpg, avgPrice };
   }, [entries]);
 
+  function openEditEntry(id: string) {
+    haptics.tapLight();
+    setEditEntryId(id);
+    setShowEntry(true);
+  }
+
+  function confirmDeleteEntry(id: string, date: string) {
+    haptics.warning();
+    Alert.alert(
+      t('fuel.deleteTitle'),
+      t('fuel.deleteBody', { date: formatDate(date) }),
+      [
+        { text: t('common.cancel'), style: 'cancel' },
+        {
+          text: t('common.delete'),
+          style: 'destructive',
+          onPress: () => {
+            deleteFuelEntry(id);
+            refresh();
+            haptics.success();
+            // Tombstoned locally; push so the delete reaches other devices.
+            if (user) pushFuel(user.id);
+          },
+        },
+      ],
+    );
+  }
+
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <GridBackground />
       <Modal visible={showEntry} animationType="slide" presentationStyle="pageSheet">
         <FuelEntryScreen
-          onSaved={() => { setShowEntry(false); refresh(); }}
-          onCancel={() => setShowEntry(false)}
+          // Remount per entry so the edit form re-hydrates for each fill-up.
+          key={editEntryId ?? 'new'}
+          editId={editEntryId ?? undefined}
+          onSaved={() => { setShowEntry(false); setEditEntryId(null); refresh(); }}
+          onCancel={() => { setShowEntry(false); setEditEntryId(null); }}
         />
       </Modal>
 
@@ -221,7 +260,15 @@ export default function FuelScreen() {
               <View style={styles.entriesCard}>
                 {entries.map((e, i) => (
                   <React.Fragment key={e.id}>
-                    <View style={styles.entryRow}>
+                    {/* Tap edits, long-press deletes — these numbers feed IFTA,
+                        so a typo has to be fixable. */}
+                    <TouchableOpacity
+                      style={styles.entryRow}
+                      activeOpacity={0.7}
+                      onPress={() => openEditEntry(e.id)}
+                      onLongPress={() => confirmDeleteEntry(e.id, e.date)}
+                      delayLongPress={400}
+                    >
                       <View style={styles.entryLeft}>
                         <Text style={styles.entryDate}>{formatDate(e.date)} · {e.state}</Text>
                         <Text style={styles.entryDetail}>
@@ -235,10 +282,13 @@ export default function FuelScreen() {
                         </Text>
                         <Text style={styles.entrySpent}>${e.dollars_spent.toFixed(2)}</Text>
                       </View>
-                    </View>
+                      <Ionicons name="chevron-forward" size={16} color={Colors.textTertiary} style={styles.entryChevron} />
+                    </TouchableOpacity>
                     {i < entries.length - 1 && <View style={styles.entryDivider} />}
                   </React.Fragment>
                 ))}
+                <View style={styles.entryDivider} />
+                <Text style={styles.entryHint}>{t('fuel.editHint')}</Text>
               </View>
             </View>
           </>
@@ -331,6 +381,11 @@ const makeStyles = (Colors: ThemeColors) => StyleSheet.create({
 
   entriesCard:  { backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border, borderRadius: Radius.md, overflow: 'hidden' },
   entryRow:     { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, paddingHorizontal: Spacing.cardPad },
+  entryChevron: { marginLeft: 6 },
+  entryHint: {
+    fontFamily: FontFamily.regular, fontSize: FontSize.caption, color: Colors.textTertiary,
+    paddingHorizontal: Spacing.cardPad, paddingVertical: 10, textAlign: 'center',
+  },
   entryLeft:    { flex: 1 },
   entryDate:    { fontFamily: FontFamily.monoSemiBold, fontSize: FontSize.body, color: Colors.textPrimary, marginBottom: 3 },
   entryDetail:  { fontFamily: FontFamily.regular, fontSize: FontSize.caption, color: Colors.textSecondary },

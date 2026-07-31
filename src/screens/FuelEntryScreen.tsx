@@ -8,7 +8,7 @@ import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
 import { FontFamily, FontSize, Spacing, Radius, ThemeColors, sectionLabel } from '../theme/theme';
 import { useTheme } from '../theme/ThemeContext';
-import db, { getLatestOdometer, localDateISO } from '../db/database';
+import db, { getLatestOdometer, localDateISO, getFuelEntryById, updateFuelEntry } from '../db/database';
 import { useAuth } from '../contexts/AuthContext';
 import { pushFuel } from '../lib/sync/fuelSync';
 import { scanFuelReceipt } from '../lib/ocr';
@@ -39,9 +39,13 @@ interface Props {
   // When launched from a tapped History calendar day, the fill-up defaults to
   // that day rather than today.
   initialDate?: string;
+  // When set, the screen EDITS this existing fill-up instead of creating one.
+  // Fuel data feeds the IFTA report, which is an estimate the driver is told to
+  // verify — so it has to be correctable after the fact.
+  editId?: string;
 }
 
-export default function FuelEntryScreen({ onSaved, onCancel, initialDate }: Props) {
+export default function FuelEntryScreen({ onSaved, onCancel, initialDate, editId }: Props) {
   const { t } = useTranslation();
   const { colors: Colors } = useTheme();
   const styles = useMemo(() => makeStyles(Colors), [Colors]);
@@ -63,6 +67,21 @@ export default function FuelEntryScreen({ onSaved, onCancel, initialDate }: Prop
     const last = getLatestOdometer();
     setLastOdometer(last);
   }, []);
+
+  // Editing an existing fill-up: hydrate the form from the stored row. The
+  // odometer baseline is the entry's own (reading − miles_driven), otherwise
+  // the "must exceed last odometer" guard would reject the row's own value.
+  useEffect(() => {
+    if (!editId) return;
+    const e = getFuelEntryById(editId);
+    if (!e) return;
+    setDollarsSpent(String(e.dollars_spent));
+    setGallons(String(e.gallons));
+    setOdometer(String(e.odometer_reading));
+    setStatePurchased(e.state_purchased || 'TX');
+    setFuelDate(e.date);
+    setLastOdometer(Math.max(0, e.odometer_reading - e.miles_driven));
+  }, [editId]);
 
   function shiftFuelDate(days: number) {
     const d = new Date(fuelDate + 'T12:00:00');
@@ -113,23 +132,38 @@ export default function FuelEntryScreen({ onSaved, onCancel, initialDate }: Prop
 
     setSaving(true);
     try {
-      db.runSync(
-        `INSERT INTO fuel_entries (id, date, dollars_spent, gallons, miles_driven, cost_per_mile, price_per_gallon, mpg, odometer_reading, state_purchased)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [
-          uuid(),
-          fuelDate,
-          dollars,
-          gals,
-          milesDriven,
-          costPerMile,
-          pricePerGallon,
+      if (editId) {
+        updateFuelEntry(editId, {
+          date: fuelDate,
+          dollars_spent: dollars,
+          gallons: gals,
+          miles_driven: milesDriven,
+          cost_per_mile: costPerMile,
+          price_per_gallon: pricePerGallon,
           mpg,
-          odomReading,
-          statePurchased,
-        ]
-      );
-      capture('fuel_logged', { dollars, gallons: gals, state: statePurchased, mpg });
+          odometer_reading: odomReading,
+          state_purchased: statePurchased,
+        });
+        capture('fuel_edited', { dollars, gallons: gals, state: statePurchased, mpg });
+      } else {
+        db.runSync(
+          `INSERT INTO fuel_entries (id, date, dollars_spent, gallons, miles_driven, cost_per_mile, price_per_gallon, mpg, odometer_reading, state_purchased)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            uuid(),
+            fuelDate,
+            dollars,
+            gals,
+            milesDriven,
+            costPerMile,
+            pricePerGallon,
+            mpg,
+            odomReading,
+            statePurchased,
+          ]
+        );
+        capture('fuel_logged', { dollars, gallons: gals, state: statePurchased, mpg });
+      }
       // Back up to the cloud (local-first: never blocks the UI; no-op for guests).
       if (user) pushFuel(user.id);
       // Fill-up logged — cancel tonight's reminder so the driver isn't nagged.
@@ -198,7 +232,7 @@ export default function FuelEntryScreen({ onSaved, onCancel, initialDate }: Prop
             <TouchableOpacity onPress={onCancel} style={styles.backBtn}>
               <Ionicons name="arrow-back" size={20} color={Colors.textPrimary} />
             </TouchableOpacity>
-            <Text style={styles.headerTitle}>{t('fuel.logFillup')}</Text>
+            <Text style={styles.headerTitle}>{editId ? t('fuel.editFillup') : t('fuel.logFillup')}</Text>
             <View style={{ width: 36 }} />
           </View>
 

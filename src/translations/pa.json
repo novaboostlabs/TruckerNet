@@ -442,7 +442,11 @@
     "statsLabel": "ਇੰਜਣ ਅੰਕੜੇ · ਪਿਛਲੇ 10 ਫਿਲ-ਅੱਪ",
     "avgMpg": "ਔਸਤ MPG",
     "bestMpg": "ਵਧੀਆ MPG",
-    "avgPrice": "ਔਸਤ $/ਗੈਲਨ"
+    "avgPrice": "ਔਸਤ $/ਗੈਲਨ",
+    "editHint": "ਸੋਧਣ ਲਈ ਟੈਪ ਕਰੋ · ਮਿਟਾਉਣ ਲਈ ਦਬਾ ਕੇ ਰੱਖੋ",
+    "deleteTitle": "ਇਹ ਫਿਊਲ ਐਂਟਰੀ ਮਿਟਾਈਏ?",
+    "deleteBody": "{{date}} ਦੀ ਐਂਟਰੀ ਹਟਾ ਦਿੱਤੀ ਜਾਵੇਗੀ। ਇਹ ਤੁਹਾਡੇ ਪ੍ਰਤੀ ਮੀਲ ਖਰਚ ਅਤੇ IFTA ਕੁੱਲਾਂ ਨੂੰ ਪ੍ਰਭਾਵਿਤ ਕਰਦਾ ਹੈ।",
+    "editFillup": "ਫਿਊਲ ਐਂਟਰੀ ਸੋਧੋ"
   },
   "addLoad": {
     "title": "ਲੋਡ ਜੋੜੋ",
@@ -821,7 +825,10 @@
     },
     "bolPhoto": "BOL ਫੋਟੋ",
     "startLoad": "ਲੋਡ ਸ਼ੁਰੂ ਕਰੋ",
-    "markComplete": "ਮੁਕੰਮਲ ਵਜੋਂ ਨਿਸ਼ਾਨ ਲਗਾਓ"
+    "markComplete": "ਮੁਕੰਮਲ ਵਜੋਂ ਨਿਸ਼ਾਨ ਲਗਾਓ",
+    "addState": "ਇੱਕ ਰਾਜ ਸ਼ਾਮਲ ਕਰੋ",
+    "stateMilesTotal": "ਰਾਜ ਮੀਲਾਂ ਦਾ ਕੁੱਲ",
+    "stateMilesMismatch": "ਇਸ ਲੋਡ ਦੇ ਕੁੱਲ ਤੋਂ {{diff}} ਮੀਲ ਦਾ ਫ਼ਰਕ। IFTA ਇਹ ਨੰਬਰ ਵਰਤਦਾ ਹੈ — ਇਹਨਾਂ ਨੂੰ ਠੀਕ ਕਰੋ।"
   },
   "paywall": {
     "badge": "TRUCKERNET PRO",
