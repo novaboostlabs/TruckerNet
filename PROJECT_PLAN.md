@@ -1088,9 +1088,92 @@ app has proven product-market fit.
 
 ---
 
-## 5.7 📌 YOUR PERSONAL TODO — updated 2026-07-24
+## 5.7 📌 YOUR PERSONAL TODO — updated 2026-07-31 (LIVE ON THE APP STORE)
 
 > Status as of this session. ✅ = done, [ ] = still needed.
+> **The iOS launch track is CLOSED.** Everything below is post-launch.
+
+---
+
+# ✅ THE LIST — everything open, by priority (2026-07-31)
+
+## 🔴 1. Ship in the next version (one submission covers all of it)
+
+**Listing copy — fix before anything else (credibility + compliance):**
+- [ ] Fix the typo in feature #1's lead sentence: *"Brokers give me you total gross
+      pay."* → *"Brokers only give you the total gross pay."*
+- [ ] **Verify the annual price.** Listing says **$299.99/yr**; internal records say
+      **$297.99**. A mismatch is a **Guideline 2.3.2** violation — the same guideline
+      that rejected builds 10 and 11. Make description and IAP agree.
+- [ ] Pick ONE product name. Body says "TruckerNet Pro," the subscription disclosure
+      says "Driver Pro." Use the same name everywhere, app UI included.
+- [ ] `"Pay Analytics- Net-pay"` → add the missing space.
+- [ ] `"bill of ladings"` → `"bills of lading"` (truckers will notice).
+- [ ] Remove the double space in `"should pay,  backed by"`.
+
+**Code — both need a native build, so bundle them together:**
+- [ ] **In-app review prompt.** Add `expo-store-review`. Fire `requestReview()` after
+      `load_completed` on a *profitable* load (2nd choice: successful IFTA export).
+      Never on launch, never mid-task, never after an error or paywall dismissal.
+      Guard with `isAvailableAsync()`, persist an asked-flag + count, cap ~2 lifetime
+      asks, require ≥1 prior session. iOS caps prompts at 3/year — don't waste them.
+- [ ] **Fix the web SecureStore → Sentry loop** (§0.6 item 18). Branch on
+      `Platform.OS === 'web'`, back it with `localStorage`, wrap access in try/catch.
+      Now urgent: junk events can bury *real* user crashes and exhaust the 5k/mo quota.
+
+## 🟠 2. Free, high-leverage, do this week
+- [ ] **Spanish listing localization** — biggest upside item. App already ships
+      en/es/pa/zh but the listing is English-only, so Spanish-speaking owner-operators
+      can't find it. Add es title/subtitle/keywords/description (+ screenshots ideally).
+- [ ] **ASO keywords** — target what drivers actually search: IFTA, cost per mile,
+      owner operator, trucking expenses, load calculator.
+- [ ] **Screenshots** — lead with the numbers-forward verdict screen.
+- [ ] **Make `support@truckernet.app` a monitored inbox.** Unanswered support becomes
+      1★ reviews, which feeds straight back into the ratings problem.
+- [ ] **Close the expo-web QA tabs.** Each open tab drips ~2,880 Sentry events/day.
+
+## 🟡 3. Watch the numbers (already instrumented — just read PostHog)
+- [ ] **Onboarding drop-off** — prime suspect. The flow demands expenses, weekly
+      miles, and a break-even sanity gate *before* any value is shown. Watch
+      `welcome_completed` → `onboarding_result_completed`. If drivers bail here,
+      every marketing dollar leaks out this hole. Fix the hole before scaling spend.
+- [ ] **`paywall_shown` → `subscription_purchased`** — this ratio is the business.
+- [ ] **`load_limit_hit`** — is the 15-load free cap actually driving upgrades?
+- [ ] Milestone to aim at: **first 100 paying subscribers.** ($50K MRR ≈ 1,430 subs
+      at $34.99 — not the near-term target.)
+
+## 🟢 4. Distribution — founder-anonymous by design
+> Hard constraint: no face, no podcasts, no partnerships. Don't re-propose those.
+
+- [ ] **Reddit** — r/Truckers, r/owneroperators. Participate genuinely *first*; both
+      have strict self-promo rules and there are only a handful of communities that
+      matter, so a ban is unrecoverable.
+- [ ] **Trucker Facebook groups** — message the admin for permission before linking.
+- [ ] **ChatGPT ads (~$25/day ≈ $750/mo).** Hold it to a number: at $34.99 with
+      Apple's 15% Small Business cut you net ~$29.74/sub, so this needs **~25 net-new
+      subs/month to break even in month one.** Give it 30 days, then scale or kill.
+- [ ] **Instagram / TikTok ads** — static and carousel creative only, no video needed.
+      Same measure-then-decide discipline.
+- [ ] **Business cards + QR code** at truck stops (TA, Petro, Love's, Pilot/Flying J).
+      Hand out in **driver lounges, showers, the restaurant — NOT on windshields**
+      (that gets you thrown out and annoys the buyer). Put a tracking parameter on the
+      QR link so PostHog can attribute installs. Lead the card with the pain:
+      *"Know what a load actually pays — after fuel, after everything."*
+- [ ] **Seed real reviews via your dad's trucker friends** — genuine drivers who
+      actually run loads in the app. ⚠️ **Do NOT solicit 5★ from non-user friends and
+      family.** Guideline 3.2(f) prohibits review manipulation; Apple pattern-matches
+      clusters of new accounts leaving 5★ with no usage, and the penalty is app
+      removal. Real users only — that's both safe and better signal.
+
+## 🔵 5. Platform expansion
+- [ ] **Google Play Store listing** (in progress since 2026-07-29).
+
+## ⚪ 6. Far future — DO NOT ACTION YET
+- [ ] The "financial hub for trucking" vision (DVIR → insurance/truck-sales referrals;
+      **not** ELD, **not** load boards). Needs thousands of actives before any partner
+      negotiates. Full analysis + sequencing warnings in **§0a**.
+
+---
 
 ### ✅ RESOLVED 2026-07-28 — locked promotional image (was the build 11 blocker)
 
@@ -1146,7 +1229,16 @@ resubmitting an unchanged state just burns a review cycle.
 
 </details>
 
-### 🏠 WHEN I GET HOME — do these in order (everything code-side is committed & pushed)
+### ✅ ALL DONE — pre-launch checklist (historical, do NOT re-list as open)
+
+Every item below was completed before the 2026-07-29 App Store approval — migrations,
+edge functions, Mapbox restriction, TestFlight, OAuth verification, legal pages,
+support/privacy URLs, and submission. **The app is live.** Kept only as history.
+
+<details>
+<summary>Original pre-launch list (all complete)</summary>
+
+#### 🏠 (was) WHEN I GET HOME — do these in order
 
 1. **🔴 Apply the security migrations** (Supabase → SQL Editor → run each, then verify):
    - `2026-06-30_core_tables_rls.sql` — then Dashboard → Authentication → Policies: confirm
@@ -1169,6 +1261,8 @@ resubmitting an unchanged state just burns a review cycle.
 8. **Submit the app + subscriptions for review** (only after 4–7 are done).
 
 Details for each are in the lettered sections below.
+
+</details>
 
 **A. Monetization — RevenueCat + App Store**
 - [x] Agreements, Tax & Banking in App Store Connect ✅
