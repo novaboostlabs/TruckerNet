@@ -2,8 +2,9 @@
 // Centralized so the Dashboard card, Load Detail, and Add Load all run the
 // exact same side effects (reminders, community rate contribution, goal
 // milestone + streak notifications, cloud push) on every transition.
-import { setLoadStatus, getIncomeGoal, getWeekPnL, getMonthPnL } from '../db/database';
+import { setLoadStatus, getIncomeGoal, getWeekPnL, getMonthPnL, getLoadById } from '../db/database';
 import { maybeContributeLoadRate } from './rateReports';
+import { maybeRequestReview } from './reviewPrompt';
 import {
   scheduleLoadReminder, cancelLoadReminder,
   checkAndNotifyGoalMilestone, checkAndNotifyStreak, scheduleIdleNudge,
@@ -41,4 +42,10 @@ export function completeLoad(loadId: string, userId?: string): void {
   capture('load_completed', { load_id: loadId });
   haptics.success();
   if (userId) pushLoads(userId);
+
+  // Ask for a store rating on a WIN only — the driver just banked a profitable
+  // load, which is the one moment they feel good about the app. Fully gated
+  // (usage threshold, lifetime cap, cooldown) and never throws; see reviewPrompt.
+  const completed = getLoadById(loadId);
+  maybeRequestReview((completed?.net_pay ?? 0) > 0).catch(() => {});
 }

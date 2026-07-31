@@ -6,9 +6,31 @@
 // storage issue in supabase.ts, just in a second, un-fixed location. Both are
 // now on this one hardened implementation so a third recurrence isn't possible
 // without deliberately bypassing this module.
+import { Platform } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
 import * as Sentry from '@sentry/react-native';
 import { setSetting } from '../db/database';
+
+// expo-secure-store has NO web implementation — its web build is literally
+// `export default {}`, so every call throws
+// "ExpoSecureStore.default.getValueWithKeyAsync is not a function".
+// Supabase's auth client reads the session from a REPEATING ~30s auto-refresh
+// timer, so on web that threw (and shipped a Sentry event) on a loop rather than
+// once — 5,400+ events from QA tabs alone, enough to bury real user crashes and
+// exhaust the Sentry quota. Web is a QA-only surface, so back it with
+// localStorage there: the session actually persists across reloads, and the
+// native path below is untouched.
+const isWeb = Platform.OS === 'web';
+
+/** localStorage, or null when it's absent/blocked (Safari private mode, SSR). */
+function webStore(): Storage | null {
+  try {
+    return typeof localStorage !== 'undefined' ? localStorage : null;
+  } catch {
+    // Merely TOUCHING localStorage throws in some blocked-storage contexts.
+    return null;
+  }
+}
 
 // AFTER_FIRST_UNLOCK allows the item to be read any time after the device has
 // been unlocked once since boot (vs the default WHEN_UNLOCKED, which requires
@@ -39,6 +61,7 @@ function recordStorageError(op: 'read' | 'write' | 'remove', key: string, e: unk
 }
 
 export async function secureGet(key: string): Promise<string | null> {
+  if (isWeb) return webStore()?.getItem(key) ?? null;
   try {
     return await SecureStore.getItemAsync(key, KEYCHAIN_OPTIONS);
   } catch (e) {
@@ -48,6 +71,7 @@ export async function secureGet(key: string): Promise<string | null> {
 }
 
 export async function secureSet(key: string, value: string): Promise<void> {
+  if (isWeb) { try { webStore()?.setItem(key, value); } catch { /* quota/blocked */ } return; }
   try {
     await SecureStore.setItemAsync(key, value, KEYCHAIN_OPTIONS);
   } catch (e) {
@@ -56,6 +80,7 @@ export async function secureSet(key: string, value: string): Promise<void> {
 }
 
 export async function secureRemove(key: string): Promise<void> {
+  if (isWeb) { try { webStore()?.removeItem(key); } catch { /* blocked */ } return; }
   try {
     await SecureStore.deleteItemAsync(key, KEYCHAIN_OPTIONS);
   } catch (e) {
