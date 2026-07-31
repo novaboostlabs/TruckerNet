@@ -366,20 +366,20 @@ _(Add any other launch-gating items here as they come up.)_
 User-reported items. Captured so nothing is forgotten; **explicitly deferred** —
 do not start these until the user calls for them. Newest batch first.
 
-### Added 2026-07-31 — IFTA correction workflow (external review finding; NEXT update after 1.1.0)
+### ✅ DONE 2026-07-31 — IFTA correction workflow (shipped in 1.1.0 / build 12)
 
-19. **IFTA data is read-only after save — no correction workflow.** Found by external
-    code review 2026-07-31. The driver can adjust state mileage while entering a load,
-    but afterwards there is no way to: edit state mileage from Load Detail, override
-    an IFTA table value, edit or delete a fuel entry, or record a manual IFTA
-    adjustment. The UI correctly says the report is an estimate to verify — while
-    giving no way to correct it. Scope for the fix (deliberate, in order of value):
-    (a) edit state-mileage rows from Load Detail (reuses the Add Load editor);
-    (b) edit/delete fuel entries from the Fuel tab;
-    (c) recompute the IFTA table off the corrected rows (already derived, so free).
-    A separate "manual IFTA adjustment with audit trail" is deferred — overkill for
-    an estimate explicitly not a filing service. NOT blocking 1.1.0 (real feature
-    work, not a copy/config fix); target the update right after.
+19. ~~IFTA data is read-only after save.~~ **BUILT — user called it a launch
+    requirement ("should be available to users on their first use") and it shipped in
+    1.1.0 rather than a later update.** Delivered: (a) state-mileage rows editable in
+    place from Load Detail (add/remove/edit, running total vs the load's total miles,
+    warning when off by >5 mi); (b) fuel entries editable (tap) and deletable
+    (long-press, confirm dialog) from the Fuel tab; (c) no IFTA-table work needed —
+    `getIFTAData` already aggregates live from `state_mileage` + `fuel_entries`, so
+    corrections flow through automatically. Corrected state rows are flagged
+    `is_manually_edited = 1` so auto-recalc can't clobber them; fuel deletes tombstone
+    through `queueDelete('fuel_entries', …)` so they propagate to other devices.
+    **Still deferred:** a formal "manual IFTA adjustment with audit trail" — overkill
+    for an estimate that is explicitly not a filing service.
 
 ### Added 2026-07-24 — DO IN THE FIRST POST-LAUNCH UPDATE
 
@@ -1128,6 +1128,12 @@ app has proven product-market fit.
 - [ ] `"bill of ladings"` → `"bills of lading"` (truckers will notice).
 - [ ] Remove the double space in `"should pay,  backed by"`.
 
+**✅ Shipped in 1.1.0 / build 12 (2026-07-31):** in-app review prompt
+(`expo-store-review`, fires after any Check Load verdict or completed load),
+web-SecureStore Sentry fix, **the verdict double-counting fix (critical — see Work
+Log)**, Driver Pro → TruckerNet Pro rename across en/es/pa/zh, the IFTA correction
+workflow (backlog #19), and a haptics pass on upgrade/purchase/main CTAs.
+
 **Code — both need a native build, so bundle them together:**
 - [ ] **In-app review prompt.** Add `expo-store-review`. Fire `requestReview()` after
       `load_completed` on a *profitable* load (2nd choice: successful IFTA export).
@@ -1598,6 +1604,50 @@ modules, app.json, permissions) still need a full `eas build`.
 ---
 
 ## 6. Work Log (newest first)
+
+### 2026-07-31 — 1.1.0 / build 12 batch: CRITICAL verdict fix, review prompt, IFTA corrections
+
+**🔴 THE BIG ONE — the load verdict double-counted costs.** Flagged by an external
+code review (OpenAI Codex) and confirmed against the math before changing anything.
+`breakEvenRPM = fuelCPM + fixedCPM` = ALL per-mile costs, and `netRPM` already has
+those costs subtracted — so `netRPM = grossRPM − breakEvenRPM`. Comparing
+`netRPM >= breakEvenRPM` therefore demanded **gross ≥ 2× break-even**, labeling
+genuinely profitable loads red. Codex's example: $2.00/mi gross, $1.50/mi break-even,
+$0.50/mi real profit → compared $0.50 against $1.50 → "red".
+
+Corrected semantics everywhere: **profitable = `netRPM >= 0`; green =
+`netRPM >= 0.15 × breakEvenRPM`** (the intended 15% gross cushion). Fixed in five
+places — `CheckLoadScreen` (verdict AND the above/below-break-even delta pill, which
+double-subtracted too), `AddLoadScreen` (verdict color + the verdict persisted on
+save), `database.ts recalculateLoadFinancials`, and the weekly P&L notification
+(`net/miles` IS the margin; don't subtract BE again). `DashboardScreen` was already
+correct (gross RPM vs break-even). **Plus a one-time backfill in `initDatabase`**
+(flag `verdict_fix_2026_07_31`) recomputing every stored verdict, since historical rows
+carried the wrong value.
+
+**IFTA correction workflow (backlog #19) — promoted to launch requirement by the
+user.** Post-save state-mileage editing in Load Detail, fuel-entry edit/delete in the
+Fuel tab. Details in §0.6 #19.
+
+**In-app review prompt.** `expo-store-review`, new `src/lib/reviewPrompt.ts`. Fires
+on close of any Check Load verdict and on load completion. **Deliberately fires on
+bad verdicts too** (user decision): a red verdict means the app just saved the driver
+from a losing load, which is the product working. Gated: max 2 lifetime asks, 120-day
+cooldown, `isAvailableAsync()` + `hasAction()`, never throws into the caller. No copy
+to write — `requestReview()` renders the OS's own sheet and Apple forbids customizing
+it (and discourages custom pre-prompts).
+
+**Also:** web-SecureStore Sentry loop fixed (`Platform.OS === 'web'` → localStorage);
+Driver Pro → **TruckerNet Pro** across all four locales + code comments, matching the
+corrected App Store listing; haptics added at `PaywallContext.present()` (one choke
+point covering every Upgrade button), the purchase CTA (heavy → success/error), plan
+toggles, Dashboard Check Load, and the FAB.
+
+Marketing version bumped `1.0.0` → **`1.1.0`** in `app.json` — ASC only offers builds
+whose `CFBundleShortVersionString` matches the App Store version string, so the new
+ASC version must be named exactly `1.1.0`.
+
+`tsc` clean, i18n parity 0/0/0 throughout.
 
 ### 2026-07-28 — ✅ SUBMITTED TO APP REVIEW — 2.3.2 promo-image blocker resolved
 
