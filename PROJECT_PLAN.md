@@ -216,7 +216,7 @@ Reviewed 2026-07-31. Description/keywords/screenshots need a version submission;
 - [ ] **🔴 TYPO in the lead sentence of feature #1:** "Brokers give me you total gross
       pay." → "Brokers only give you the total gross pay." Highest-visibility error.
 - [ ] **🔴 VERIFY PRICE:** description says annual is **$299.99/year**; every internal
-      record says **$297.99**. If the live IAP is $297.99 this is a **Guideline 2.3.2
+      record says **$299.99**. If the live IAP is $299.99 this is a **Guideline 2.3.2
       accurate-metadata violation** — the same guideline that rejected builds 10 and 11.
       Make description and IAP agree.
 - [ ] **Naming inconsistency:** body says "TruckerNet Pro," the subscription disclosure
@@ -782,7 +782,7 @@ calibration = future.
 - Aesthetic redesign (Partiful/Wise/Calm-tier polish)
 - **RevenueCat paywall** — IN PROGRESS (strategy finalized 2026-06-22). Build Free↔Pro
   only now (Fleet/Enterprise deferred until multi-truck features exist).
-  - **Pricing:** Driver Pro = $34.99/mo OR $297.99/yr (~29% off, "Save $122").
+  - **Pricing:** Driver Pro = $34.99/mo OR $299.99/yr (~29% off, "Save $122").
     7-day free trial on both. RevenueCat entitlement id = `pro`.
   - **Free tier:** Check Load unlimited (the hook — NEVER gate) showing break-even
     VERDICT only, break-even, onboarding, fuel tracking + CPM, **15 loads/month**,
@@ -1032,7 +1032,7 @@ app has proven product-market fit.
 - Products attached to the entitlement: **`truckernet_pro_monthly`**, **`truckernet_pro_annual`**.
 - Package lookups: monthly resolves via `current.monthly` (RC "Monthly" package) or a
   package whose identifier is `monthly`; annual via `current.annual` or identifier `yearly`.
-- Target prices (set these as the product prices): **$34.99/mo**, **$297.99/yr** (~29% off).
+- Target prices (set these as the product prices): **$34.99/mo**, **$299.99/yr** (~29% off).
 - Free trial: **7-day** intro offer on **both** products (the paywall promises it).
 - iOS API key placeholder in code is a `test_` key — **replace with the live key** before
   submission (`IOS_API_KEY`). `ANDROID_API_KEY` is empty — fill when Android is set up.
@@ -1042,7 +1042,7 @@ app has proven product-market fit.
   (e.g. "Driver Pro").
 - [ ] Add **two auto-renewable subscriptions** in that group:
   - [ ] **Monthly** — Product ID **`truckernet_pro_monthly`**, price **$34.99/mo**.
-  - [ ] **Annual** — Product ID **`truckernet_pro_annual`**, price **$297.99/yr**.
+  - [ ] **Annual** — Product ID **`truckernet_pro_annual`**, price **$299.99/yr**.
 - [ ] On **each** product add an **Introductory Offer → Free Trial → 7 days** (new
   subscribers). This is what makes "Start 7-Day Free Trial" real; without it the trial
   copy auto-hides (trial-eligibility check returns ineligible/no-offer).
@@ -1070,7 +1070,7 @@ app has proven product-market fit.
 - [ ] Make a **dev/TestFlight build** (`eas build` — `react-native-purchases` is native and
   absent from Expo Go; the app auto-runs mock mode there).
 - [ ] On device, open any paywall and confirm:
-  - [ ] Real **localized prices** render (not the `$34.99/$297.99` fallbacks) — proves the
+  - [ ] Real **localized prices** render (not the `$34.99/$299.99` fallbacks) — proves the
     offering loaded.
   - [ ] **Savings badge** computes from real prices.
   - [ ] **"Start 7-Day Free Trial"** shows for a fresh sandbox account; after using it,
@@ -1102,9 +1102,11 @@ app has proven product-market fit.
 **Listing copy — fix before anything else (credibility + compliance):**
 - [ ] Fix the typo in feature #1's lead sentence: *"Brokers give me you total gross
       pay."* → *"Brokers only give you the total gross pay."*
-- [ ] **Verify the annual price.** Listing says **$299.99/yr**; internal records say
-      **$297.99**. A mismatch is a **Guideline 2.3.2** violation — the same guideline
-      that rejected builds 10 and 11. Make description and IAP agree.
+- [x] ~~Verify the annual price.~~ ✅ **RESOLVED 2026-07-31 — no issue.** User confirmed
+      App Store Connect shows **$299.99/yr**, matching the listing description. The
+      earlier "$297.99" figure in this doc was a STALE INTERNAL RECORD, not a live
+      mismatch; all references have been corrected to **$299.99**. Live annual price is
+      **$299.99/yr**, monthly **$34.99/mo**. Nothing to fix.
 - [ ] Pick ONE product name. Body says "TruckerNet Pro," the subscription disclosure
       says "Driver Pro." Use the same name everywhere, app UI included.
 - [ ] `"Pay Analytics- Net-pay"` → add the missing space.
@@ -1266,7 +1268,7 @@ Details for each are in the lettered sections below.
 
 **A. Monetization — RevenueCat + App Store**
 - [x] Agreements, Tax & Banking in App Store Connect ✅
-- [x] `truckernet_pro_monthly` ($34.99/mo) + `truckernet_pro_annual` ($297.99/yr) created in App Store Connect ✅
+- [x] `truckernet_pro_monthly` ($34.99/mo) + `truckernet_pro_annual` ($299.99/yr) created in App Store Connect ✅
 - [x] 7-day free trial intro offer on both products ✅
 - [x] RevenueCat: entitlement `pro`, products attached, iOS app connected (Subscription Key uploaded), Offering built ✅
 - [x] Live iOS SDK key `appl_JvoQxWtuPHFOIitrxyHEVEmGuve` pasted into `SubscriptionContext.tsx` ✅
@@ -1320,7 +1322,7 @@ Details for each are in the lettered sections below.
 **B. Web presence + legal — required for App Store approval**
 - [x] **Website built + live** ✅ — new standalone domain **`truckernet.app`** (replaces the old
       `truckernet.novaboostlabs.co` subdomain plan). Strong hero ("Stop guessing what a load
-      really pays"), How It Works, features, pricing ($34.99/$297.99), Support + Data Deletion pages.
+      really pays"), How It Works, features, pricing ($34.99/$299.99), Support + Data Deletion pages.
 - [x] **Terms** page live at `truckernet.app/terms` ✅ (real content — billing, auto-renewal, disclaimers).
 - [x] **Privacy Policy** page live at `truckernet.app/privacy` ✅ (real content — data collected, deletion, third parties).
 - [ ] **⚠️ Fill unfilled placeholders** on BOTH `/terms` and `/privacy` before submitting:
@@ -1369,7 +1371,7 @@ Details for each are in the lettered sections below.
 
 ### ✅ Confirmed DONE (do not redo)
 - RevenueCat fully configured (iOS): entitlement `pro`, both products
-  (`truckernet_pro_monthly` $34.99, `truckernet_pro_annual` $297.99, 7-day
+  (`truckernet_pro_monthly` $34.99, `truckernet_pro_annual` $299.99, 7-day
   trial), live SDK key in code, Offering marked current, sandbox tester added,
   products "Ready to Submit" in App Store Connect.
 - Paid Apps agreement (Agreements/Tax/Banking) active in App Store Connect.
@@ -4147,7 +4149,7 @@ languages at 100% key parity.
   the headline: generic/fairMarket/loadLimit/history/ifta/export.
 - `src/screens/PaywallScreen.tsx` — crown badge, feature list (6 Pro features),
   annual/monthly plan picker (annual default, "SAVE $122"), 7-day trial note,
-  CTA, restore, legal links. Prices: $34.99/mo · $297.99/yr.
+  CTA, restore, legal links. Prices: $34.99/mo · $299.99/yr.
 - `src/components/FairMarketLock.tsx` — amber lock row shown to free users where
   the fair-market $ range would be; tap → paywall('fairMarket').
 - `src/lib/gating.ts` — `FREE_LOAD_LIMIT = 15`, `canLogLoadFree()`,
@@ -4197,7 +4199,7 @@ deferred.
 - Decided full Free↔Pro split, pricing, trial, IFTA teaser, fair-market gating.
 - See the **RevenueCat paywall** bullet in §5 Phase 2 for the complete spec, and
   memory file `monetization-paywall-plan.md`.
-- Key user decisions: 15 loads/mo free · 7-day trial · $34.99/mo or $297.99/yr ·
+- Key user decisions: 15 loads/mo free · 7-day trial · $34.99/mo or $299.99/yr ·
   IFTA blurred-teaser · **fair-market price is Pro-gated** (free users see "Upgrade
   to Pro to see what you should be getting paid" in Check Load + Add Load).
 - Build approach: mock `isPro` toggle first, real RevenueCat once store products live.
