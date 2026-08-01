@@ -16,17 +16,53 @@
 > branch and push `main`** so the user's build always reflects the latest.
 > (Decided 2026-06-19 after changes weren't appearing because `main` was stale.)
 
-_Last updated: 2026-07-29 — **🎉 APPROVED AND LIVE ON THE APP STORE.** Version 1.0.0 /
-build 11 passed App Review 2026-07-29 with both subscriptions and the subscription
-group. Listing propagates to the storefront within ~24h. **iOS launch is DONE.**
+_Last updated: 2026-07-31 — **🎉 LIVE ON THE APP STORE (v1.0.0/build 11). v1.1.0/build 13
+built correctly and its "What's New" text (en/es/zh/pa) was prepared — confirm with the
+user whether they actually pressed Submit for Review in App Store Connect before doing
+anything else iOS-related.** Android is mid-setup, blocked on one code change.
 
-**START HERE IN A NEW CHAT.** The entire iOS launch track is closed — do NOT re-list
-seeding / Pro grant / listing / TestFlight QA / builds / submission as open. **The app
-is shipped.** The phase has changed from "get it approved" to **distribution, activation,
-and conversion**. See §0.7 for the post-launch priorities.
+**START HERE IN A NEW CHAT.**
 
-**Remaining platform work:** Google Play Store listing — user starting it 2026-07-29,
-expected to take a few days. Android build config already exists (see §5.7 Android).
+**iOS:**
+- v1.0.0/build 11 is live and approved. Nothing to do here.
+- v1.1.0/build 13 (commit `f9821e9`, correct — verified via `eas build:list`) contains
+  the CRITICAL verdict-math fix, the IFTA correction workflow, the in-app review
+  prompt, the TruckerNet Pro rename, and haptics. **⚠️ Build 12 was wasted on a stale
+  checkout from a second machine and got rejected by Apple (ITMS-90186/90062, "version
+  1.0.0 already exists") — see the "BUILD FROM A CURRENT CHECKOUT" note below §5.7
+  before ever building again.** "What's New" release notes were drafted in all 4
+  languages in this chat. **UNCONFIRMED: whether the user actually pressed Submit for
+  Review in ASC after entering that text.** First message in a new chat should ask.
+
+**Android — in progress, one real blocker:**
+- Play Console developer account + app created, package name
+  `com.novaboostlabs.truckernet` set (permanent, matches iOS bundle ID).
+- First Android build finished successfully (`eas build:list --platform android`:
+  version code 3, commit `f9821e9` — correct code). EAS-managed keystore generated;
+  user was walked through why losing it would be unrecoverable.
+- **🔴 `ANDROID_API_KEY` in `src/contexts/SubscriptionContext.tsx` is still an empty
+  string.** Until it's filled in, every Upgrade button on Android silently no-ops —
+  the exact 2.1(b)-shaped bug that got iOS rejected once already. This requires, in
+  order: (1) create `truckernet_pro_monthly` + `truckernet_pro_annual` subscriptions
+  in Play Console with 7-day trials, matching iOS; (2) create a Google Cloud service
+  account, grant it Play Console financial/order permissions; (3) add a Google Play
+  app in RevenueCat using that service account JSON, attach both products to the
+  existing `pro` entitlement (do NOT create a second entitlement) and the `default`
+  offering; (4) copy the `goog_…` public SDK key and paste it in — one line, but
+  blocked until 1–3 are done in the consoles (user-side work).
+- **Also still needed for the Play listing:** short description (≤80 chars, Google has
+  no iOS equivalent to reuse), full description, phone screenshots, a **1024×500
+  feature graphic (required, does not exist yet — offered to generate, not yet done)**,
+  Data Safety form, content rating questionnaire, permission justifications for
+  CAMERA + RECORD_AUDIO.
+- **Check account type before assuming the timeline:** Play Console requires 12
+  testers opted in for 14 continuous days before production release, UNLESS the
+  developer account is registered as an organization (Nova Boost Labs LLC) rather
+  than personal — user was told to check this and an answer wasn't captured in chat.
+
+**Phase, either way:** distribution, activation, and conversion — see §0.7 for
+priorities. Do NOT re-list seeding / Pro grant / TestFlight QA / iOS builds /
+iOS submission as open — that track is closed.
 
 **How the 2.3.2 blocker was finally resolved (2026-07-24 → 07-28):**
 - Build 11 was rejected on **Guideline 2.3.2 (Accurate Metadata)** — only about the
@@ -1616,6 +1652,43 @@ modules, app.json, permissions) still need a full `eas build`.
 ---
 
 ## 6. Work Log (newest first)
+
+### 2026-07-31 (later) — Build 12 rejected (stale checkout), build 13 correct, Android setup begun
+
+**Build 12 rejected by Apple** (ITMS-90186, ITMS-90062 — "version 1.0.0 is closed for
+new build submissions"). Root cause: it was built from a SECOND machine (the user's
+MacBook) that had never pulled and was still at commit `10561ff` — byte-identical to
+build 11, missing all 19 commits of 1.1.0 work including the version bump. Not a code
+problem; a stale-checkout problem. Documented as a standing rule above §5.7: always
+`git pull && git log --oneline -1 && grep version app.json` before `eas build`.
+
+**Build 13 built correctly** after pulling on the MacBook (commit `f9821e9`, version
+`1.1.0`, confirmed via `eas build:list`). This is a genuine native build (carries
+`expo-store-review`), took longer than the JS-only rebuilds. "What's New" release
+notes drafted in English, Spanish, Chinese (simplified), and Punjabi, using the app's
+own existing terminology per language (e.g. "punto de equilibrio," "保本点," "ਬ੍ਰੇਕ-
+ਈਵਨ") rather than generic translations. **Whether the user actually submitted after
+entering this text was not confirmed in chat — check first in a new session.**
+
+**Android track opened:** Play Console account created, app created with package name
+`com.novaboostlabs.truckernet` (permanent — matches iOS bundle ID, which is
+intentional so RevenueCat can treat both platforms under one `pro` entitlement). First
+`eas build --platform android` completed successfully; user accepted EAS generating and
+managing the Android keystore, after being walked through why losing it would make the
+app unupdatable forever. Full Play Store submission walkthrough (subscriptions,
+RevenueCat Android app + service account, `ANDROID_API_KEY`, store listing assets,
+Data Safety, content rating, the 12-testers/14-days production-access rule and its
+personal-vs-organization-account exemption) was given in chat — see the header block
+above for the condensed checklist and current blocker (`ANDROID_API_KEY` still empty).
+
+Also this session: reviewed the app's tech stack and build pipeline for the user's
+mentor conversation (React Native/Expo/TypeScript/Supabase/RevenueCat/Mapbox/Turf,
+Metro→Hermes→Xcode/Gradle via EAS); corrected an inaccurate claim about Lovable vs.
+Claude Code before the user sent it (Lovable does support GitHub export/ownership —
+the real, defensible distinction is native compilation and App Store distribution,
+which Lovable has no path to); reviewed a flat-feeling group-chat exchange and
+identified that the user's own shipped App Store listing was the strongest available
+counter-argument and went unused.
 
 ### 2026-07-31 — 1.1.0 / build 12 batch: CRITICAL verdict fix, review prompt, IFTA corrections
 
