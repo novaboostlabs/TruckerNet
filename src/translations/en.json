@@ -337,6 +337,8 @@
     "backhaulHint": "Below break-even but avoids deadhead",
     "calculating": "Calculating route...",
     "autoMiles": "Auto",
+    "deadheadMiles": "Empty miles to pickup",
+    "deadheadHint": "Deadhead to reach this load. Unpaid, but it burns fuel — it's costed into your net.",
     "checkNow": "Check This Load",
     "result": {
       "worthIt": "Worth Taking",
@@ -348,6 +350,7 @@
       "fairMarket": "Fair Market ({{type}})",
       "aboveBreakEven": "+{{amount}}/mi above break-even",
       "belowBreakEven": "{{amount}}/mi below break-even",
+      "drivenNote": "Costed on {{driven}} mi driven ({{loaded}} loaded + {{deadhead}} empty)",
       "deadheadSaving": "Saves ~{{amount}} vs driving empty",
       "logLoad": "Accept & Log This Load",
       "close": "Close",
@@ -480,6 +483,7 @@
     "backhaul": "Backhaul",
     "deadhead": "Deadhead (unpaid)",
     "deadheadHint": "Unpaid reposition leg — logs the miles for IFTA",
+    "deadheadMilesHint": "Unpaid, but costed into this load's net — and counted toward IFTA in the pickup state.",
     "fuelStop": {
       "title": "WHERE TO FUEL",
       "fuelIn": "Fuel in",
@@ -509,6 +513,7 @@
     },
     "notes": "NOTES",
     "netPayPreview": "Estimated Net Pay",
+    "rpmWithDeadhead": "${{gross}}/mi loaded · ${{allIn}}/mi all-in · ${{net}}/mi net",
     "saveLoad": "Save Load",
     "statuses": {
       "upcoming": "Upcoming",
@@ -834,6 +839,7 @@
     "markComplete": "Mark Complete",
     "addState": "Add a state",
     "stateMilesTotal": "State miles total",
+    "plusDeadhead": "+ {{miles}} empty",
     "stateMilesMismatch": "Off by {{diff}} mi from this load's total. IFTA uses these numbers — adjust so they add up."
   },
   "paywall": {

@@ -20,6 +20,14 @@ import {
 } from '../../db/database';
 
 interface SyncResult { error: string | null; }
+
+// deadhead_miles (2026-10-07) needs the 2026-10-07_loads_deadhead_miles.sql
+// migration on the hosted project. Until it's applied, PostgREST rejects any
+// request naming the column — which would take down ALL load backups and
+// restores. So both directions retry without it on that specific error: the
+// field simply doesn't sync yet, and everything else keeps working.
+const isMissingDeadheadColumn = (msg: string | undefined) =>
+  !!msg && msg.includes('deadhead_miles');
 interface PullResult extends SyncResult { found: boolean; }
 
 // pushLoads is fired-and-forgotten from ~10 call sites. Its child-row sync is
@@ -92,11 +100,17 @@ async function pushLoadsOnce(userId: string): Promise<SyncResult> {
         // database.ts for why that was a real bug (silent duplicate pool
         // contributions after any local-DB-wipe + cloud-restore cycle).
         rate_contributed:      !!l.rate_contributed,
+        deadhead_miles:        l.deadhead_miles ?? 0,
       }));
 
-      const { error: loadsErr } = await supabase
+      let { error: loadsErr } = await supabase
         .from('loads')
         .upsert(loadsPayload, { onConflict: 'id' });
+      if (loadsErr && isMissingDeadheadColumn(loadsErr.message)) {
+        ({ error: loadsErr } = await supabase
+          .from('loads')
+          .upsert(loadsPayload.map(({ deadhead_miles: _omit, ...rest }) => rest), { onConflict: 'id' }));
+      }
       if (loadsErr) return { error: loadsErr.message };
 
       // Sync state_mileage: delete all remote rows for these loads, then re-insert.
@@ -162,9 +176,7 @@ export async function pullLoads(userId: string): Promise<PullResult> {
 
   try {
     // Fetch loads with nested state_mileage + load_expenses in one round-trip.
-    const { data, error } = await supabase
-      .from('loads')
-      .select(`
+    const columns = (withDeadhead: boolean) => `
         id, date, pickup_address, pickup_city, pickup_state,
         delivery_address, delivery_city, delivery_state,
         equipment_type, total_miles, gross_pay, additional_costs,
@@ -173,12 +185,19 @@ export async function pullLoads(userId: string): Promise<PullResult> {
         benchmark_fair_pay_min, benchmark_fair_pay_max,
         fuel_cost_for_load, fixed_cost_for_load, net_pay,
         gross_rate_per_mile, net_rate_per_mile, verdict, created_at,
-        pickup_lat, pickup_lng, delivery_lat, delivery_lng, rate_contributed,
+        pickup_lat, pickup_lng, delivery_lat, delivery_lng, rate_contributed,${withDeadhead ? ' deadhead_miles,' : ''}
         state_mileage ( load_id, state, miles, is_manually_edited ),
         load_expenses ( id, load_id, label, category, amount, date, created_at )
-      `)
+      `;
+    const fetchLoads = (withDeadhead: boolean) => supabase
+      .from('loads')
+      .select(columns(withDeadhead))
       .eq('user_id', userId)
       .order('date', { ascending: false });
+    let { data, error } = await fetchLoads(true);
+    if (error && isMissingDeadheadColumn(error.message)) {
+      ({ data, error } = await fetchLoads(false));
+    }
 
     if (error) return { error: error.message, found: false };
 
@@ -220,6 +239,7 @@ export async function pullLoads(userId: string): Promise<PullResult> {
         delivery_lat:          r.delivery_lat != null ? Number(r.delivery_lat) : null,
         delivery_lng:          r.delivery_lng != null ? Number(r.delivery_lng) : null,
         rate_contributed:      r.rate_contributed ? 1 : 0,
+        deadhead_miles:        Number(r.deadhead_miles) || 0,
       }));
 
       const stateMileage: StateMileageRow[] = rows.flatMap((r: any) =>

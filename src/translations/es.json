@@ -337,6 +337,8 @@
     "backhaulHint": "Por debajo del equilibrio pero evita viaje vacío",
     "calculating": "Calculando ruta...",
     "autoMiles": "Auto",
+    "deadheadMiles": "Millas vacías hasta la recogida",
+    "deadheadHint": "Millas en vacío para llegar a esta carga. No se pagan, pero gastan combustible: se descuentan de tu neto.",
     "checkNow": "Revisar Esta Carga",
     "result": {
       "worthIt": "Vale la Pena",
@@ -350,6 +352,7 @@
       "close": "Cerrar",
       "aboveBreakEven": "+{{amount}}/mi sobre el equilibrio",
       "belowBreakEven": "{{amount}}/mi bajo el equilibrio",
+      "drivenNote": "Costos sobre {{driven}} mi recorridas ({{loaded}} cargadas + {{deadhead}} vacías)",
       "deadheadSaving": "Ahorra ~{{amount}} vs viajar vacío",
       "beatsPct": "Supera el {{pct}}% de tus últimas {{count}} cargas"
     }
@@ -478,6 +481,7 @@
     "backhaul": "Carga de regreso",
     "deadhead": "Viaje en vacío (sin pago)",
     "deadheadHint": "Tramo de reposición sin pago — registra las millas para IFTA",
+    "deadheadMilesHint": "No se pagan, pero se descuentan del neto de esta carga y cuentan para el IFTA en el estado de recogida.",
     "fuelStop": {
       "title": "DÓNDE CARGAR DIÉSEL",
       "fuelIn": "Carga en",
@@ -508,6 +512,7 @@
     "brokerName": "Nombre del broker",
     "brokerMC": "Número MC",
     "netPayPreview": "Pago neto estimado",
+    "rpmWithDeadhead": "${{gross}}/mi cargada · ${{allIn}}/mi total · ${{net}}/mi neto",
     "notes": "NOTAS",
     "saveLoad": "Guardar Carga",
     "statuses": {
@@ -834,6 +839,7 @@
     "markComplete": "Marcar Completada",
     "addState": "Agregar un estado",
     "stateMilesTotal": "Total de millas por estado",
+    "plusDeadhead": "+ {{miles}} vacías",
     "stateMilesMismatch": "Difiere en {{diff}} mi del total de esta carga. El IFTA usa estos números — ajústalos para que cuadren."
   },
   "paywall": {

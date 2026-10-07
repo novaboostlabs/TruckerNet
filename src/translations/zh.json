@@ -337,6 +337,8 @@
     "backhaulHint": "低于盈亏平衡但避免空驶",
     "calculating": "正在计算路线...",
     "autoMiles": "自动",
+    "deadheadMiles": "空驶到提货点里程",
+    "deadheadHint": "开到这票货所需的空驶里程。不付钱，但要烧油——已计入你的净收入。",
     "checkNow": "检查此订单",
     "result": {
       "worthIt": "值得接单",
@@ -350,6 +352,7 @@
       "close": "关闭",
       "aboveBreakEven": "高于盈亏平衡 {{amount}}/英里",
       "belowBreakEven": "低于盈亏平衡 {{amount}}/英里",
+      "drivenNote": "按实际行驶 {{driven}} 英里计算成本（{{loaded}} 载货 + {{deadhead}} 空驶）",
       "deadheadSaving": "比空驶节省约 {{amount}}",
       "beatsPct": "超过你最近 {{count}} 个货载中的 {{pct}}%"
     }
@@ -475,6 +478,7 @@
     "backhaul": "回程货",
     "deadhead": "空跑（无报酬）",
     "deadheadHint": "无收入的调车行程 — 为 IFTA 记录里程",
+    "deadheadMilesHint": "不付钱，但会计入这票货的净收入，并按提货州计入 IFTA。",
     "fuelStop": {
       "title": "在哪加油",
       "fuelIn": "建议在",
@@ -509,6 +513,7 @@
     "broker": "经纪人",
     "notes": "备注",
     "netPayPreview": "预计净收入",
+    "rpmWithDeadhead": "载货 ${{gross}}/英里 · 含空驶 ${{allIn}}/英里 · 净 ${{net}}/英里",
     "saveLoad": "保存订单",
     "statuses": {
       "upcoming": "即将执行",
@@ -834,6 +839,7 @@
     "markComplete": "标记完成",
     "addState": "添加州",
     "stateMilesTotal": "各州英里合计",
+    "plusDeadhead": "+ {{miles}} 空驶",
     "stateMilesMismatch": "与本单总里程相差 {{diff}} 英里。IFTA 使用这些数字——请调整使其相符。"
   },
   "paywall": {

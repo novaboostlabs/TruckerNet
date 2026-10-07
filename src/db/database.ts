@@ -1,6 +1,7 @@
 import 'react-native-get-random-values';
 import { v4 as uuidv4 } from 'uuid';
 import { db } from './sqlite';
+import { computeLoadEconomics, verdictFor } from '../lib/loadEconomics';
 
 /**
  * Today's date as YYYY-MM-DD in the device's LOCAL timezone.
@@ -182,6 +183,9 @@ export function initDatabase(): void {
     `ALTER TABLE loads ADD COLUMN pickup_lng REAL`,
     `ALTER TABLE loads ADD COLUMN delivery_lat REAL`,
     `ALTER TABLE loads ADD COLUMN delivery_lng REAL`,
+    // Empty miles driven TO the pickup (2026-10-07). total_miles stays the
+    // paid pickup→delivery distance; costs are charged on total + deadhead.
+    `ALTER TABLE loads ADD COLUMN deadhead_miles REAL NOT NULL DEFAULT 0`,
     // Category-aware expense aging: tracks when each expense row was last confirmed
     // (separate from created_at, which is overwritten by replaceUserExpenses).
     // NULL = use created_at as the baseline (first save = first confirmation).
@@ -632,7 +636,7 @@ export function getMonthlyMilesDetail(): MonthlyMilesDetail {
   {
     // Upcoming loads haven't been driven — their miles can't count as actuals.
     const rolling = db.getFirstSync<{ total_miles: number; load_count: number; first_date: string; last_date: string }>(
-      `SELECT COALESCE(SUM(total_miles), 0) as total_miles, COUNT(*) as load_count,
+      `SELECT COALESCE(SUM(total_miles + deadhead_miles), 0) as total_miles, COUNT(*) as load_count,
               MIN(date) as first_date, MAX(date) as last_date
        FROM loads
        WHERE status = 'completed' AND date >= ?`,
@@ -734,7 +738,7 @@ export function getUnloggedMilesInsight(): UnloggedMilesInsight | null {
   if (odometerMiles / spanDays > MILES_MAX_PER_DAY) return null;
 
   const logged = db.getFirstSync<{ miles: number }>(
-    `SELECT COALESCE(SUM(total_miles), 0) as miles
+    `SELECT COALESCE(SUM(total_miles + deadhead_miles), 0) as miles
      FROM loads
      WHERE status = 'completed' AND date >= ? AND date <= ?`,
     [odo.first_date, odo.last_date],
@@ -1199,7 +1203,7 @@ export function getWeekPnL(): PeriodPnL {
   const row = db.getFirstSync<PeriodPnL>(
     `SELECT COALESCE(SUM(net_pay),0)     as net,
             COALESCE(SUM(gross_pay),0)   as gross,
-            COALESCE(SUM(total_miles),0) as miles,
+            COALESCE(SUM(total_miles + deadhead_miles),0) as miles,
             COUNT(*)                     as loads
      FROM loads WHERE date >= ? AND status = 'completed'`,
     [weekStart()]
@@ -1212,7 +1216,7 @@ export function getMonthPnL(): PeriodPnL {
   const row = db.getFirstSync<PeriodPnL>(
     `SELECT COALESCE(SUM(net_pay),0)     as net,
             COALESCE(SUM(gross_pay),0)   as gross,
-            COALESCE(SUM(total_miles),0) as miles,
+            COALESCE(SUM(total_miles + deadhead_miles),0) as miles,
             COUNT(*)                     as loads
      FROM loads WHERE date >= ? AND status = 'completed'`,
     [monthStart()]
@@ -1685,7 +1689,7 @@ export function getVerdictContext(netRPM: number): VerdictContext | null {
   // them would let any paying load "beat" them and flatter the percentile.
   const row = db.getFirstSync<{ total: number; beaten: number }>(
     `SELECT COUNT(*) as total,
-            SUM(CASE WHEN (net_pay / total_miles) < ? THEN 1 ELSE 0 END) as beaten
+            SUM(CASE WHEN (net_pay / (total_miles + deadhead_miles)) < ? THEN 1 ELSE 0 END) as beaten
      FROM loads
      WHERE status = 'completed' AND is_deadhead = 0
        AND total_miles > 0 AND date >= ?`,
@@ -1845,6 +1849,8 @@ export interface LoadInsert {
   delivery_state:      string;
   equipment_type:      string;
   total_miles:         number;
+  /** Empty miles driven to the pickup (unpaid; costed). */
+  deadhead_miles?:     number;
   gross_pay:           number;
   is_backhaul:         number;
   is_deadhead?:        number;   // empty/unpaid reposition leg (miles still count for IFTA)
@@ -1904,8 +1910,9 @@ function recalculateLoadFinancials(loadId: string): void {
     fuel_cost_for_load: number;
     fixed_cost_for_load: number;
     total_miles: number;
+    deadhead_miles: number;
   }>(
-    `SELECT gross_pay, fuel_cost_for_load, fixed_cost_for_load, total_miles
+    `SELECT gross_pay, fuel_cost_for_load, fixed_cost_for_load, total_miles, deadhead_miles
      FROM loads WHERE id = ?`,
     [loadId]
   );
@@ -1916,26 +1923,21 @@ function recalculateLoadFinancials(loadId: string): void {
     [loadId]
   );
   const additionalCosts = expRow?.total ?? 0;
+  // Reuse the costs the load was priced at (fuel + fixed already cover its
+  // deadhead miles); only gross and extras can have changed.
+  const driven    = load.total_miles + (load.deadhead_miles || 0);
   const netPay    = load.gross_pay - load.fuel_cost_for_load - load.fixed_cost_for_load - additionalCosts;
-  const netRPM    = load.total_miles > 0 ? netPay         / load.total_miles : 0;
+  const netRPM    = driven > 0 ? netPay / driven : 0;
   const grossRPM  = load.total_miles > 0 ? load.gross_pay / load.total_miles : 0;
 
   // Judge the load against the break-even it was costed at (its stored fuel +
   // fixed costs), not today's — otherwise editing a note could flip green→amber
   // with the net unchanged. Loads without stored costs fall back to today's.
-  const storedBE = load.total_miles > 0
-    ? (load.fuel_cost_for_load + load.fixed_cost_for_load) / load.total_miles
+  const storedBE = driven > 0
+    ? (load.fuel_cost_for_load + load.fixed_cost_for_load) / driven
     : 0;
   const breakEvenRPM = storedBE > 0 ? storedBE : calcBreakEven().breakEvenRPM;
-  let verdict: string | null = null;
-  if (breakEvenRPM > 0) {
-    // Costs (fuel + fixed + per-load extras) are already inside netRPM, so
-    // profitable = netRPM ≥ 0; green adds a 15%-of-break-even cushion. The old
-    // `netRPM >= breakEvenRPM` double-counted costs (external review 2026-07-31).
-    if (netRPM >= breakEvenRPM * 0.15)   verdict = 'green';
-    else if (netRPM >= 0)                verdict = 'amber';
-    else                                 verdict = 'red';
-  }
+  const verdict = verdictFor(netRPM, breakEvenRPM);
 
   db.runSync(
     `UPDATE loads
@@ -2280,8 +2282,8 @@ export function saveLoad(
       gross_rate_per_mile, net_rate_per_mile, verdict,
       weight_lbs, bol_number, bol_photo_url, broker_name, broker_mc, notes,
       is_deadhead, created_at,
-      pickup_lat, pickup_lng, delivery_lat, delivery_lng
-    ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      pickup_lat, pickup_lng, delivery_lat, delivery_lng, deadhead_miles
+    ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
     [
       id, date,
       load.pickup_address,  load.pickup_city,  load.pickup_state,
@@ -2295,6 +2297,7 @@ export function saveLoad(
       load.broker_mc ?? '', load.notes ?? '',
       load.is_deadhead ?? 0, now,
       load.pickup_lat ?? null, load.pickup_lng ?? null, load.delivery_lat ?? null, load.delivery_lng ?? null,
+      load.deadhead_miles ?? 0,
     ]
   );
 
@@ -2353,6 +2356,8 @@ export interface LoadRow {
   broker_name: string;
   broker_mc: string;
   is_deadhead: number;
+  /** Empty miles driven to the pickup. */
+  deadhead_miles: number;
   is_backhaul: number;
   status: string;
   notes: string;
@@ -2398,7 +2403,7 @@ export function getAllLoads(): LoadRow[] {
             benchmark_fair_pay_min, benchmark_fair_pay_max,
             fuel_cost_for_load, fixed_cost_for_load, net_pay,
             gross_rate_per_mile, net_rate_per_mile, verdict, created_at,
-            pickup_lat, pickup_lng, delivery_lat, delivery_lng, rate_contributed
+            pickup_lat, pickup_lng, delivery_lat, delivery_lng, rate_contributed, deadhead_miles
      FROM loads ORDER BY date DESC, created_at DESC`
   );
 }
@@ -2566,8 +2571,8 @@ function upsertLoadRow(l: LoadRow): void {
       benchmark_fair_pay_min, benchmark_fair_pay_max,
       fuel_cost_for_load, fixed_cost_for_load, net_pay,
       gross_rate_per_mile, net_rate_per_mile, verdict, created_at,
-      pickup_lat, pickup_lng, delivery_lat, delivery_lng, rate_contributed
-    ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+      pickup_lat, pickup_lng, delivery_lat, delivery_lng, rate_contributed, deadhead_miles
+    ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
     ON CONFLICT(id) DO UPDATE SET
       date=excluded.date, pickup_address=excluded.pickup_address, pickup_city=excluded.pickup_city,
       pickup_state=excluded.pickup_state, delivery_address=excluded.delivery_address,
@@ -2583,7 +2588,7 @@ function upsertLoadRow(l: LoadRow): void {
       net_rate_per_mile=excluded.net_rate_per_mile, verdict=excluded.verdict, created_at=excluded.created_at,
       pickup_lat=excluded.pickup_lat, pickup_lng=excluded.pickup_lng,
       delivery_lat=excluded.delivery_lat, delivery_lng=excluded.delivery_lng,
-      rate_contributed=excluded.rate_contributed`,
+      rate_contributed=excluded.rate_contributed, deadhead_miles=excluded.deadhead_miles`,
     [
       l.id, l.date, l.pickup_address, l.pickup_city, l.pickup_state,
       l.delivery_address, l.delivery_city, l.delivery_state,
@@ -2594,7 +2599,7 @@ function upsertLoadRow(l: LoadRow): void {
       l.fuel_cost_for_load, l.fixed_cost_for_load, l.net_pay,
       l.gross_rate_per_mile, l.net_rate_per_mile, l.verdict ?? null, l.created_at,
       l.pickup_lat ?? null, l.pickup_lng ?? null, l.delivery_lat ?? null, l.delivery_lng ?? null,
-      l.rate_contributed ? 1 : 0,
+      l.rate_contributed ? 1 : 0, l.deadhead_miles ?? 0,
     ]
   );
 }
@@ -2612,6 +2617,7 @@ export interface LoadDetail {
   delivery_state:         string;
   equipment_type:         string;
   total_miles:            number;
+  deadhead_miles:         number;
   gross_pay:              number;
   additional_costs:       number;
   is_backhaul:            number;
@@ -2642,7 +2648,7 @@ export function getLoadById(id: string): LoadDetail | null {
             is_backhaul, status, weight_lbs, bol_number, bol_photo_url, broker_name, broker_mc,
             notes, benchmark_fair_pay_min, benchmark_fair_pay_max,
             fuel_cost_for_load, fixed_cost_for_load, net_pay,
-            gross_rate_per_mile, net_rate_per_mile, verdict, rate_contributed
+            gross_rate_per_mile, net_rate_per_mile, verdict, rate_contributed, deadhead_miles
      FROM loads WHERE id = ?`,
     [id]
   );

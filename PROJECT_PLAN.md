@@ -220,9 +220,10 @@ Ordered by leverage.
    trial start, not revenue. (Cancel-counted-as-purchase is FIXED 2026-10-07.)
 
 ### C. Money math still open
-7. **Deadhead to pickup is never costed** (spec gap). $1,000 / 500 loaded mi at BE $1.60
-   shows +$200 GREEN; with 150 mi deadhead to pickup it's −$40 RED. Add a deadhead-miles
-   input to Check Load / Add Load; cost = (loaded + deadhead) × BE; show all-in RPM.
+7. ~~**Deadhead to pickup is never costed.**~~ ✅ **FIXED 2026-10-07** (see work log).
+   **USER ACTION: apply `supabase/migrations/2026-10-07_loads_deadhead_miles.sql`** —
+   until then deadhead miles stay on-device (sync retries without the column, so
+   backups keep working).
 8. **Load date = booking date, never the delivery date** (RAN). A load booked Sep 26 and
    driven Oct 1–3 counts toward Q3 IFTA, last week's P&L and the wrong goal period.
    Allow future dates for upcoming loads and/or stamp a delivered date on completion.
@@ -1776,6 +1777,42 @@ modules, app.json, permissions) still need a full `eas build`.
 ---
 
 ## 6. Work Log (newest first)
+
+### 2026-10-07 (later) — Deadhead to pickup is now costed + merged to main
+
+User confirmed **1.1.0 / build 13 is LIVE**, asked to merge to `main` (done — fast-forward)
+and to fix the deadhead calculation (audit §0.8 #7). Android deferred by the user.
+
+**The bug:** Check Load / Add Load costed only pickup→delivery miles. The empty run TO the
+pickup burns the same fuel and per-mile fixed costs but was never charged, so a $1,000 /
+500 mi load at a $1.60 break-even showed **+$200 GREEN** when, 150 empty miles away, it
+really nets **−$40 RED**.
+
+**The model (deliberate):** `total_miles` stays the PAID loaded distance (broker's quoted
+rate, fair-market, rate pool, broker scorecard all keep comparing on it). New
+`loads.deadhead_miles` (local column + Supabase migration). Fuel + fixed costs are charged
+on loaded + deadhead; `net_rate_per_mile` = net ÷ miles DRIVEN, so the verdict
+(`netRPM ≥ 0.15 × BE`) ≡ "net ≥ 15% of what the load costs to run". Deadhead miles also
+count toward the miles engine, week/month P&L miles, verdict-context percentile, unlogged-
+miles comparison, and IFTA (credited to the pickup state — there's no route for the empty
+leg; correctable in Load Detail, whose state-miles check now compares against driven miles).
+
+**One source of truth:** new `src/lib/loadEconomics.ts` (`computeLoadEconomics`,
+`verdictFor`) used by Check Load, Add Load and `recalculateLoadFinancials` — the per-load
+math was previously duplicated in 5 places.
+
+**UI:** optional "Empty miles to pickup" field on Check Load and Add Load (carried over by
+"Log this load"; hidden when the entry is itself a deadhead leg). Check Load's "Your Rate
+Per Mile" next to break-even now shows gross per mile DRIVEN — the like-for-like number
+(it showed NET/mi, which invited the old double-count reading; audit §0.8 #9, Check Load
+part). A "Costed on X mi driven (Y loaded + Z empty)" line appears when deadhead > 0. Add
+Load's preview shows loaded / all-in / net RPM. Also: "Log this load" now records
+`check_load_used` (it skipped it — audit §0.8 #5, first half).
+
+**Sync safety:** push/pull retry without `deadhead_miles` if the hosted column is missing,
+so nothing breaks before the migration is applied.
+
+7 new tests (49 total). JS-only → OTA-able to 1.1.0.
 
 ### 2026-10-07 — Four-track audit, test suite, and a ~20-bug fix batch
 

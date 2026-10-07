@@ -23,6 +23,7 @@ import { AddLoadPrefill } from './AddLoadScreen';
 import { getCommunityRate, CommunityRate, CommunityTier } from '../lib/rateReports';
 import { capture } from '../lib/analytics';
 import { maybeRequestReview } from '../lib/reviewPrompt';
+import { computeLoadEconomics, verdictFor } from '../lib/loadEconomics';
 import * as haptics from '../lib/haptics';
 import { getBrokerScorecard, BrokerScorecard } from '../lib/brokerScorecard';
 import BrokerScorecardCard from '../components/BrokerScorecardCard';
@@ -81,6 +82,9 @@ export default function CheckLoadScreen({ onClose, onLogLoad }: Props) {
 
   const [pay, setPay]           = useState('');
   const [miles, setMiles]       = useState('');
+  // Empty miles to reach the pickup. Unpaid, but costed — a cheap load 150 mi
+  // away can lose money that the same load next door would make.
+  const [deadheadMiles, setDeadheadMiles] = useState('');
   const [brokerName, setBrokerName] = useState('');
   const [brokerMC,   setBrokerMC]   = useState('');
   const [brokerScorecard, setBrokerScorecard] = useState<BrokerScorecard | null>(null);
@@ -179,31 +183,24 @@ export default function CheckLoadScreen({ onClose, onLogLoad }: Props) {
 
   const grossPay  = parseFloat(pay)   || 0;
   const loadMiles = parseFloat(miles) || 0;
+  const emptyMiles = parseFloat(deadheadMiles) || 0;
   const hasInputs = grossPay > 0 && loadMiles > 0;
 
-  const fuelCost  = loadMiles * fuelCPM;
-  const fixedCost = loadMiles * fixedCPM;
-  const netPay    = grossPay - fuelCost - fixedCost;
-  const netRPM    = loadMiles > 0 ? netPay / loadMiles : 0;
-  // Costs are ALREADY inside netRPM (netRPM = grossRPM − breakEvenRPM), so the
-  // margin over break-even IS netRPM. The old `netRPM - breakEvenRPM` subtracted
-  // costs a second time and demanded gross ≥ 2× break-even to look good —
-  // mislabeling genuinely profitable loads red (found in external review 2026-07-31).
+  // Shared with Add Load + the database, so the same load nets the same everywhere.
+  const econ = computeLoadEconomics({
+    gross: grossPay, loadedMiles: loadMiles, deadheadMiles: emptyMiles, fuelCPM, fixedCPM,
+  });
+  const { netPay, netRPM, allInRPM, drivenMiles } = econ;
+  // Costs are ALREADY inside netRPM, so the margin over break-even IS netRPM
+  // (= all-in RPM − break-even). Subtracting break-even again double-counts
+  // costs (external review 2026-07-31).
   const deltaRPM  = netRPM;
 
   const hasBreakEven = breakEvenRPM > 0;
 
-  let verdict: Verdict = 'red';
-  if (hasBreakEven) {
-    // Green = gross clears break-even with a 15% cushion (netRPM ≥ 0.15×BE);
-    // amber = profitable but thin; red = loses money.
-    // >= matches Add Load exactly, so both screens agree at the boundary.
-    if (netRPM >= breakEvenRPM * 0.15)   verdict = 'green';
-    else if (netRPM >= 0)                verdict = 'amber';
-    else                                 verdict = 'red';
-  } else {
-    verdict = netPay > 0 ? 'green' : 'red';
-  }
+  // Green = clears break-even with a 15% cushion; amber = profitable but thin;
+  // red = loses money. Without a break-even, all we can say is net > 0.
+  const verdict: Verdict = verdictFor(netRPM, breakEvenRPM) ?? (netPay > 0 ? 'green' : 'red');
 
   const isBackhaulRescue = backhaul && verdict === 'red';
 
@@ -246,7 +243,7 @@ export default function CheckLoadScreen({ onClose, onLogLoad }: Props) {
   function handleClose() {
     if (hasInputs) {
       capture('check_load_used', {
-        verdict, load_type: loadType, miles: loadMiles,
+        verdict, load_type: loadType, miles: loadMiles, deadhead_miles: emptyMiles,
         gross_pay: grossPay, net_pay: netPay, is_backhaul: backhaul,
       });
       // The app's aha moment: the driver just got a real verdict. Deliberately
@@ -349,6 +346,23 @@ export default function CheckLoadScreen({ onClose, onLogLoad }: Props) {
             </View>
           )}
 
+          {/* Deadhead to pickup — unpaid miles that still cost fuel + wear */}
+          <Text style={[styles.fieldLabel, { marginTop: 18 }]}>
+            {t('checkLoad.deadheadMiles')} <Text style={styles.optional}>({t('common.optional').toLowerCase()})</Text>
+          </Text>
+          <View style={styles.inputCard}>
+            <TextInput
+              style={styles.bigInput}
+              value={deadheadMiles}
+              onChangeText={(v) => setDeadheadMiles(cap(v, 3000))}
+              keyboardType="decimal-pad"
+              placeholder="0"
+              placeholderTextColor={Colors.textTertiary}
+            />
+            <Text style={styles.inputSuffix}>mi</Text>
+          </View>
+          <Text style={styles.addrHint}>{t('checkLoad.deadheadHint')}</Text>
+
           {/* Load type */}
           <Text style={[styles.fieldLabel, { marginTop: 18 }]}>{t('checkLoad.loadType')}</Text>
           <TouchableOpacity style={styles.dropdown} onPress={() => setTypeOpen(true)} activeOpacity={0.8}>
@@ -428,8 +442,11 @@ export default function CheckLoadScreen({ onClose, onLogLoad }: Props) {
 
               <View style={styles.statsRow}>
                 <View style={styles.statCell}>
+                  {/* Gross per mile DRIVEN — the like-for-like number to hold
+                      against break-even (was net/mi, which read as if it
+                      should clear break-even on its own). */}
                   <Text style={styles.statLabel}>{t('checkLoad.result.ratePerMile')}</Text>
-                  <Text style={styles.statValue}>${netRPM.toFixed(3)}</Text>
+                  <Text style={styles.statValue}>${allInRPM.toFixed(3)}</Text>
                 </View>
                 <View style={styles.statSep} />
                 <View style={styles.statCell}>
@@ -451,6 +468,16 @@ export default function CheckLoadScreen({ onClose, onLogLoad }: Props) {
                       : t('checkLoad.result.belowBreakEven', { amount: `$${Math.abs(deltaRPM).toFixed(3)}` })}
                   </Text>
                 </View>
+              )}
+
+              {emptyMiles > 0 && (
+                <Text style={styles.verdictCtx}>
+                  {t('checkLoad.result.drivenNote', {
+                    driven:   Math.round(drivenMiles).toLocaleString(),
+                    loaded:   Math.round(loadMiles).toLocaleString(),
+                    deadhead: Math.round(emptyMiles).toLocaleString(),
+                  })}
+                </Text>
               )}
 
               {/* Personal ranking — the fixed verdict bar says "clears YOUR
@@ -527,9 +554,16 @@ export default function CheckLoadScreen({ onClose, onLogLoad }: Props) {
           <TouchableOpacity
             style={[styles.logBtn, !hasInputs && styles.logBtnDisabled]}
             onPress={() => {
+              // This path skips handleClose, so it used to never record the
+              // verdict — under-counting check_load_used on the best path.
+              capture('check_load_used', {
+                verdict, load_type: loadType, miles: loadMiles, deadhead_miles: emptyMiles,
+                gross_pay: grossPay, net_pay: netPay, is_backhaul: backhaul, logged: true,
+              });
               onLogLoad?.({
                 grossPay:    pay,
                 miles:       miles,
+                deadheadMiles,
                 milesAuto,
                 pickupText:  pickup,
                 deliveryText: delivery,

@@ -24,6 +24,7 @@ import { canLogLoadFree } from '../lib/gating';
 import * as haptics from '../lib/haptics';
 import FreeUsageMeter from '../components/FreeUsageMeter';
 import { pushLoads } from '../lib/sync/loadsSync';
+import { computeLoadEconomics, verdictFor } from '../lib/loadEconomics';
 import { uploadBolPhoto } from '../lib/storage';
 import { ocrBOL, pickImage } from '../lib/ocr';
 import { getFairMarketRate, LoadType } from '../utils/marketRates';
@@ -48,6 +49,8 @@ import { capture } from '../lib/analytics';
 export interface AddLoadPrefill {
   grossPay?:    string;
   miles?:       string;
+  /** Empty miles to the pickup, carried over from Check Load. */
+  deadheadMiles?: string;
   pickupText?:  string;
   deliveryText?: string;
   pickupSel?:   AddressSuggestion | null;
@@ -177,6 +180,10 @@ export default function AddLoadScreen({ onClose, onSaved, onFirstLoad, prefill }
   // Deadhead = empty/unpaid reposition leg. Miles still count for IFTA, so it's
   // savable with $0 gross (the gross requirement is waived when this is on).
   const [deadhead, setDeadhead] = useState(false);
+  // Empty miles driven TO this load's pickup — unpaid but costed (fuel + fixed),
+  // and driven, so they count toward IFTA and monthly miles. Not used when the
+  // whole entry is itself a deadhead leg (toggle above).
+  const [deadheadMiles, setDeadheadMiles] = useState(prefill?.deadheadMiles ?? '');
 
   // ── Load expenses (scale, toll, lumper, etc.) ──
   const [loadExpenses, setLoadExpenses] = useState<{ id: string; label: string; amount: string; category: string }[]>([]);
@@ -344,11 +351,11 @@ export default function AddLoadScreen({ onClose, onSaved, onFirstLoad, prefill }
   // Deadhead legs are unpaid by definition — same waiver as handleSave's check.
   const canSave = loadMi > 0 && (gross > 0 || deadhead);
 
-  const fuelCost  = loadMi * fuelCPM;
-  const fixedCost = loadMi * fixedCPM;
-  const netPay    = gross - fuelCost - fixedCost - expensesTotal;
-  const netRPM    = loadMi > 0 ? netPay / loadMi  : 0;
-  const grossRPM  = loadMi > 0 ? gross  / loadMi  : 0;
+  const emptyMi = deadhead ? 0 : (parseFloat(deadheadMiles) || 0);
+  // Same function Check Load and the database use — one definition of net.
+  const { fuelCost, fixedCost, netPay, netRPM, grossRPM, allInRPM } = computeLoadEconomics({
+    gross, loadedMiles: loadMi, deadheadMiles: emptyMi, fuelCPM, fixedCPM, extras: expensesTotal,
+  });
 
   // Origin/dest states feed regional market strength into the fair estimate.
   const fairOrigin = pickupSel   ? suggestionState(pickupSel)   : undefined;
@@ -366,13 +373,13 @@ export default function AddLoadScreen({ onClose, onSaved, onFirstLoad, prefill }
   const showCommunity    = isPro && (communityLoading || (!!communityRate && netCommunityCount > 0));
 
   // Costs are already inside netRPM, so profitability is netRPM ≥ 0 and the
-  // green cushion is netRPM ≥ 0.15×BE (equivalent to gross ≥ 1.15× break-even).
-  // The old `netRPM >= breakEvenRPM` double-counted costs (external review 2026-07-31).
+  // green cushion is netRPM ≥ 0.15×BE (verdictFor — shared with Check Load).
+  const liveVerdict  = verdictFor(netRPM, breakEvenRPM);
   const verdictColor =
-    !breakEvenRPM                 ? Colors.textSecondary :
-    netRPM >= breakEvenRPM * 0.15 ? Colors.primary :
-    netRPM >= 0                   ? Colors.secondary :
-                                    Colors.danger;
+    liveVerdict === 'green' ? Colors.primary :
+    liveVerdict === 'amber' ? Colors.secondary :
+    liveVerdict === 'red'   ? Colors.danger :
+                              Colors.textSecondary;
 
   const stateMilesTotal = stateMiles.reduce((s, r) => s + (parseFloat(r.miles) || 0), 0);
   const stateMilesDiff  = loadMi > 0 ? Math.abs(Math.round(stateMilesTotal) - Math.round(loadMi)) : 0;
@@ -544,15 +551,25 @@ export default function AddLoadScreen({ onClose, onSaved, onFirstLoad, prefill }
       const pLabel = pickupSel?.label  ?? pickup;
       const dLabel = deliverySel?.label ?? delivery;
 
-      const hasBreakEven = breakEvenRPM > 0;
-      // Same corrected thresholds as the verdict color above and CheckLoadScreen.
-      const verdict: string | undefined = hasBreakEven
-        ? (netRPM >= breakEvenRPM * 0.15 ? 'green' : netRPM >= 0 ? 'amber' : 'red')
-        : undefined;
+      const verdict = liveVerdict ?? undefined;
 
       const validStateMiles = stateMiles.filter(
         r => r.state.length === 2 && parseFloat(r.miles) > 0
       );
+      const stateRows = validStateMiles.map(r => ({
+        state: r.state,
+        miles: parseFloat(r.miles),
+        is_manually_edited: stateEdited.current ? 1 : 0,
+      }));
+      // IFTA taxes every mile driven, empty ones included. There's no route
+      // for the run to the pickup, so credit it to the pickup state (where it
+      // ends) — the driver can correct the split in Load Detail.
+      const pickupStateCode = suggestionState(pickupSel, pLabel);
+      if (emptyMi > 0 && pickupStateCode) {
+        const row = stateRows.find(r => r.state === pickupStateCode);
+        if (row) row.miles += emptyMi;
+        else stateRows.push({ state: pickupStateCode, miles: emptyMi, is_manually_edited: 0 });
+      }
 
       // Upload the BOL photo to cloud storage (proof of delivery). For a signed-in
       // user we store the public URL; for guests / failed upload we fall back to
@@ -588,6 +605,7 @@ export default function AddLoadScreen({ onClose, onSaved, onFirstLoad, prefill }
           delivery_lng:    deliverySel?.lng ?? null,
           equipment_type:  loadType,
           total_miles:     loadMi,
+          deadhead_miles:  emptyMi,
           gross_pay:       gross,
           is_backhaul:     backhaul ? 1 : 0,
           is_deadhead:     deadhead ? 1 : 0,
@@ -608,11 +626,7 @@ export default function AddLoadScreen({ onClose, onSaved, onFirstLoad, prefill }
           broker_mc:    brokerMC,
           notes,
         },
-        validStateMiles.map(r => ({
-          state: r.state,
-          miles: parseFloat(r.miles),
-          is_manually_edited: stateEdited.current ? 1 : 0,
-        })),
+        stateRows,
         validExpenses,
       );
 
@@ -773,6 +787,25 @@ export default function AddLoadScreen({ onClose, onSaved, onFirstLoad, prefill }
               <Ionicons name="warning-outline" size={14} color={Colors.secondary} />
               <Text style={styles.routeErrorText}>{t('addLoad.routeError')}</Text>
             </View>
+          )}
+
+          {/* ── Deadhead to pickup (not shown when this entry IS a deadhead leg) ── */}
+          {!deadhead && (
+            <>
+              <Text style={[styles.fieldLabel, { marginTop: 18 }]}>{t('checkLoad.deadheadMiles')}</Text>
+              <View style={styles.inputCard}>
+                <TextInput
+                  style={styles.bigInput}
+                  value={deadheadMiles}
+                  onChangeText={(v) => setDeadheadMiles(cap(v, 3000))}
+                  keyboardType="decimal-pad"
+                  placeholder="0"
+                  placeholderTextColor={Colors.textTertiary}
+                />
+                <Text style={styles.inputSuffix}>mi</Text>
+              </View>
+              <Text style={styles.addrHint}>{t('addLoad.deadheadMilesHint')}</Text>
+            </>
           )}
 
           {/* ── State mileage ── */}
@@ -1019,7 +1052,9 @@ export default function AddLoadScreen({ onClose, onSaved, onFirstLoad, prefill }
                 {netPay < 0 ? '-' : ''}${money(Math.abs(netPay))}
               </Text>
               <Text style={styles.netPreviewSub}>
-                ${grossRPM.toFixed(3)}/mi gross · ${netRPM.toFixed(3)}/mi net
+                {emptyMi > 0
+                  ? t('addLoad.rpmWithDeadhead', { gross: grossRPM.toFixed(3), allIn: allInRPM.toFixed(3), net: netRPM.toFixed(3) })
+                  : `$${grossRPM.toFixed(3)}/mi gross · $${netRPM.toFixed(3)}/mi net`}
               </Text>
               {verdictCtx && (
                 <Text style={styles.netPreviewCtx}>
