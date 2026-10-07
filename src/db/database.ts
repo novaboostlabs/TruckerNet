@@ -503,7 +503,7 @@ const clamp01 = (n: number) => Math.max(0, Math.min(1, n));
  */
 export function getMonthlyMilesDetail(): MonthlyMilesDetail {
   const weeklyRow = db.getFirstSync<{ value: string }>(
-    'SELECT value FROM settings WHERE key = "weekly_miles"',
+    "SELECT value FROM settings WHERE key = 'weekly_miles'",
   );
   const estimate = (parseFloat(weeklyRow?.value ?? '0') || 0) * 4.333;
 
@@ -725,7 +725,7 @@ export function getPersonalFuelStats(): PersonalFuelStats {
 }
 
 export function getWeeklyMiles(): number {
-  const row = db.getFirstSync<{ value: string }>('SELECT value FROM settings WHERE key = "weekly_miles"');
+  const row = db.getFirstSync<{ value: string }>("SELECT value FROM settings WHERE key = 'weekly_miles'");
   return parseFloat(row?.value ?? '0') || 0;
 }
 
