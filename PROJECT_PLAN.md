@@ -21,6 +21,14 @@ built correctly and its "What's New" text (en/es/zh/pa) was prepared — confirm
 user whether they actually pressed Submit for Review in App Store Connect before doing
 anything else iOS-related.** Android is mid-setup, blocked on one code change.
 
+**🆕 2026-10-07 — full-codebase audit + fix batch on branch `claude/truckernet-new-models-mlwz9i`
+(NOT yet on `main`).** 4 parallel audits (net-pay math, IFTA/fuel, sync/security,
+monetization/activation); ~20 confirmed bugs fixed, a real test suite added (`npm test`,
+42 tests, runs the real `database.ts` on node:sqlite). All JS-only → ships via
+`eas update --channel production` once merged to `main` (reaches 1.1.0 installs only).
+**Q3 IFTA is due Oct 31 — the fuel-entry fixes matter to drivers right now.** Remaining
+audit findings, ranked, are in **§0.8**. Work-log entry dated 2026-10-07 has details.
+
 **START HERE IN A NEW CHAT.**
 
 **iOS:**
@@ -173,6 +181,123 @@ See §6 Work Log for full history, newest first._
 > tombstone-queue deletes) — the old "cloud replace" model could destroy
 > unpushed local data across devices; that's fixed. All Supabase migrations
 > incl. the 2026-06-30 RLS hardening are applied and verified (see §5.7-H).
+
+---
+
+## 0.8 🔎 AUDIT BACKLOG (opened 2026-10-07) — confirmed findings NOT yet fixed
+
+From the 2026-10-07 four-track audit. Everything here was traced in code; items marked
+(RAN) were reproduced against the real database layer. Fixed items are in the work log.
+Ordered by leverage.
+
+### A. Ship-blocking for Android / revenue
+1. **`ANDROID_API_KEY` is still `''`.** On Android the paywall shows fallback prices for
+   products that don't exist and "please update" on tap; a free driver at 15 loads has
+   no way to pay. Before the Play release: fill the key (JS constant → OTA-able) AND add a
+   `purchasesAvailable` guard that hides upgrade prompts / lifts the cap when false.
+   RevenueCat reports Android trial eligibility as UNKNOWN — read
+   `defaultOption.freePhase` instead or the Play trial never shows.
+2. **Paying users shown as free when offline at cold start.** In `SubscriptionContext`
+   the customer-info listener and price fetch sit after `await getCustomerInfo()` in one
+   try; if it throws (truck stop, no signal) the listener is never attached and nothing
+   retries — Pro users hit the load cap and the paywall all session. Attach the listener
+   right after `configure`, retry on app-active, cache last-known Pro.
+3. **Paywall legal copy (Apple 3.1.2):** no auto-renew/24-hour-cancel sentence; trial line
+   shows even when not trial-eligible; "7-Day" hardcoded; feature list sells "Full history"
+   and "Cross-device sync", which free users already have.
+
+### B. Measurement (fix BEFORE scaling the $750/mo ad test)
+4. **The §0.7 funnel order doesn't match the code.** `welcome_completed` fires on the
+   language screen (before the walkthrough); profile setup runs AFTER sign-up. A PostHog
+   funnel in the §0.7 order shows fake ~0% steps. Real order: welcome_completed →
+   onboarding_started → onboarding_expenses_completed → onboarding_result_completed →
+   user_signed_up → onboarding_profile_completed → check_load_used → load_added → …
+   Also missing: per-screen onboarding events (fuel/miles), `walkthrough_skipped`;
+   slide 1 never fires `walkthrough_slide_viewed`.
+5. `check_load_used` never fires on Check Load → "Log this load" (the best path) —
+   the button bypasses `handleClose`. `onboarding_started` fires from render (repeats).
+6. Turn on RevenueCat → PostHog server events: client-side `subscription_purchased` is a
+   trial start, not revenue. (Cancel-counted-as-purchase is FIXED 2026-10-07.)
+
+### C. Money math still open
+7. ~~**Deadhead to pickup is never costed.**~~ ✅ **FIXED 2026-10-07** (see work log).
+   **USER ACTION: apply `supabase/migrations/2026-10-07_loads_deadhead_miles.sql`** —
+   until then deadhead miles stay on-device (sync retries without the column, so
+   backups keep working).
+8. **Load date = booking date, never the delivery date** (RAN). A load booked Sep 26 and
+   driven Oct 1–3 counts toward Q3 IFTA, last week's P&L and the wrong goal period.
+   Allow future dates for upcoming loads and/or stamp a delivered date on completion.
+9. **Labels invite the old double-count reading**: Check Load shows NET RPM labeled
+   "Your Rate Per Mile" beside "Your Break-Even"; History AVG RPM and share card $/MI are
+   net; Dashboard hero /mi is gross. Put gross RPM next to break-even, call net "margin".
+10. History week net includes upcoming/in-progress loads; Dashboard counts completed only
+    — same week shows $2,700 vs $1,800 (RAN). Pick one definition.
+11. One missed fuel receipt understates fuel CPM (next fill's miles cover two tanks).
+    Price ÷ median MPG is more robust than Σ$/Σmi.
+12. Check Load → Add Load re-routes and replaces the driver's manual miles.
+13. Weekly P&L push content is frozen at schedule time (can show last week's numbers).
+14. Factoring / dispatch / lease % of gross isn't modeled anywhere (common real costs).
+15. Small: goal card shows a losing week as $0; `goalPeriodKey` + `getCostBreakdown` +
+    `addSingleLoadExpense` use UTC dates; Backhaul "saves ~$X" uses miles × BE instead of
+    the backhaul's gross.
+
+### D. IFTA product gaps (the app reports miles + gallons; it computes NO tax)
+16. Loads with no route geometry (typed addresses, Mapbox failure) add 0 state miles but
+    full total miles — and the IFTA screen never reconciles state miles vs total. Add a
+    "loads whose state miles ≠ total" list + endpoint fallback.
+17. State split drops water crossings (Bay Bridge, Chesapeake, Mackinac…), DC (missing from
+    the name map) and Canadian legs. Assign unmatched segments to the previous state.
+18. OCR: no unit (liters!) / range checks before gallons feed IFTA; reefer fuel and DEF
+    aren't separated. No per-user rate limit on the paid OCR edge functions.
+19. Tax-rate table (`fuelOptimizer.ts`) is a hard-coded June 2026 snapshot. Before ever
+    computing IFTA tax: public-read Supabase `ifta_rates(year, quarter, jurisdiction,
+    rate, surcharge, as_of)`, refuse to compute without the quarter's rates.
+20. A calendar date picker on Fuel Entry (back-dating is one day per tap — ~84 taps to
+    reach mid-July). Scanned receipts now carry their own date, manual entry doesn't.
+
+### E. Backend / security (verify against the LIVE Supabase project first)
+21. **Crowdsourced pool can be poisoned by one user**: `rate_reports` insert is
+    `WITH CHECK (true)` with no contributor id or caps; `broker_reports` has no CHECK
+    constraints and a 3-report mean — three inserts can give any real MC an "F" (legal
+    exposure). Fix: SECURITY DEFINER submit RPC with per-contributor caps + validation;
+    serve aggregates only via RPC (median, ≥3 distinct contributors); broker names from
+    FMCSA. Also: raw pool readable by any account (bypasses Pro), and sharing is opt-OUT
+    while the PRD says opt-in.
+22. Paid OCR callable without limit by any signed-up account (no quota, no server-side
+    entitlement check). Add `ocr_usage` + daily caps; set an Anthropic spend limit.
+23. Multi-device sync never converges (local-wins pull never updates existing rows; every
+    push upserts every row). Needs `updated_at` + soft deletes + last-write-wins per row.
+24. Returning user who does guest onboarding then signs into an existing account gets
+    expenses MERGED (two truck payments → inflated break-even). Ask which set to keep.
+25. BOL photo upload failure stores a temp `file://` path that is never retried.
+26. delete-account: `storage.list` pages at 100 files; `user_expenses` deleted by `id`
+    instead of `user_id`; email logged.
+27. Small: users can UPDATE their own `subscription_tier`; `load_expenses` insert doesn't
+    check load ownership; `handle_new_user` lacks `set search_path`; bol-photos bucket has
+    no size/MIME limit; Google OAuth uses implicit flow (switch to PKCE).
+28. PROJECT_PLAN contradiction to resolve: header says all migrations incl. RLS hardening
+    are applied, but §5.7-H still lists `core_tables_rls.sql` + OCR redeploy unchecked.
+    Run `select * from pg_policies` on prod to settle it.
+
+### F. Activation / conversion (judgment calls — founder decides)
+29. **Verdict first.** 11 screens + 4 required numbers + an account before the first
+    "this load pays you $X". Let a new driver run Check Load on seeded estimates (labeled
+    "Estimated") right after the walkthrough; turn fuel/expenses/miles into "make it
+    yours" steps that visibly re-price the same load. All OTA-able.
+30. Ask for the account after the value (at "Log this load" / "Back up my numbers");
+    lead with Sign in with Apple; email OTP code instead of a confirm link.
+31. Offer the trial at the first verdict (one-time, dismissible, built around that load's
+    blurred fair-market range). Today nobody sees a trial offer at peak intent.
+32. Make IFTA the quarterly conversion moment: the free IFTA tab shows a real teaser
+    ("Q3: 11,240 mi in 7 states · report ready", table blurred) and the Oct 17 reminder
+    deep-links to it. Every driver hits an IFTA deadline 4×/year.
+33. `expo-speech-recognition` ships (mic + speech permissions, Android RECORD_AUDIO) but
+    voice input was never built. Remove it before the Play listing (one less permission
+    to justify) unless voice is next. Native change → next build.
+
+### G. Platform
+34. Expo SDK 54 → current is SDK 56 (RN 0.85). Not urgent (Android target API 36 is
+    already met for the Aug 31, 2026 Play deadline); plan it as its own native release.
 
 ---
 
@@ -1652,6 +1777,92 @@ modules, app.json, permissions) still need a full `eas build`.
 ---
 
 ## 6. Work Log (newest first)
+
+### 2026-10-07 (later) — Deadhead to pickup is now costed + merged to main
+
+User confirmed **1.1.0 / build 13 is LIVE**, asked to merge to `main` (done — fast-forward)
+and to fix the deadhead calculation (audit §0.8 #7). Android deferred by the user.
+
+**The bug:** Check Load / Add Load costed only pickup→delivery miles. The empty run TO the
+pickup burns the same fuel and per-mile fixed costs but was never charged, so a $1,000 /
+500 mi load at a $1.60 break-even showed **+$200 GREEN** when, 150 empty miles away, it
+really nets **−$40 RED**.
+
+**The model (deliberate):** `total_miles` stays the PAID loaded distance (broker's quoted
+rate, fair-market, rate pool, broker scorecard all keep comparing on it). New
+`loads.deadhead_miles` (local column + Supabase migration). Fuel + fixed costs are charged
+on loaded + deadhead; `net_rate_per_mile` = net ÷ miles DRIVEN, so the verdict
+(`netRPM ≥ 0.15 × BE`) ≡ "net ≥ 15% of what the load costs to run". Deadhead miles also
+count toward the miles engine, week/month P&L miles, verdict-context percentile, unlogged-
+miles comparison, and IFTA (credited to the pickup state — there's no route for the empty
+leg; correctable in Load Detail, whose state-miles check now compares against driven miles).
+
+**One source of truth:** new `src/lib/loadEconomics.ts` (`computeLoadEconomics`,
+`verdictFor`) used by Check Load, Add Load and `recalculateLoadFinancials` — the per-load
+math was previously duplicated in 5 places.
+
+**UI:** optional "Empty miles to pickup" field on Check Load and Add Load (carried over by
+"Log this load"; hidden when the entry is itself a deadhead leg). Check Load's "Your Rate
+Per Mile" next to break-even now shows gross per mile DRIVEN — the like-for-like number
+(it showed NET/mi, which invited the old double-count reading; audit §0.8 #9, Check Load
+part). A "Costed on X mi driven (Y loaded + Z empty)" line appears when deadhead > 0. Add
+Load's preview shows loaded / all-in / net RPM. Also: "Log this load" now records
+`check_load_used` (it skipped it — audit §0.8 #5, first half).
+
+**Sync safety:** push/pull retry without `deadhead_miles` if the hosted column is missing,
+so nothing breaks before the migration is applied.
+
+7 new tests (49 total). JS-only → OTA-able to 1.1.0.
+
+### 2026-10-07 — Four-track audit, test suite, and a ~20-bug fix batch
+
+Session revisiting the app ~2 months after launch. **Note:** there was no Codex connection
+in this session (no tool/CLI/key) — all findings below came from four parallel Claude audit
+passes (net-pay math, IFTA/fuel, sync/security, monetization/activation), each finding then
+re-checked against the code before acting. The 2026-07-31 verdict bug was Codex's find.
+
+**Test suite (new).** `npm test` (Vitest). `vitest.config.ts` aliases the app's
+`src/db/sqlite` wrapper to `test/support/nodeSqlite.ts` (Node's built-in `node:sqlite`), so
+the REAL `database.ts` — SQL and all — runs against an in-memory DB with a pinned clock and
+`TZ=America/Chicago`. 42 tests: break-even, miles engine, verdict, fuel chain, IFTA quarters,
+tax periods, streak, sync merge, sign-out clearing, and i18n key/{{var}} parity across
+en/es/pa/zh. Node's SQLite is strict (`DQS=0`) and immediately caught two
+double-quoted string literals in settings queries — fixed (they'd break break-even on any
+strict SQLite build). Also `npm run typecheck`.
+
+**Fixed (all JS-only, OTA-able):**
+- IFTA/fuel: scanned receipt date now used (was dropped → Sep receipts landed in Q4); no
+  silent `'TX'` fuel-state default (last fill's state, else must pick; blank when a scan
+  can't read it); back-dated fills validated against the readings around their own date
+  (`getOdometerBounds`) and miles/MPG/CPM re-derived from the odometer chain on every
+  insert/edit/delete (`recomputeFuelChain`); Fuel tab month CPM no longer averages in $0
+  fills; IFTA tab opens on the quarter being filed (`src/lib/quarters.ts`); copy no longer
+  claims "IFTA files itself" / "Never File By Hand" / "Filing-ready", disclaimer says "not
+  a tax-filing service" in-app and on the CSV.
+- Data safety: sign-out no longer wipes local data unless the backup is confirmed (was:
+  wipe after a 4s timeout even offline) — new "Not backed up yet" choice; delete-account
+  doesn't push after the server delete; `pushLoads` serialized + snapshots before awaits
+  (overlap could double cloud state_mileage); pull no longer replaces local load expenses
+  (and no longer FK-fails on a locally deleted load); sign-out also clears tax/share
+  settings + pending tombstones; completed-onboarding-but-no-account survives a cold start
+  (email-confirm flow used to wipe it) and resumes at sign-up.
+- Money math: Expenses tab stopped writing the BLENDED miles back as the stated estimate
+  (fed back into itself, dragged fuel CPM/break-even down); tax "this quarter" uses IRS
+  periods (Jun + Sep were dropped); next tax deadline includes Jan 15 + weekend roll
+  (Jun 15 2026, not a hard-coded 16th); weeks-over-break-even streak had the same
+  double-count as the old verdict; load-based monthly miles divided n loads by n−1 gaps;
+  edited loads re-judged against their own priced costs, not today's break-even; the
+  07-31 verdict backfill no longer marks itself done before a break-even exists.
+- Monetization: cancelling the App Store sheet no longer logs `subscription_purchased` (it
+  did, and closed the paywall with a success haptic) → new `purchase_cancelled` /
+  `purchase_pending`; fallback annual price $297.99 → $299.99.
+
+**Not done** — see §0.8 for the ranked remainder (Android purchase guard, offline Pro
+status, funnel event order, deadhead-to-pickup costing, load date semantics, crowdsourced
+pool hardening, OCR quotas, activation redesign). UI changes are typecheck-verified only —
+**QA on a device before `eas update`**: fuel entry (scan + back-date + state), sign-out
+offline, paywall cancel, IFTA tab default quarter.
+
 
 ### 2026-07-31 (later) — Build 12 rejected (stale checkout), build 13 correct, Android setup begun
 

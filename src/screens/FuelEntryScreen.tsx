@@ -8,7 +8,10 @@ import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
 import { FontFamily, FontSize, Spacing, Radius, ThemeColors, sectionLabel } from '../theme/theme';
 import { useTheme } from '../theme/ThemeContext';
-import db, { getLatestOdometer, localDateISO, getFuelEntryById, updateFuelEntry } from '../db/database';
+import {
+  localDateISO, getFuelEntryById, updateFuelEntry, addFuelEntry,
+  getOdometerBounds, getLastFuelState,
+} from '../db/database';
 import { useAuth } from '../contexts/AuthContext';
 import { pushFuel } from '../lib/sync/fuelSync';
 import { scanFuelReceipt } from '../lib/ocr';
@@ -17,8 +20,6 @@ import { cancelFuelReminder } from '../lib/notifications';
 import { capture } from '../lib/analytics';
 import * as haptics from '../lib/haptics';
 import GridBackground from '../components/GridBackground';
-import 'react-native-get-random-values';
-import { v4 as uuid } from 'uuid';
 
 const US_STATE_NAMES: [string, string][] = [
   ['AL','Alabama'],['AK','Alaska'],['AZ','Arizona'],['AR','Arkansas'],['CA','California'],
@@ -45,6 +46,12 @@ interface Props {
   editId?: string;
 }
 
+function oneYearAgoISO(): string {
+  const d = new Date();
+  d.setFullYear(d.getFullYear() - 1);
+  return localDateISO(d);
+}
+
 export default function FuelEntryScreen({ onSaved, onCancel, initialDate, editId }: Props) {
   const { t } = useTranslation();
   const { colors: Colors } = useTheme();
@@ -54,23 +61,26 @@ export default function FuelEntryScreen({ onSaved, onCancel, initialDate, editId
   const [dollarsSpent,    setDollarsSpent]    = useState('');
   const [gallons,         setGallons]         = useState('');
   const [odometer,        setOdometer]        = useState('');
-  const [statePurchased,  setStatePurchased]  = useState('TX');
+  // Default to where the driver last fueled — never a fixed state. A silent
+  // 'TX' default credited out-of-state fill-ups to Texas on the IFTA report.
+  // No history → blank, and the driver must pick one.
+  const [statePurchased,  setStatePurchased]  = useState(() => getLastFuelState() ?? '');
+  const [statePicked,     setStatePicked]     = useState(false);
   const [showStatePicker, setShowStatePicker] = useState(false);
   const [saving,          setSaving]          = useState(false);
   const [scanning,        setScanning]        = useState(false);
   const [scanned,         setScanned]         = useState(false);
 
-  const [lastOdometer, setLastOdometer] = useState(0);
   const [fuelDate, setFuelDate] = useState(initialDate ?? localDateISO());
 
-  useEffect(() => {
-    const last = getLatestOdometer();
-    setLastOdometer(last);
-  }, []);
+  // The odometer window for THIS date: the reading before it is the baseline,
+  // and a back-dated fill must stay under the next later reading. (The old
+  // check against the latest reading rejected every back-dated receipt.) The
+  // fill being edited is excluded so it can't bound itself.
+  const bounds = useMemo(() => getOdometerBounds(fuelDate, editId), [fuelDate, editId]);
+  const lastOdometer = bounds.before;
 
-  // Editing an existing fill-up: hydrate the form from the stored row. The
-  // odometer baseline is the entry's own (reading − miles_driven), otherwise
-  // the "must exceed last odometer" guard would reject the row's own value.
+  // Editing an existing fill-up: hydrate the form from the stored row.
   useEffect(() => {
     if (!editId) return;
     const e = getFuelEntryById(editId);
@@ -78,9 +88,9 @@ export default function FuelEntryScreen({ onSaved, onCancel, initialDate, editId
     setDollarsSpent(String(e.dollars_spent));
     setGallons(String(e.gallons));
     setOdometer(String(e.odometer_reading));
-    setStatePurchased(e.state_purchased || 'TX');
+    setStatePurchased(e.state_purchased || '');
+    setStatePicked(!!e.state_purchased);
     setFuelDate(e.date);
-    setLastOdometer(Math.max(0, e.odometer_reading - e.miles_driven));
   }, [editId]);
 
   function shiftFuelDate(days: number) {
@@ -106,11 +116,14 @@ export default function FuelEntryScreen({ onSaved, onCancel, initialDate, editId
   const mpg            = gals > 0 && milesDriven > 0 ? milesDriven / gals : 0;
   const costPerMile    = milesDriven > 0 ? dollars / milesDriven : 0;
 
-  const canSave = dollars > 0 && gals > 0 && odomReading > 0;
+  const canSave = dollars > 0 && gals > 0 && odomReading > 0 && statePurchased !== '';
 
   function handleSave() {
     if (!canSave) {
-      Alert.alert(t('fuel.form.missingInfoTitle'), t('fuel.form.missingInfo'));
+      Alert.alert(
+        t('fuel.form.missingInfoTitle'),
+        dollars > 0 && gals > 0 && odomReading > 0 ? t('fuel.form.stateMissing') : t('fuel.form.missingInfo'),
+      );
       return;
     }
     if (dollars > 2000) {
@@ -127,6 +140,13 @@ export default function FuelEntryScreen({ onSaved, onCancel, initialDate, editId
     }
     if (odomReading <= lastOdometer && lastOdometer > 0) {
       Alert.alert(t('fuel.form.checkOdometerTitle'), t('fuel.form.checkOdometerLow', { miles: lastOdometer.toLocaleString() }));
+      return;
+    }
+    if (bounds.after !== null && odomReading >= bounds.after) {
+      Alert.alert(t('fuel.form.checkOdometerTitle'), t('fuel.form.checkOdometerAfter', {
+        miles: bounds.after.toLocaleString(),
+        date:  new Date(bounds.afterDate + 'T12:00:00').toLocaleDateString(getDateLocale(), { month: 'short', day: 'numeric' }),
+      }));
       return;
     }
 
@@ -146,22 +166,17 @@ export default function FuelEntryScreen({ onSaved, onCancel, initialDate, editId
         });
         capture('fuel_edited', { dollars, gallons: gals, state: statePurchased, mpg });
       } else {
-        db.runSync(
-          `INSERT INTO fuel_entries (id, date, dollars_spent, gallons, miles_driven, cost_per_mile, price_per_gallon, mpg, odometer_reading, state_purchased)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          [
-            uuid(),
-            fuelDate,
-            dollars,
-            gals,
-            milesDriven,
-            costPerMile,
-            pricePerGallon,
-            mpg,
-            odomReading,
-            statePurchased,
-          ]
-        );
+        addFuelEntry({
+          date:             fuelDate,
+          dollars_spent:    dollars,
+          gallons:          gals,
+          miles_driven:     milesDriven,
+          cost_per_mile:    costPerMile,
+          price_per_gallon: pricePerGallon,
+          mpg,
+          odometer_reading: odomReading,
+          state_purchased:  statePurchased,
+        });
         capture('fuel_logged', { dollars, gallons: gals, state: statePurchased, mpg });
       }
       // Back up to the cloud (local-first: never blocks the UI; no-op for guests).
@@ -195,12 +210,21 @@ export default function FuelEntryScreen({ onSaved, onCancel, initialDate, editId
         return;
       }
       // Auto-fill what we got; the user reviews before saving.
-      const { dollars, gallons, pricePerGallon, state } = res.data;
+      const { dollars, gallons, pricePerGallon, state, date } = res.data;
       if (dollars != null) setDollarsSpent(String(dollars));
       // Derive gallons from $ ÷ price if the receipt only showed price/gal.
       if (gallons != null) setGallons(String(gallons));
       else if (dollars != null && pricePerGallon) setGallons((dollars / pricePerGallon).toFixed(2));
-      if (state && US_STATE_NAMES.some(([a]) => a === state)) setStatePurchased(state);
+      // The receipt's own date decides the IFTA quarter. It used to be dropped,
+      // so September receipts scanned in October landed in Q4.
+      if (date && date <= localDateISO() && date >= oneYearAgoISO()) setFuelDate(date);
+      if (state && US_STATE_NAMES.some(([a]) => a === state)) {
+        setStatePurchased(state);
+      } else if (!statePicked) {
+        // Couldn't read the state: don't let a remembered default stand in for
+        // it unnoticed — blank forces an explicit pick before saving.
+        setStatePurchased('');
+      }
       setScanned(true);
     } catch {
       Alert.alert(t('fuel.form.scan.failedTitle'), t('fuel.form.scan.failedMsg'));
@@ -359,7 +383,7 @@ export default function FuelEntryScreen({ onSaved, onCancel, initialDate, editId
                     <TouchableOpacity
                       key={abbr}
                       style={[styles.stateRow, abbr === statePurchased && styles.stateRowActive]}
-                      onPress={() => { setStatePurchased(abbr); setShowStatePicker(false); }}
+                      onPress={() => { setStatePurchased(abbr); setStatePicked(true); setShowStatePicker(false); }}
                       activeOpacity={0.7}
                     >
                       <Text style={[styles.stateRowName, abbr === statePurchased && styles.stateRowNameActive]}>
@@ -389,9 +413,11 @@ export default function FuelEntryScreen({ onSaved, onCancel, initialDate, editId
             >
               <View>
                 <Text style={styles.stateSelectorText}>
-                  {US_STATE_NAMES.find(([a]) => a === statePurchased)?.[1] ?? statePurchased}
+                  {statePurchased
+                    ? (US_STATE_NAMES.find(([a]) => a === statePurchased)?.[1] ?? statePurchased)
+                    : t('fuel.form.statePlaceholder')}
                 </Text>
-                <Text style={styles.stateSelectorAbbr}>{statePurchased}</Text>
+                {!!statePurchased && <Text style={styles.stateSelectorAbbr}>{statePurchased}</Text>}
               </View>
               <Ionicons name="chevron-down" size={18} color={Colors.textSecondary} />
             </TouchableOpacity>

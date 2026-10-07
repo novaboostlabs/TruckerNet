@@ -12,7 +12,13 @@ interface AuthContextValue {
   loading: boolean;
   signIn: (email: string, password: string) => Promise<{ error: string | null }>;
   signUp: (email: string, password: string) => Promise<{ error: string | null }>;
-  signOut: () => Promise<void>;
+  /**
+   * Backs up local data, then clears it and ends the session. If the backup
+   * can't be confirmed (offline, slow, failed) it does NOT clear anything and
+   * resolves `{ unsynced: true }` — the caller asks the driver, then calls
+   * again with `discardUnsynced: true` to sign out anyway.
+   */
+  signOut: (opts?: { discardUnsynced?: boolean }) => Promise<{ unsynced: boolean }>;
   deleteAccount: () => Promise<{ error: string | null }>;
 }
 
@@ -64,23 +70,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return { error: error?.message ?? null };
   }
 
-  async function signOut() {
+  async function signOut(opts?: { discardUnsynced?: boolean }): Promise<{ unsynced: boolean }> {
     // Flush any unsynced local edits (income goal, tax rate, weekly miles,
     // expenses…) UP to the cloud before wiping local data. Settings edits save
     // locally and don't push on their own, so without this a change made since
     // the last sync is lost on sign-out — the "income goal didn't persist"
-    // bug. Bounded + non-fatal: an offline/slow push must never block sign-out.
+    // bug. Bounded: an offline/slow push must never hang sign-out.
     const uid = user?.id;
-    if (uid) {
+    if (uid && !opts?.discardUnsynced) {
+      let backedUp = false;
       try {
-        await Promise.race([
-          pushAll(uid),
-          new Promise<void>((resolve) => setTimeout(resolve, 4000)),
+        backedUp = await Promise.race([
+          pushAll(uid).then((r) => !r.error),
+          new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 4000)),
         ]);
-      } catch { /* offline / push failed — proceed; local clear still happens */ }
+      } catch { /* treated as not backed up */ }
+      // Wiping now would permanently destroy whatever never reached the cloud
+      // (a sign-out at a truck stop with no signal used to do exactly that).
+      // Keep everything and let the driver decide. Leaving the data in place
+      // is safe: it stays stamped with this account's data_owner_id, so
+      // claimDataOwnership() wipes it if a DIFFERENT account signs in next.
+      if (!backedUp) return { unsynced: true };
     }
-    // Clear local data before ending the session so the next account on this
-    // device starts with a clean slate — prevents cross-account data leaks.
+    await endSession();
+    return { unsynced: false };
+  }
+
+  // Clear local data before ending the session so the next account on this
+  // device starts with a clean slate — prevents cross-account data leaks.
+  async function endSession() {
     clearAllUserData();
     await supabase.auth.signOut();
   }
@@ -96,7 +114,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch (e) {
       return { error: e instanceof Error ? e.message : 'delete_failed' };
     }
-    await signOut();
+    // The account and its cloud data are gone — nothing left to back up, and
+    // pushing here (with a still-valid token) could try to re-upload it.
+    await endSession();
     return { error: null };
   }
 

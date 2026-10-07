@@ -101,9 +101,20 @@ export interface SubscriptionContextValue {
   /** Dev-only: flip the mock entitlement. No-op in production builds. */
   setMockPro: (value: boolean) => void;
   /** Trigger a purchase flow for the given plan. */
-  purchase:   (plan: 'monthly' | 'annual') => Promise<{ error: string | null }>;
+  purchase:   (plan: 'monthly' | 'annual') => Promise<PurchaseResult>;
   /** Restore previous App Store / Play Store purchases. */
   restore:    () => Promise<{ error: string | null }>;
+}
+
+/**
+ * Outcome of a purchase attempt. Only `isPro: true` means the driver actually
+ * has Pro now — a cancelled sheet, or a purchase the store hasn't confirmed
+ * yet (Ask to Buy, slow receipt), comes back with no error but isPro false.
+ */
+export interface PurchaseResult {
+  error:      string | null;
+  cancelled?: boolean;
+  isPro?:     boolean;
 }
 
 const SubscriptionContext = createContext<SubscriptionContextValue>(
@@ -295,7 +306,7 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
   }
 
   // ── Purchase ──────────────────────────────────────────────────────────────
-  async function purchase(plan: 'monthly' | 'annual'): Promise<{ error: string | null }> {
+  async function purchase(plan: 'monthly' | 'annual'): Promise<PurchaseResult> {
     if (MOCK_MODE) {
       return { error: 'Subscriptions require a dev or production build — not available in Expo Go.' };
     }
@@ -316,15 +327,16 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
       if (!pkg) return { error: `The ${plan} plan is not available right now.` };
 
       const { customerInfo } = await Purchases.purchasePackage(pkg);
-      setIsPro(customerInfo.entitlements.active[ENTITLEMENT_ID] !== undefined);
-      return { error: null };
+      const active = customerInfo.entitlements.active[ENTITLEMENT_ID] !== undefined;
+      setIsPro(active);
+      return { error: null, isPro: active };
     } catch (e: any) {
       // User tapped Cancel — not an error; don't surface anything.
       if (
         e?.userCancelled === true ||
         (PURCHASES_ERROR_CODE && e?.code === PURCHASES_ERROR_CODE.PURCHASE_CANCELLED_ERROR)
       ) {
-        return { error: null };
+        return { error: null, cancelled: true };
       }
       console.error('[TruckerNet] Purchase error:', e);
       return { error: e?.message ?? 'Purchase failed. Please try again.' };

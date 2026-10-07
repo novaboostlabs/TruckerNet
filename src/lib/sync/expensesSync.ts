@@ -34,8 +34,10 @@ export async function pushExpenses(userId: string): Promise<SyncResult> {
   if (!isSupabaseConfigured() || !userId) return { error: null };
 
   try {
+    // Snapshot everything local before the first await (see pushLoads).
     const rows    = getUserExpenses();
     const weekly  = getWeeklyMiles();
+    const weeklyFuelCost = parseFloat(getSetting('weekly_fuel_cost') ?? '0') || 0;
     // Collected rather than returned-on-first-hit: expenses, deletes, and the
     // profile (weekly miles/fuel) are unrelated pieces of data. A failure in
     // one must never silently skip the others — that's exactly how a bad
@@ -80,7 +82,6 @@ export async function pushExpenses(userId: string): Promise<SyncResult> {
     // attempted, regardless of whether the expenses/delete steps above
     // succeeded. Use upsert (not update) so a missing profile row is created
     // rather than silently skipping the save.
-    const weeklyFuelCost = parseFloat(getSetting('weekly_fuel_cost') ?? '0') || 0;
     const { error: profError } = await supabase
       .from('profiles')
       .upsert(

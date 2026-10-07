@@ -73,6 +73,11 @@ export default function ExpensesScreen() {
   const [others, setOthers] = useState<ExpenseEntry[]>([]);
   const [draft, setDraft]   = useState<Draft>(emptyDraft());
   const [monthlyMilesInput, setMonthlyMilesInput] = useState('');
+  // The field is pre-filled with the BLENDED figure (real data + estimate).
+  // Only a value the driver typed may be saved back as their stated pace —
+  // writing the blend back on every save fed it into its own input and, via
+  // weekly_fuel_cost ÷ weekly_miles, silently dragged fuel CPM down.
+  const [milesEdited, setMilesEdited] = useState(false);
   const [freqTarget, setFreqTarget] = useState<FreqTarget>(null);
   const [saved, setSaved]   = useState(false);
 
@@ -249,7 +254,10 @@ export default function ExpensesScreen() {
       })
     );
 
-    if (monthlyMiles > 0) setMonthlyMiles(monthlyMiles);
+    if (milesEdited && monthlyMiles > 0) {
+      setMonthlyMiles(monthlyMiles);
+      setMilesEdited(false);
+    }
 
     // Clear the consumed draft so it isn't double-counted on a second save.
     if (draftValid) setDraft(emptyDraft());
@@ -476,7 +484,7 @@ export default function ExpensesScreen() {
             <TextInput
               style={styles.milesInput}
               value={monthlyMilesInput}
-              onChangeText={setMonthlyMilesInput}
+              onChangeText={(v) => { setMonthlyMilesInput(v); setMilesEdited(true); }}
               keyboardType="decimal-pad"
               placeholder="e.g. 10,000"
               placeholderTextColor={Colors.textTertiary}

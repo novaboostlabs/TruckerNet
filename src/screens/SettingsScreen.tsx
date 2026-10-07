@@ -328,7 +328,28 @@ export default function SettingsScreen({ onClose, onNavigateToExpenses, initialS
         {
           text: t('settings.signOut'),
           style: 'destructive',
-          onPress: () => { onClose(); signOut(); },
+          onPress: async () => {
+            onClose();
+            const { unsynced } = await signOut();
+            if (unsynced) confirmSignOutUnsynced();
+          },
+        },
+      ]
+    );
+  }
+
+  // Backup couldn't be confirmed (usually no signal) — signing out now would
+  // erase anything that never reached the cloud, so make that an explicit choice.
+  function confirmSignOutUnsynced() {
+    Alert.alert(
+      t('settings.signOutUnsyncedTitle'),
+      t('settings.signOutUnsyncedMsg'),
+      [
+        { text: t('settings.staySignedIn'), style: 'cancel' },
+        {
+          text: t('settings.signOutAnyway'),
+          style: 'destructive',
+          onPress: () => { signOut({ discardUnsynced: true }); },
         },
       ]
     );

@@ -140,7 +140,18 @@ export default function RootNavigator() {
         // Otherwise (guest or fresh install) wipe everything for a clean slate
         // on every cold start — no data survives without an account.
         const hadRealAccount = getSetting('has_real_account') === 'true';
-        if (!hadRealAccount) clearAllUserData();
+        // Exception: a driver who FINISHED onboarding but has no account yet.
+        // Email sign-up sends them to Mail to confirm, iOS often kills the app
+        // meanwhile, and wiping here made them redo every onboarding screen.
+        // Keep their setup and resume at sign-up; signing in consolidates it
+        // onto the new account (the owner marker is still unset).
+        const pendingSignup = !hadRealAccount && hasCoreSetup();
+        if (!hadRealAccount && !pendingSignup) clearAllUserData();
+        if (pendingSignup) {
+          profileAfterAuth.current = true;
+          setStep('signup');
+          return;
+        }
 
         // First-ever launch (no account, walkthrough never seen) gets the
         // pre-onboarding walkthrough before sign-in. Survives sign-out (it's

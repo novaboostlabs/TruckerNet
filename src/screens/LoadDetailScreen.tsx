@@ -162,7 +162,9 @@ export default function LoadDetailScreen({ loadId, onClose, startInEdit = false 
   const editMilesTotal = (editingMiles ?? []).reduce(
     (s, r) => s + (parseFloat(r.miles) || 0), 0,
   );
-  const editMilesDiff = load ? Math.abs(editMilesTotal - load.total_miles) : 0;
+  // State rows cover every mile driven — loaded AND the empty run to pickup.
+  const drivenMiles   = load ? load.total_miles + (load.deadhead_miles || 0) : 0;
+  const editMilesDiff = load ? Math.abs(editMilesTotal - drivenMiles) : 0;
 
   function saveEditMiles() {
     if (!editingMiles) return;
@@ -412,7 +414,12 @@ export default function LoadDetailScreen({ loadId, onClose, startInEdit = false 
           </View>
           <View style={styles.routeLineWrap}>
             <View style={styles.routeLine} />
-            <Text style={styles.routeMiles}>{Math.round(load.total_miles).toLocaleString()} mi</Text>
+            <Text style={styles.routeMiles}>
+              {Math.round(load.total_miles).toLocaleString()} mi
+              {load.deadhead_miles > 0
+                ? ` ${t('loadDetail.plusDeadhead', { miles: Math.round(load.deadhead_miles).toLocaleString() })}`
+                : ''}
+            </Text>
           </View>
           <View style={styles.routeEndpoint}>
             <View style={[styles.routeDot, { backgroundColor: Colors.primary }]} />
@@ -768,7 +775,7 @@ export default function LoadDetailScreen({ loadId, onClose, startInEdit = false 
                       styles.smTotalValue,
                       editMilesDiff > 5 && styles.smTotalValueWarn,
                     ]}>
-                      {Math.round(editMilesTotal).toLocaleString()} / {Math.round(load.total_miles).toLocaleString()} mi
+                      {Math.round(editMilesTotal).toLocaleString()} / {Math.round(drivenMiles).toLocaleString()} mi
                     </Text>
                   </View>
                   {editMilesDiff > 5 && (

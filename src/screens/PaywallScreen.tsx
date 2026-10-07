@@ -29,7 +29,7 @@ const URL_PRIVACY = 'https://truckernet.app/privacy';
 // Fallbacks only — real prices come live from RevenueCat (see useSubscription).
 // Used in Expo Go / before offerings load so the screen never renders blank.
 const FALLBACK_MONTHLY = { priceString: '$34.99',  price: 34.99 };
-const FALLBACK_ANNUAL  = { priceString: '$297.99', price: 297.99 };
+const FALLBACK_ANNUAL  = { priceString: '$299.99', price: 299.99 };
 
 // Format a derived amount (per-month equivalent, savings) reusing the currency
 // symbol/placement of a store-provided localized price string, so $/€/£ all work
@@ -122,15 +122,30 @@ export default function PaywallScreen({ onClose, reason = 'generic' }: Props) {
     haptics.tapHeavy();
     capture('upgrade_tapped', { plan, reason });
     setBusy(true);
-    const { error } = await purchase(plan);
+    const { error, cancelled, isPro: nowPro } = await purchase(plan);
     setBusy(false);
+    // Cancelling Apple's sheet used to fall through to the success branch —
+    // logging subscription_purchased (inflating conversion) and closing the
+    // paywall with a success haptic. Stay put; the driver can still choose.
+    if (cancelled) {
+      capture('purchase_cancelled', { plan, reason });
+      return;
+    }
     if (error) {
       haptics.error();
       Alert.alert(t('paywall.purchaseFailedTitle'), error);
       return;
     }
+    if (!nowPro) {
+      // The store took the order but hasn't granted Pro yet (Ask to Buy,
+      // delayed receipt). The customer-info listener unlocks Pro when it lands.
+      capture('purchase_pending', { plan, reason });
+      Alert.alert(t('paywall.purchasePendingTitle'), t('paywall.purchasePendingBody'));
+      onClose();
+      return;
+    }
     haptics.success();
-    capture('subscription_purchased', { plan, reason });
+    capture('subscription_purchased', { plan, reason, trial: trialOnPlan });
     onClose();
   }
 
