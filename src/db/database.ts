@@ -233,10 +233,13 @@ export function initDatabase(): void {
          WHERE verdict IS NOT NULL`,
         [be * 0.15],
       );
+      // Only mark it done once it actually ran. With no break-even yet (fresh
+      // install, before a cloud restore lands) the flag used to be set anyway,
+      // so restored loads kept the old double-counted 'red' forever.
+      db.runSync(
+        `INSERT OR REPLACE INTO settings (key, value) VALUES ('verdict_fix_2026_07_31', '1')`
+      );
     }
-    db.runSync(
-      `INSERT OR REPLACE INTO settings (key, value) VALUES ('verdict_fix_2026_07_31', '1')`
-    );
   }
 }
 
@@ -350,9 +353,96 @@ export function hasFuelEntryToday(): boolean {
 
 export function getLatestOdometer(): number {
   const row = db.getFirstSync<{ odometer_reading: number }>(
-    'SELECT odometer_reading FROM fuel_entries WHERE odometer_reading > 0 ORDER BY date DESC LIMIT 1'
+    'SELECT odometer_reading FROM fuel_entries WHERE odometer_reading > 0 ORDER BY date DESC, odometer_reading DESC LIMIT 1'
   );
   return row?.odometer_reading ?? 0;
+}
+
+export interface OdometerBounds {
+  /** Highest reading on or before the date (0 = none) — this fill's baseline. */
+  before:    number;
+  /** Lowest reading on a LATER date — a back-dated fill must stay under it. */
+  after:     number | null;
+  afterDate: string | null;
+}
+
+/**
+ * The odometer window a fill-up dated `date` must fall inside. Drivers catch
+ * up on receipts before an IFTA deadline, so fills are often entered out of
+ * order; validating against the LATEST reading rejected every back-dated fill
+ * (or pushed drivers into a fake "+1 mile" reading that wrecked fuel CPM).
+ * `excludeId` skips the fill being edited so it can't bound itself.
+ */
+export function getOdometerBounds(date: string, excludeId?: string): OdometerBounds {
+  const before = db.getFirstSync<{ v: number | null }>(
+    `SELECT MAX(odometer_reading) AS v FROM fuel_entries
+     WHERE odometer_reading > 0 AND date <= ? AND id != ?`,
+    [date, excludeId ?? ''],
+  );
+  const after = db.getFirstSync<{ v: number; d: string }>(
+    `SELECT odometer_reading AS v, date AS d FROM fuel_entries
+     WHERE odometer_reading > 0 AND date > ? AND id != ?
+     ORDER BY odometer_reading ASC LIMIT 1`,
+    [date, excludeId ?? ''],
+  );
+  return { before: before?.v ?? 0, after: after?.v ?? null, afterDate: after?.d ?? null };
+}
+
+/** State of the most recent fill-up — a better default than a fixed state. */
+export function getLastFuelState(): string | null {
+  const row = db.getFirstSync<{ s: string }>(
+    `SELECT state_purchased AS s FROM fuel_entries
+     WHERE state_purchased IS NOT NULL AND state_purchased != ''
+     ORDER BY date DESC, rowid DESC LIMIT 1`,
+  );
+  return row?.s ?? null;
+}
+
+/**
+ * Re-derive miles_driven / mpg / cost_per_mile for every fill from the
+ * odometer chain (date order, then reading). A fill's miles are the distance
+ * since the PREVIOUS reading — so inserting, editing or deleting one fill
+ * changes the next fill's numbers too, which used to be left stale.
+ * A reading that doesn't advance the chain (typo) gets 0 miles rather than
+ * resetting it. Fills without an odometer are left alone.
+ */
+export function recomputeFuelChain(): void {
+  const rows = db.getAllSync<{
+    id: string; dollars_spent: number; gallons: number; odometer_reading: number;
+    miles_driven: number; mpg: number; cost_per_mile: number;
+  }>(
+    `SELECT id, dollars_spent, gallons, odometer_reading, miles_driven, mpg, cost_per_mile
+     FROM fuel_entries WHERE odometer_reading > 0
+     ORDER BY date ASC, odometer_reading ASC`,
+  );
+  const changed = (a: number, b: number) => Math.abs((a ?? 0) - b) > 1e-9;
+  let prev = 0;
+  db.withTransactionSync(() => {
+    for (const r of rows) {
+      const miles = prev > 0 && r.odometer_reading > prev ? r.odometer_reading - prev : 0;
+      const mpg   = miles > 0 && r.gallons > 0 ? miles / r.gallons : 0;
+      const cpm   = miles > 0 ? r.dollars_spent / miles : 0;
+      if (changed(r.miles_driven, miles) || changed(r.mpg, mpg) || changed(r.cost_per_mile, cpm)) {
+        db.runSync(
+          'UPDATE fuel_entries SET miles_driven = ?, mpg = ?, cost_per_mile = ? WHERE id = ?',
+          [miles, mpg, cpm, r.id],
+        );
+      }
+      prev = Math.max(prev, r.odometer_reading);
+    }
+  });
+}
+
+/** Log a new fill-up; derived fields are re-derived from the odometer chain. */
+export function addFuelEntry(e: Omit<FuelEntryRow, 'id'>): string {
+  const id = uuidv4();
+  db.runSync(
+    `INSERT INTO fuel_entries (${FUEL_COLUMNS}) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [id, e.date, e.dollars_spent, e.gallons, e.miles_driven, e.cost_per_mile,
+     e.price_per_gallon, e.mpg, e.odometer_reading, e.state_purchased],
+  );
+  recomputeFuelChain();
+  return id;
 }
 
 export interface FuelEntryRow {
@@ -405,6 +495,7 @@ export function mergeFuelEntries(rows: FuelEntryRow[]): void {
       insertOrReplaceFuel(r);
     }
   });
+  recomputeFuelChain(); // restored fills slot into the local chain
 }
 
 // Insert a fuel row only if it isn't already present locally. LOCAL WINS on a
@@ -549,12 +640,17 @@ export function getMonthlyMilesDetail(): MonthlyMilesDetail {
     );
     if (rolling && rolling.load_count >= 2 && rolling.total_miles > 0 && rolling.first_date) {
       const spanDays = daysBetweenISO(rolling.first_date, rolling.last_date);
-      if (spanDays >= MILES_MIN_SPAN_DAYS && rolling.total_miles / spanDays <= MILES_MAX_PER_DAY) {
+      // n loads dated first→last span only n−1 gaps: the last load's miles are
+      // driven AFTER the span ends. Counting all n overstated the pace (and
+      // understated fixed CPM) by n/(n−1) — +20% at 6 loads. Use the average
+      // load as the excluded one so same-day ties don't matter.
+      const spanMiles = rolling.total_miles * (rolling.load_count - 1) / rolling.load_count;
+      if (spanDays >= MILES_MIN_SPAN_DAYS && spanMiles / spanDays <= MILES_MAX_PER_DAY) {
         const conf = clamp01(spanDays / MILES_FULL_CONF_DAYS)
                    * clamp01(rolling.load_count / MILES_LOADS_FULL_COUNT)
                    * MILES_LOADS_CONF_CAP;
         if (!best || conf > best.conf) {
-          best = { monthly: (rolling.total_miles / spanDays) * 30, source: 'loads_90d', conf };
+          best = { monthly: (spanMiles / spanDays) * 30, source: 'loads_90d', conf };
         }
       }
     }
@@ -853,10 +949,12 @@ function yearStart(): string {
   return `${new Date().getFullYear()}-01-01`;
 }
 
-/** Quarter start date (1-indexed). */
+/** Start of an IRS estimated-tax payment period (1-indexed). These are NOT
+ *  calendar quarters — they must match currentTaxQuarter(): Jan–Mar, Apr–May,
+ *  Jun–Aug, Sep–Dec. (Calendar starts dropped all of June and September.) */
 function quarterStartDate(q: 1 | 2 | 3 | 4): string {
   const year = new Date().getFullYear();
-  const month = [1, 4, 7, 10][q - 1];
+  const month = [1, 4, 6, 9][q - 1];
   return `${year}-${String(month).padStart(2, '0')}-01`;
 }
 
@@ -881,26 +979,33 @@ export interface TaxSetAside {
   nextDeadlineDate: string; // ISO YYYY-MM-DD
 }
 
-/** IRS quarterly estimated-tax due dates (month/day, 0-indexed month). */
-const TAX_DEADLINES: [number, number][] = [
-  [3, 15],   // Q1 due Apr 15
-  [5, 16],   // Q2 due Jun 16
-  [8, 15],   // Q3 Sep 15
-  [0, 15],   // Q4 due Jan 15 (next year)
-];
+/** IRS estimated-tax due dates: the 15th of these months (0-indexed). The
+ *  previous year's Q4 payment is due Jan 15 of the current year. */
+const TAX_DEADLINE_MONTHS = [0, 3, 5, 8];   // Jan, Apr, Jun, Sep
+
+/** The 15th, rolled forward past a weekend (as the IRS does). Federal
+ *  holidays aren't modeled — this is a reminder, not a filing service. */
+function taxDueDate(year: number, month: number): Date {
+  const d = new Date(year, month, 15);
+  const dow = d.getDay();
+  if (dow === 6) d.setDate(17);
+  else if (dow === 0) d.setDate(16);
+  return d;
+}
 
 function nextDeadlineISO(): string {
-  const now  = new Date();
-  const year = now.getFullYear();
-  for (let i = 0; i < TAX_DEADLINES.length; i++) {
-    const [m, d] = TAX_DEADLINES[i];
-    const due = new Date(i === 3 ? year + 1 : year, m, d);
-    if (due.getTime() > now.getTime()) {
-      return localDateISO(due);
-    }
+  const today = localDateISO();
+  const year  = new Date().getFullYear();
+  // Includes Jan 15 of THIS year (early January used to skip straight to April,
+  // hiding the Q4 payment due that week). The due date itself still counts.
+  for (const [y, m] of [
+    ...TAX_DEADLINE_MONTHS.map((m) => [year, m]),
+    [year + 1, 0],
+  ]) {
+    const due = localDateISO(taxDueDate(y, m));
+    if (due >= today) return due;
   }
-  // Fallback: Jan 15 next year
-  return `${year + 1}-01-15`;
+  return localDateISO(taxDueDate(year + 1, 0));
 }
 
 function periodNet(startISO: string): number {
@@ -1291,8 +1396,10 @@ export function consecutiveWeeksOverBreakEven(): number {
     );
 
     if (!row || row.miles <= 0) break;  // no loads — streak ends
-    const rpm = row.net / row.miles;
-    if (rpm < breakEvenRPM) break;      // under — streak ends
+    // net_pay already has fuel + fixed costs taken out, so "over break-even"
+    // means net ≥ 0. Comparing net/mile against break-even again demanded
+    // ~2× break-even gross — the 2026-07-31 double-count, missed here.
+    if (row.net < 0) break;             // under — streak ends
     streak++;
   }
 
@@ -1813,7 +1920,13 @@ function recalculateLoadFinancials(loadId: string): void {
   const netRPM    = load.total_miles > 0 ? netPay         / load.total_miles : 0;
   const grossRPM  = load.total_miles > 0 ? load.gross_pay / load.total_miles : 0;
 
-  const { breakEvenRPM } = calcBreakEven();
+  // Judge the load against the break-even it was costed at (its stored fuel +
+  // fixed costs), not today's — otherwise editing a note could flip green→amber
+  // with the net unchanged. Loads without stored costs fall back to today's.
+  const storedBE = load.total_miles > 0
+    ? (load.fuel_cost_for_load + load.fixed_cost_for_load) / load.total_miles
+    : 0;
+  const breakEvenRPM = storedBE > 0 ? storedBE : calcBreakEven().breakEvenRPM;
   let verdict: string | null = null;
   if (breakEvenRPM > 0) {
     // Costs (fuel + fixed + per-load extras) are already inside netRPM, so
@@ -2362,6 +2475,7 @@ export function updateFuelEntry(id: string, e: {
     [e.date, e.dollars_spent, e.gallons, e.miles_driven, e.cost_per_mile,
      e.price_per_gallon, e.mpg, e.odometer_reading, e.state_purchased, id],
   );
+  recomputeFuelChain();
 }
 
 /** Delete a fill-up, tombstoning it so the delete propagates to the cloud. */
@@ -2370,6 +2484,7 @@ export function deleteFuelEntry(id: string): void {
     db.runSync('DELETE FROM fuel_entries WHERE id = ?', [id]);
     queueDelete('fuel_entries', id);
   });
+  recomputeFuelChain(); // the next fill now measures from the one before
 }
 
 /** Replace all local loads (+ their state_mileage rows) with the given sets.
@@ -2397,7 +2512,8 @@ export function replaceLoads(
  *  is what cloud pull uses so re-authenticating never destroys local data. */
 export function mergeLoads(
   loads: LoadRow[],
-  stateMileage: StateMileageRow[]
+  stateMileage: StateMileageRow[],
+  loadExpenses: LoadExpenseRow[] = [],
 ): void {
   // LOCAL WINS: only add cloud loads that aren't already local (so a locally-edited
   // load and its state_mileage are never overwritten by a staler cloud copy), and
@@ -2413,12 +2529,24 @@ export function mergeLoads(
     for (const l of loads) {
       if (tombstoned.has(l.id)) continue;
       const exists = db.getFirstSync<{ x: number }>('SELECT 1 AS x FROM loads WHERE id = ?', [l.id]);
-      if (exists) continue; // keep the local copy + its state rows untouched
+      // Keep the local copy + ALL its child rows untouched. (Expenses used to be
+      // replaced from the cloud for every load after this merge — wiping a
+      // lumper added offline, and throwing an FK error for a load deleted
+      // locally but not yet pushed, which failed the whole pull.)
+      if (exists) continue;
       upsertLoadRow(l); // id is guaranteed absent → plain insert
       for (const sm of smByLoad.get(l.id) ?? []) {
         db.runSync(
           'INSERT INTO state_mileage (load_id, state, miles, is_manually_edited) VALUES (?,?,?,?)',
           [sm.load_id, sm.state, sm.miles, sm.is_manually_edited]
+        );
+      }
+      for (const e of loadExpenses) {
+        if (e.load_id !== l.id) continue;
+        db.runSync(
+          `INSERT INTO load_expenses (id, load_id, label, category, amount, date, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO NOTHING`,
+          [e.id, e.load_id, e.label, e.category, e.amount, e.date, e.created_at]
         );
       }
     }
@@ -2542,16 +2670,23 @@ export function clearAllUserData(): void {
   db.runSync('DELETE FROM fuel_entries');
   db.runSync('DELETE FROM user_expenses');
   db.runSync('DELETE FROM general_expenses');
+  // Pending cloud deletes belong to the account that made them — draining
+  // them under the next account would be meaningless at best.
+  db.runSync('DELETE FROM sync_deletes');
   // Clear all user-specific settings.
   // Preserved: language, walkthrough_seen (device preferences that survive sign-out).
   // onboarding_completed:* per-user keys are preserved — they're keyed by user ID
   // so leaking them to a different account is harmless (wrong key is never matched).
+  // tax_rate / share_rate_data etc. are listed because pull is local-wins: left
+  // behind, the previous driver's values would be pushed into the next account.
   db.runSync(
     `DELETE FROM settings WHERE key IN (
       'weekly_miles', 'weekly_fuel_cost', 'guest_mode', 'has_real_account',
       'income_goal_amount', 'income_goal_period',
       'income_goal_milestones', 'income_goal_milestone_period',
       'profile_name', 'profile_equipment_type', 'profile_truck_number', 'profile_home_base',
+      'tax_rate', 'tax_rate_mode', 'truck_paid_off', 'share_rate_data',
+      'last_sync_at', 'last_sync_error',
       'data_owner_id'
     )`
   );
@@ -2664,10 +2799,14 @@ export function getFuelStats(): FuelStats {
            ORDER BY date DESC, rowid DESC LIMIT 10)`
   );
 
+  // Month CPM is miles-weighted over fills that HAVE miles. A plain
+  // AVG(cost_per_mile) averaged in the $0 of a first or baseline fill —
+  // one $0.62 fill plus one $0 fill showed $0.31.
   const monthRow = db.getFirstSync<{ spent: number; gallons: number; avg_cpm: number }>(
     `SELECT COALESCE(SUM(dollars_spent), 0) as spent,
             COALESCE(SUM(gallons), 0)       as gallons,
-            COALESCE(AVG(cost_per_mile), 0) as avg_cpm
+            COALESCE(SUM(CASE WHEN miles_driven > 0 THEN dollars_spent END)
+                     / NULLIF(SUM(CASE WHEN miles_driven > 0 THEN miles_driven END), 0), 0) as avg_cpm
      FROM fuel_entries WHERE date >= ?`,
     [month]
   );

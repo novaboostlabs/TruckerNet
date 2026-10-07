@@ -16,15 +16,9 @@ import { usePaywall } from '../contexts/PaywallContext';
 import { capture } from '../lib/analytics';
 import GridBackground from '../components/GridBackground';
 import AccentRule from '../components/AccentRule';
+import { filingQuarter, type Quarter } from '../lib/quarters';
 
-type Quarter = 1 | 2 | 3 | 4;
 const QUARTER_LABELS = ['Q1', 'Q2', 'Q3', 'Q4'] as const;
-
-
-function currentQuarter(): Quarter {
-  const m = new Date().getMonth() + 1;
-  return (m <= 3 ? 1 : m <= 6 ? 2 : m <= 9 ? 3 : 4) as Quarter;
-}
 
 function generateCSV(rows: IFTARow[], year: number, q: Quarter): string {
   const lines = [
@@ -34,7 +28,7 @@ function generateCSV(rows: IFTARow[], year: number, q: Quarter): string {
     '',
     `TOTAL,${rows.reduce((s, r) => s + r.miles, 0).toFixed(1)},${rows.reduce((s, r) => s + r.gallons, 0).toFixed(1)}`,
     '',
-    'Figures are estimates. Verify all totals before filing your IFTA return.',
+    'Estimates based on logged loads and fuel entries. TruckerNet is not a tax-filing service. Verify all totals before filing your IFTA return.',
   ];
   return lines.join('\n');
 }
@@ -164,8 +158,7 @@ export default function IFTAScreen() {
   const { t } = useTranslation();
   const { isPro } = useSubscription();
   const { present: presentPaywall } = usePaywall();
-  const thisYear    = new Date().getFullYear();
-  const thisQuarter = currentQuarter();
+  const { year: thisYear, quarter: thisQuarter } = filingQuarter();
 
   const [year,    setYear]    = useState(thisYear);
   const [quarter, setQuarter] = useState<Quarter>(thisQuarter);

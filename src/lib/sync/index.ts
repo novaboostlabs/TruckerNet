@@ -62,8 +62,8 @@ export async function syncAll(userId: string): Promise<void> {
  * staler cloud copy overwrite the just-made edits (weekly_miles / weekly_fuel_cost
  * and the profile are restored from the cloud row on pull, bypassing the merge).
  */
-export async function pushAll(userId: string): Promise<void> {
-  if (!isSupabaseConfigured() || !userId) return;
+export async function pushAll(userId: string): Promise<{ error: string | null }> {
+  if (!isSupabaseConfigured() || !userId) return { error: null };
 
   const results = await Promise.all([
     pushExpenses(userId),
@@ -76,6 +76,7 @@ export async function pushAll(userId: string): Promise<void> {
   const firstError = results.map((r) => r?.error).find(Boolean) ?? null;
   setSetting(LAST_SYNC_ERROR, firstError ?? '');
   if (!firstError) setSetting(LAST_SYNC_AT, new Date().toISOString());
+  return { error: firstError };
 }
 
 export function getSyncStatus(): SyncStatus {

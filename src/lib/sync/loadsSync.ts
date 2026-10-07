@@ -14,7 +14,7 @@
 import { supabase, isSupabaseConfigured } from '../supabase';
 import {
   getAllLoads, getAllStateMileage, mergeLoads,
-  getAllLoadExpenses, replaceLoadExpenses,
+  getAllLoadExpenses,
   getQueuedDeletes, clearQueuedDeletes,
   LoadRow, StateMileageRow, LoadExpenseRow,
 } from '../../db/database';
@@ -22,13 +22,30 @@ import {
 interface SyncResult { error: string | null; }
 interface PullResult extends SyncResult { found: boolean; }
 
-export async function pushLoads(userId: string): Promise<SyncResult> {
+// pushLoads is fired-and-forgotten from ~10 call sites. Its child-row sync is
+// "delete all cloud rows for these loads, then re-insert" — two overlapping
+// runs could interleave as delete, delete, insert, insert and DOUBLE every
+// state_mileage row in the cloud (doubled IFTA miles on the next device that
+// pulls). Runs are therefore serialized: each waits for the previous one.
+let pushLoadsChain: Promise<unknown> = Promise.resolve();
+
+export function pushLoads(userId: string): Promise<SyncResult> {
+  const run = pushLoadsChain.then(() => pushLoadsOnce(userId));
+  pushLoadsChain = run.catch(() => {});
+  return run;
+}
+
+async function pushLoadsOnce(userId: string): Promise<SyncResult> {
   if (!isSupabaseConfigured() || !userId) return { error: null };
 
   try {
-    const loads       = getAllLoads();
+    // Snapshot ALL local rows before the first await. Reading a table after a
+    // network round-trip could see it mid-change — e.g. emptied by sign-out —
+    // and the delete-then-reinsert below would then wipe the cloud copy.
+    const loads        = getAllLoads();
     const stateMileage = getAllStateMileage();
-    const localIds    = loads.map((l) => l.id);
+    const allExpenses  = getAllLoadExpenses();
+    const localIds     = loads.map((l) => l.id);
 
     if (loads.length > 0) {
       const loadsPayload = loads.map((l) => ({
@@ -101,7 +118,6 @@ export async function pushLoads(userId: string): Promise<SyncResult> {
       }
 
       // Sync load_expenses: same delete-then-reinsert pattern.
-      const allExpenses = getAllLoadExpenses();
       const { error: delExpErr } = await supabase
         .from('load_expenses')
         .delete()
@@ -227,14 +243,9 @@ export async function pullLoads(userId: string): Promise<PullResult> {
         }))
       );
 
-      mergeLoads(loads, stateMileage);
-
-      // Restore load expenses — replace per-load rather than wiping all.
-      const loadIds = loads.map(l => l.id);
-      for (const loadId of loadIds) {
-        const forLoad = loadExpenses.filter(e => e.load_id === loadId);
-        replaceLoadExpenses(loadId, forLoad);
-      }
+      // Local wins for a load AND its child rows; cloud-only loads arrive
+      // with their state mileage + expenses in one transaction.
+      mergeLoads(loads, stateMileage, loadExpenses);
     }
 
     return { error: null, found: rows.length > 0 };
